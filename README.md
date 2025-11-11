@@ -40,8 +40,8 @@ pip install scipy matplotlib
 
 pip install qwen_vl_utils
 
-for windows
-pip install triton-windows
+#for windows
+#pip install triton-windows
 
 ```
 

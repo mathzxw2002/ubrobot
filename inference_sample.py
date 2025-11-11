@@ -33,9 +33,9 @@ SEPARATOR = "-" * 20
 
 def main():
     # Load model
-    model_name = "E:/models/nv-community/Cosmos-Reason1-7B"
+    model_name = "/home/sany/.cache/modelscope//hub/models/nv-community/Cosmos-Reason1-7B"
     model = transformers.Qwen2_5_VLForConditionalGeneration.from_pretrained(
-        model_name, torch_dtype="auto", device_map="auto"
+        model_name, torch_dtype="float16", device_map="auto"
     )
     processor: transformers.Qwen2_5_VLProcessor = (
         transformers.AutoProcessor.from_pretrained(model_name)

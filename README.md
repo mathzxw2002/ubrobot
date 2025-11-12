@@ -13,12 +13,16 @@ UBRobot works with Python 3.10+ and PyTorch 2.8+.
 
 ## Environment Setup
 
-Create a virtual environment with Python 3.10 and activate it, e.g. with [miniforge](https://github.com/conda-forge/miniforge):
+Create a virtual environment with Python 3.10 and activate it:
 
 ```bash
 conda create -y -n lerobot python=3.10
 conda activate ubrobot
+```
 
+When using conda, install ffmpeg in your environment:
+
+conda install ffmpeg -c conda-forge
 
 
 # 0. Preparation

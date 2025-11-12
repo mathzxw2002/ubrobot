@@ -2,6 +2,8 @@ import torch
 from transformers import Qwen2_5_VLForConditionalGeneration, AutoProcessor
 from PIL import Image
 
+from qwen_plot_util import plot_bounding_boxes_abs
+
 # 1. Load the model and processor
 model_path = "/home/sany/.cache/modelscope/hub/models/Qwen/Qwen2.5-VL-3B-Instruct" # Use an appropriate model size
 model = Qwen2_5_VLForConditionalGeneration.from_pretrained(
@@ -13,7 +15,7 @@ processor = AutoProcessor.from_pretrained(model_path)
 
 # 2. Load the image
 # Replace with your local image path
-image_path = "./assets/cat.png"
+image_path = "./assets/dining_table.png"
 image = Image.open(image_path).convert("RGB")
 
 # 3. Define the prompt for grounding
@@ -21,7 +23,7 @@ image = Image.open(image_path).convert("RGB")
 # Qwen-VL expects absolute coordinates.
 # The model will output bounding box tokens, typically in the format:
 # "<box>x_min, y_min, x_max, y_max</box>"
-prompt_text = "Please provide the bounding box for the cat in the image."
+prompt_text = 'locate every instance that belongs to the following categories: "plate/dish, scallop, wine bottle, tv, bowl, spoon, air conditioner, coconut drink, cup, chopsticks, person". Report bbox coordinates in JSON format.'
 
 # Structure the messages according to the chat template
 messages = [
@@ -63,3 +65,20 @@ print(output_text)
 # "The cat is located at <box>120, 250, 400, 600</box>."
 # You will need to parse this string to extract the coordinates for further use (e.g., drawing the box).
 
+
+
+'''prompt = 'locate every instance that belongs to the following categories: "plate/dish, scallop, wine bottle, tv, bowl, spoon, air conditioner, coconut drink, cup, chopsticks, person". Report bbox coordinates in JSON format.'
+img_url = "./assets/spatial_understanding/dining_table.png"
+model_response = inference_with_openai_api(img_url, prompt)
+print(model_response)
+
+response = requests.get(img_url)
+response.raise_for_status()
+image = Image.open(BytesIO(response.content))
+
+image.thumbnail([640,640], Image.Resampling.LANCZOS)
+plot_bounding_boxes(image, model_response)'''
+
+#image.thumbnail([640,640], Image.Resampling.LANCZOS)
+
+plot_bounding_boxes_abs(image, output_text)

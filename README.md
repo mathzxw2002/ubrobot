@@ -22,53 +22,43 @@ conda activate ubrobot
 
 When using conda, install ffmpeg in your environment:
 
-conda install ffmpeg -c conda-forge
-
-
-# 0. Preparation
-
+```bash 
+conda install ffmpeg=7.1.1 -c conda-forge
 ```
+
+```bash
 pip install torch==2.8.0 torchvision==0.23.0 torchaudio==2.8.0 --index-url https://download.pytorch.org/whl/cu128
 
-#pip install torch==2.6.0 torchvision==0.21.0 --index-url https://download.pytorch.org/whl/cu124
-#import torch
-#print(torch.__version__)
-
-for linux
 wget https://github.com/Dao-AILab/flash-attention/releases/download/v2.8.3/flash_attn-2.8.3+cu12torch2.8cxx11abiFALSE-cp310-cp310-linux_x86_64.whl
 pip install flash_attn-2.8.3+cu12torch2.8cxx11abiFALSE-cp310-cp310-linux_x86_64.whl
 
-#wget https://github.com/Dao-AILab/flash-attention/releases/download/v2.7.3/flash_attn-2.7.3+cu12torch2.6cxx11abiFALSE-cp310-cp310-linux_x86_64.whl
-#pip install flash_attn-2.7.3+cu12torch2.6cxx11abiFALSE-cp310-cp310-linux_x86_64.whl
-
-#for windows
-#wget https://huggingface.co/lldacing/flash-attention-windows-wheel/resolve/main/flash_attn-2.7.4%2Bcu124torch2.6.0cxx11abiFALSE-cp310-cp310-win_amd64.whl?download=true
-#pip install flash_attn-2.7.4%2Bcu124torch2.6.0cxx11abiFALSE-cp310-cp310-win_amd64.whl
-
-
-#pip install transformers==4.51.0 diffusers==0.31.0 accelerate==1.10.1 opencv-python==4.10.0.82 pillow==10.4.0 numpy==1.26.4 gym==0.23.1
 pip install transformers==4.51.0 diffusers==0.31.0 accelerate==1.10.1 opencv-python==4.10.0.82 pillow==10.4.0 gym==0.23.1
 pip install imageio==2.37.0 imageio-ffmpeg==0.6.0 ftfy==6.3.1
 pip install scipy matplotlib
 pip install qwen_vl_utils
+```
 
-# install InternNav
-cd InternNav
-pip install -e .  
+## Install LeRobot
 
+### From Source
+First, clone the repository and navigate into the directory:
+```bash
+git clone https://github.com/huggingface/lerobot.git
+cd lerobot
 
-#for windows
-#pip install triton-windows
+pip install -e ".[aloha, pusht]"
 
 ```
 
-We recommend to install flash-attn2 via pre-built wheel. If you have trouble with the installation, you might also skip this installation and remove the line of attn_implementation="flash_attention_2" in the model initialization.
+## Install InternNav from Source
 
+```
 
-conda install ffmpeg=7.1.1 -c conda-forge
+cd InternNav
+pip install -e .  
 
-cd lerobot
-pip install -e ".[aloha, pusht]"
+```
+
 
 | torchcodec       | torch           | Python          |
 |------------------|-----------------|-----------------|
@@ -91,3 +81,20 @@ python src/lerobot/scripts/lerobot_eval.py
 
 python src/lerobot/processor/migrate_policy_normalization.py --pretrained-path /media/sany/ef87a074-cf12-40ba-ba8a-e4080adbba8b/modelscope/hub/models/lerobot/diffusion_pusht
 
+
+# Related Projects
+- [InternNav](https://github.com/InternRobotics/InternNav) : A open platform for building generalized navigation foundation models (with 6 mainstream benchmarks and 10+ baselines).
+- [Qwen3-VL](https://github.com/QwenLM/Qwen3-VL): The pretrained vision-language foundation model.
+- [LeRobot](https://github.com/huggingface/lerobot): The data format used in this project largely follows the conventions of LeRobot.
+- [Cosmos](https://github.com/nvidia-cosmos/cosmos-reason1): Cosmos-Reason1 models understand the physical common sense and generate appropriate embodied decisions in natural language through long chain-of-thought reasoning processes.
+
+# Related Papers and Tutorials
+@misc{internnav2025,
+    title = {{InternNav: InternRobotics' open platform for building generalized navigation foundation}},
+    author = {InternNav Contributors},
+    howpublished = {\url{https://github.com/InternRobotics/InternNav}},
+    year = {2025}
+}
+- [InternUtopia](https://github.com/yourlink) (Previously `GRUtopia`): The closed-loop evaluation and GRScenes-100 data in this framework relies on the InternUtopia framework.
+
+  

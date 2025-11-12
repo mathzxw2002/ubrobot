@@ -80,3 +80,4 @@ lerobot-eval --policy.path=/home/sany/.cache/modelscope/hub/models/lerobot/diffu
 python src/lerobot/scripts/lerobot_eval.py
 
 python src/lerobot/processor/migrate_policy_normalization.py --pretrained-path /media/sany/ef87a074-cf12-40ba-ba8a-e4080adbba8b/modelscope/hub/models/lerobot/diffusion_pusht
+

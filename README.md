@@ -89,9 +89,8 @@ python src/lerobot/processor/migrate_policy_normalization.py --pretrained-path /
 - [Cosmos](https://github.com/nvidia-cosmos/cosmos-reason1): Cosmos-Reason1 models understand the physical common sense and generate appropriate embodied decisions in natural language through long chain-of-thought reasoning processes.
 
 # Related Papers and Tutorials
--
 ```bibtex
-@misc{internnav2025,
+- @misc{internnav2025,
     title = {{InternNav: InternRobotics' open platform for building generalized navigation foundation}},
     author = {InternNav Contributors},
     howpublished = {\url{https://github.com/InternRobotics/InternNav}},

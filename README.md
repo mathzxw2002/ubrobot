@@ -97,4 +97,12 @@ python src/lerobot/processor/migrate_policy_normalization.py --pretrained-path /
 }
 - [InternUtopia](https://github.com/yourlink) (Previously `GRUtopia`): The closed-loop evaluation and GRScenes-100 data in this framework relies on the InternUtopia framework.
 
+If you find our work helpful, please cite:
+bibtex
+@misc{internnav2025,
+    title = {{InternNav: InternRobotics' open platform for building generalized navigation foundation}},
+    author = {InternNav Contributors},
+    howpublished = {\url{https://github.com/InternRobotics/InternNav}},
+    year = {2025}
+}
   

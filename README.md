@@ -7,17 +7,21 @@ repo for robot navigation and manipulation (WIP)
 - [ ] xx
 
 
+# Installation
+
+UBRobot works with Python 3.10+ and PyTorch 2.8+.
+
+## Environment Setup
+
+Create a virtual environment with Python 3.10 and activate it, e.g. with [miniforge](https://github.com/conda-forge/miniforge):
+
+```bash
+conda create -y -n lerobot python=3.10
+conda activate ubrobot
+
+
+
 # 0. Preparation
-
-## 0.0 Create Conda Environment
-
-First, we should create a conda environment.
-
-```
-conda create -n ubrobot_env python=3.10
-conda activate ubrobot_env
-
-```
 
 ```
 pip install torch==2.8.0 torchvision==0.23.0 torchaudio==2.8.0 --index-url https://download.pytorch.org/whl/cu128

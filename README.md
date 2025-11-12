@@ -90,7 +90,7 @@ python src/lerobot/processor/migrate_policy_normalization.py --pretrained-path /
 
 # Related Papers and Tutorials
 ```bibtex
-- @misc{internnav2025,
+@misc{internnav2025,
     title = {{InternNav: InternRobotics' open platform for building generalized navigation foundation}},
     author = {InternNav Contributors},
     howpublished = {\url{https://github.com/InternRobotics/InternNav}},

@@ -62,18 +62,20 @@ conda install ffmpeg=7.1.1 -c conda-forge
 cd lerobot
 pip install -e ".[aloha, pusht]"
 
+| torchcodec       | torch           | Python          |
+|------------------|-----------------|-----------------|
+| main / nightly   | main / nightly  | >=3.10, <=3.13  |
+| 0.8              | 2.9             | >=3.10, <=3.13  |
+| 0.7              | 2.8             | >=3.9,  <=3.13  |
+| 0.6              | 2.8             | >=3.9,  <=3.13  |
+| 0.5              | 2.7             | >=3.9,  <=3.13  |
+| 0.4              | 2.7             | >=3.9,  <=3.13  |
+| 0.3              | 2.7             | >=3.9,  <=3.13  |
+| 0.2              | 2.6             | >=3.9,  <=3.13  |
+| 0.1              | 2.5             | >=3.9,  <=3.12  |
+| 0.0.3            | 2.4             | >=3.8,  <=3.12  |
 
-torchcodec	torch	Python
-main / nightly	main / nightly	>=3.10, <=3.13
-0.8	2.9	>=3.10, <=3.13
-0.7	2.8	>=3.9, <=3.13
-0.6	2.8	>=3.9, <=3.13
-0.5	2.7	>=3.9, <=3.13
-0.4	2.7	>=3.9, <=3.13
-0.3	2.7	>=3.9, <=3.13
-0.2	2.6	>=3.9, <=3.13
-0.1	2.5	>=3.9, <=3.12
-0.0.3	2.4	>=3.8, <=3.12
+
 
 lerobot-eval --policy.path=/home/sany/.cache/modelscope/hub/models/lerobot/diffusion_pusht_migrated --env.type=pusht --eval.batch_size=10 --eval.n_episodes=10 --policy.use_amp=false --policy.device=cuda
 

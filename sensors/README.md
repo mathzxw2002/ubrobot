@@ -9,9 +9,11 @@ sudo apt install ros-jazzy-ros-base
 ```
 
 https://www.yahboom.com/build/id/11676/cid/681 password: ac06
+
 Install dependencies for yahboom Nuwa-HP60C Depth Camera:
 ```
 sudo apt install ros-jazzy-astra-camera
+
 $ROS_DISTRO = jazzy
 sudo apt install libgflags-dev  ros-$ROS_DISTRO-image-geometry ros-$ROS_DISTRO-camera-info-manager ros-$ROS_DISTRO-image-transport ros-$ROS_DISTRO-image-publisher libgoogle-glog-dev libusb-1.0-0-dev libeigen3-dev
 ```

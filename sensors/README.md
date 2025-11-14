@@ -40,7 +40,7 @@ source /opt/ros/jazzy/setup.bash
 
 ### yahboom Nuwa-HP60C Depth Camera
 
-https://www.yahboom.com/build/id/11676/cid/681 password: ac06
+https://www.yahboom.com/build.html?id=11785&cid=681 password: ac06
 
 Install dependencies for yahboom Nuwa-HP60C Depth Camera:
 ```

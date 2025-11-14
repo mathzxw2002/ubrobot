@@ -1,0 +1,13 @@
+Log file created at: 2024/01/11 15:27:40
+Running on machine: VM
+Running duration (h:mm:ss): 0:00:00
+Log line format: [IWEF]yyyymmdd hh:mm:ss.uuuuuu threadid file:line] msg
+[I20240111 15:27:40.151034  2841 DeviceManager.cpp:56] DeviceManager init ...
+[I20240111 15:27:40.160171  2841 LinuxPal.cpp:22] createObPal: create LinuxPal!
+[I20240111 15:27:40.164573  2841 EnumeratorLibusb.cpp:325] queryDevicesInfo done!
+[I20240111 15:27:40.164647  2841 DeviceManager.cpp:382] Current usb device port list::
+[I20240111 15:27:40.164659  2841 DeviceManager.cpp:371] No device matched!
+[I20240111 15:27:40.164705  2841 LinuxPal.cpp:150] Create PollingDeviceWatcher!
+[I20240111 15:27:40.164713  2841 DeviceManager.cpp:101] DeviceManager init  done!
+[I20240111 15:27:40.164716  2841 DeviceManager.cpp:52] DeviceManager construct done
+[I20240111 15:27:40.164718  2841 Context.cpp:56] Context created!

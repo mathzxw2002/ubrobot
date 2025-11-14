@@ -1,0 +1,6 @@
+Log file created at: 2023/06/25 09:33:17
+Running on machine: VM
+Running duration (h:mm:ss): 0:00:00
+Log line format: [IWEF]yyyymmdd hh:mm:ss.uuuuuu threadid file:line] msg
+[I20230625 09:33:17.681829 62669 DeviceManager.cpp:56] DeviceManager init ...
+[I20230625 09:33:17.681908 62669 LinuxPal.cpp:22] createObPal: create LinuxPal!

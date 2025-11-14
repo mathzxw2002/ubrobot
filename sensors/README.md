@@ -47,6 +47,7 @@ Install dependencies for yahboom Nuwa-HP60C Depth Camera:
 $ROS_DISTRO = jazzy
 sudo apt install libgflags-dev nlohmann-json3-dev libgoogle-glog-dev ros-jazzy-image-transport ros-jazzy-image-publisher
 
+sudo apt install -y libzmq3-dev libturbojpeg0-dev libusb-1.0-0-dev libjpeg-dev
 
 sudo apt update
 sudo apt install python3-colcon-common-extensions

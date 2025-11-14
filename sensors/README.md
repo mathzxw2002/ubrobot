@@ -51,4 +51,15 @@ sudo apt install libgflags-dev nlohmann-json3-dev libgoogle-glog-dev ros-jazzy-i
 sudo apt update
 sudo apt install python3-colcon-common-extensions
 
+
+```
+
+
+
+```
+
+
+
+echo "source ~/ascam_ros2_ws/install/setup.bash" >> ~/.bashrc
+
 ```

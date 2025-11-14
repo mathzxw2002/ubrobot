@@ -64,3 +64,58 @@ sudo apt install python3-colcon-common-extensions
 echo "source ~/ascam_ros2_ws/install/setup.bash" >> ~/.bashrc
 
 ```
+
+
+1, Go to the ascam_ros2_ws directory, run sh build.sh. If success, we can get the following result.
+<img width="549" height="363" alt="image" src="https://github.com/user-attachments/assets/c7fa3ef5-5a7c-4e93-8b77-cb617bc401bb" />
+
+
+2, Add env
+
+echo "source ~/ascam_ros2_ws/install/setup.bash" >> ~/.bashrc
+
+3, Install udev rules
+cd ~/ascam_ros2_ws/src/ascamera/scripts
+sudo bash create_udev_rules.sh
+
+<img width="749" height="96" alt="image" src="https://github.com/user-attachments/assets/92714af5-2266-4a32-bc07-ca6746950a09" />
+
+4, revise configuration 
+
+cd ~/ascam_ros2_ws/src/ascamera/configurationfiles
+pwd
+
+<img width="649" height="85" alt="image" src="https://github.com/user-attachments/assets/d53b822d-c6b7-4597-93c2-4f5c9d16cbcc" />
+
+cd ~/ascam_ros2_ws/src/ascamera/launch
+gedit hp60c.launch.py
+
+
+<img width="844" height="722" alt="image" src="https://github.com/user-attachments/assets/bf9acd1a-22b7-4caf-8053-44a7e12ffcbf" />
+
+recompile
+```bash
+cd ~/ascam_ros2_ws
+./build.sh
+```
+
+5, run camera and visualize the image and depth data
+
+ros2 launch ascamera hp60c.launch.py
+
+
+ros2 topic list
+
+<img width="677" height="170" alt="image" src="https://github.com/user-attachments/assets/ba35c074-64d7-4f36-82bb-bd369a106db7" />
+
+
+ros2 run rqt_image_view rqt_image_view
+
+<img width="1125" height="546" alt="image" src="https://github.com/user-attachments/assets/2a83c34e-40c1-46b3-a148-b772b648d24b" />
+
+
+
+<img width="1123" height="554" alt="image" src="https://github.com/user-attachments/assets/fb3de589-d038-4706-8b79-78ec771d8041" />
+
+
+

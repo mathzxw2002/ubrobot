@@ -15,4 +15,4 @@
 # colcon build --symlink-install --cmake-args -DCROSS_COMPILE=aarch64-linux-gnu
 # colcon build --symlink-install --cmake-args -DCROSS_COMPILE=arm-linux-gnueabihf
 # colcon build --symlink-install
-colcon build --symlink-install --cmake-args -DCROSS_COMPILE=x86_64-linux-gnu
+colcon build --packages-select ascamera --symlink-install --cmake-args -DCROSS_COMPILE=x86_64-linux-gnu

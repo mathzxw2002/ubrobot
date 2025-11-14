@@ -1,4 +1,3 @@
-      
 import copy
 import io
 import json
@@ -351,15 +350,12 @@ class Go2Manager(Node):
 
 
 if __name__ == '__main__':
-    print("Starting...")
     control_thread_instance = threading.Thread(target=control_thread)
-    print("Starting planning thread...")
     planning_thread_instance = threading.Thread(target=planning_thread)
-    print("Starting control thread...")
     control_thread_instance.daemon = True
     planning_thread_instance.daemon = True
     rclpy.init()
-    print("Initializing...")
+
     try:
         manager = Go2Manager()
 
@@ -372,6 +368,3 @@ if __name__ == '__main__':
     finally:
         manager.destroy_node()
         rclpy.shutdown()
-    print("Exiting...")
-
-    

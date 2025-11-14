@@ -1,0 +1,19 @@
+[10/30 15:08:57.039292][debug][20726][Context.cpp:29] Context creating. work_dir=/home/yahboom/orbbec_ws/src/ros2-ORB_SLAM2/src/rgbd
+[10/30 15:08:57.039370][debug][20726][Context.cpp:48] Config file version=1.1
+[10/30 15:08:57.039384][debug][20726][FrameBufferManager.cpp:23] Max global frame buffer size updated! size=2048.000MB
+[10/30 15:08:57.039390][info][20726][Context.cpp:67] Context created with config: /home/yahboom/orbbec_ws/install/orbbec_camera/share/orbbec_camera/config/OrbbecSDKConfig_v1.0.xml
+[10/30 15:08:57.039419][info][20726][Context.cpp:72] Context work_dir=/home/yahboom/orbbec_ws/src/ros2-ORB_SLAM2/src/rgbd
+[10/30 15:08:57.039429][debug][20726][DeviceManager.cpp:30] DeviceManager init ...
+[10/30 15:08:57.039432][debug][20726][LinuxPal.cpp:36] createObPal: create LinuxPal!
+[10/30 15:08:57.043251][debug][20726][DeviceManager.cpp:34] Enable USB Device Enumerator ...
+[10/30 15:08:57.116400][debug][20726][EnumeratorLibusb.cpp:323] queryDevicesInfo done!
+[10/30 15:08:57.116451][debug][20726][UsbDeviceEnumerator.cpp:161] Current usb device port list:
+[10/30 15:08:57.116455][debug][20726][UsbDeviceEnumerator.cpp:164]  - 3-2.2-8.0 | Orbbec DaBai DCW2 RGB Camera
+[10/30 15:08:57.116457][debug][20726][UsbDeviceEnumerator.cpp:164]  - 3-2.1-7.0 | Orbbec(R) Astra(TM) 3D Camera(F) Depth
+[10/30 15:08:57.116526][warning][20726][OpenNIDeviceInfo.cpp:180] New openni device matched.
+[10/30 15:08:57.116663][info][20726][LinuxPal.cpp:110] Create PollingDeviceWatcher!
+[10/30 15:08:57.116673][debug][20726][UsbDeviceEnumerator.cpp:69] Found 1 device(s):
+[10/30 15:08:57.116677][debug][20726][UsbDeviceEnumerator.cpp:72]   - Name: DaBai DCW2, PID: 0x06A0, SN/ID: AUIL93D0012, connection: USB2.0
+[10/30 15:08:57.116681][info][20726][DeviceManager.cpp:15] Current found device(s): (1)
+[10/30 15:08:57.116684][info][20726][DeviceManager.cpp:24] 	- Name: DaBai DCW2, PID: 0x06a0, SN/ID: AUIL93D0012, Connection: USB2.0
+[10/30 15:08:57.116686][debug][20726][DeviceManager.cpp:55] DeviceManager construct done!

@@ -60,7 +60,7 @@ cmake .. -DCMAKE_BUILD_TYPE=Release \
          -DBUILD_PYTHON_BINDINGS=bool:true \
          -DFORCE_LIBUVC=true \
          -DBUILD_EXAMPLES=true \
-         -DCMAKE_CXX_FLAGS="-march=armv8-a+crc -mtune=cortex-a72"  # Optimized for Raspberry Pi 4B (change to cortex-a76 for Pi 5)
+         -DCMAKE_CXX_FLAGS="-march=armv8-a+crc -mtune=cortex-a76"  # Optimized for Raspberry Pi 5 (change to cortex-a72 for Pi 4B)
 ```
 
 #### 3. Compile and Install

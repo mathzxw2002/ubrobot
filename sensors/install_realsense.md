@@ -127,22 +127,13 @@ pipeline.stop()
 
 If no errors occur during execution, the Python interface is functional.
 
-### V. Troubleshooting Common Issues
+### V. ROS2 Install 
 
-1. **USB Connection Failure (`RS2_USB_STATUS_IO`)**:
-        Use the native USB 3.0 port (blue) on the Raspberry Pi; avoid using a USB Hub.
+```bash
+sudo apt-get install ros-${ROS_DISTRO}-realsense2-camera
+sudo apt-get install ros-${ROS_DISTRO}-realsense2-description
+```
 
-2. Replace with a high-quality USB 3.0 data cable to ensure good contact.
-
-3. **Python Import Failure (`ModuleNotFoundError`)**:
-        Ensure the `PYTHONPATH` is correct (corresponds to the `dist-packages` of the actual Python version).
-
-4. Manually copy the `pyrealsense2` folder: `sudo cp -r /usr/local/lib/python3.12/dist-packages/pyrealsense2 /usr/lib/python3/dist-packages/`.
-
-5. **Slow Compilation or Memory Overflow**:
-        Ensure the system has at least 20GB of free space and 2GB of swap space (Ubuntu 24.04 has sufficient default swap space).
-
-6. Insist on single-threaded compilation with `make -j1` to avoid resource exhaustion.
-
-With the above steps, you can stably run the Intel RealSense camera on Raspberry Pi with Ubuntu 24.04, supporting depth stream, color stream capture, and Python development.
-> （注：文档部分内容可能由 AI 生成）
+```bash
+ros2 launch realsense2_camera rs_launch.py
+```

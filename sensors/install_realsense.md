@@ -135,5 +135,6 @@ sudo apt-get install ros-${ROS_DISTRO}-realsense2-description
 ```
 
 ```bash
-ros2 launch realsense2_camera rs_launch.py
+ros2 launch realsense2_camera rs_launch.py align_depth.enable:=true
+
 ```

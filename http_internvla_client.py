@@ -49,7 +49,7 @@ odom_rw_lock = ReadWriteLock()
 mpc_rw_lock = ReadWriteLock()
 
 
-def dual_sys_eval(image_bytes, depth_bytes, front_image_bytes, url='http://127.0.0.1:5801/eval_dual'):
+def dual_sys_eval(image_bytes, depth_bytes, front_image_bytes, url='http://192.168.18.230:5801/eval_dual'):
     global policy_init, http_idx, first_running_time
     data = {"reset": policy_init, "idx": http_idx}
     json_data = json.dumps(data)

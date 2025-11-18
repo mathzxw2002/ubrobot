@@ -169,6 +169,12 @@ sudo apt install ros-$ROS_DISTRO-rtabmap-ros
     ```bash
     colcon build --symlink-install --cmake-args -DRTABMAP_SYNC_MULTI_RGBD=ON -DRTABMAP_SYNC_USER_DATA=ON -DCMAKE_BUILD_TYPE=Release
     ```
+note
+<img width="1310" height="609" alt="image" src="https://github.com/user-attachments/assets/51479e0f-5acc-45d9-aea7-a0a89d99da7f" />
+
+```bash
+    colcon build --symlink-install --cmake-args -DRTABMAP_SYNC_MULTI_RGBD=ON -DRTABMAP_SYNC_USER_DATA=ON -DCMAKE_BUILD_TYPE=Release -DCMAKE_EXE_LINKER_FLAGS="-lcurl"
+    ```
 
 # Usage
 

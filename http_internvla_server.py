@@ -4,11 +4,22 @@ import os
 import time
 from datetime import datetime
 
+import sys
+import glob
+from pathlib import Path
+
 import numpy as np
-from flask import Flask, jsonify, request
 from PIL import Image
+import torch
+from flask import Flask, jsonify, request
+
+# Add project path
+project_root = Path('/home/sany/InternNav/')
+#sys.path.insert(0, str(project_root))
+sys.path.insert(0, str(project_root / 'src/diffusion-policy'))
 
 from internnav.agent.internvla_n1_agent_realworld import InternVLAN1AsyncAgent
+
 
 app = Flask(__name__)
 idx = 0
@@ -81,22 +92,26 @@ if __name__ == '__main__':
 
     parser = argparse.ArgumentParser()
     parser.add_argument("--device", type=str, default="cuda:0")
-    parser.add_argument("--model_path", type=str, default="checkpoints/InternVLA-N1")
+    parser.add_argument("--model_path", type=str, default="/home/sany/InternNav/scripts/notebooks/checkpoints/InternVLA-N1")
     parser.add_argument("--resize_w", type=int, default=384)
     parser.add_argument("--resize_h", type=int, default=384)
     parser.add_argument("--num_history", type=int, default=8)
+    parser.add_argument("--plan_step_gap", type=int, default=2)
+
     args = parser.parse_args()
 
     args.camera_intrinsic = np.array(
         [[386.5, 0.0, 328.9, 0.0], [0.0, 386.5, 244, 0.0], [0.0, 0.0, 1.0, 0.0], [0.0, 0.0, 0.0, 1.0]]
     )
     agent = InternVLAN1AsyncAgent(args)
-    agent.step(
-        np.zeros((480, 640, 3)),
-        np.zeros((480, 640)),
+    '''agent.step(
+        np.zeros((480, 640, 3), dtype=np.uint8),
+        np.zeros((480, 640), dtype=np.uint8),
         np.eye(4),
         "hello",
-    )
+        intrinsic=args.camera_intrinsic,
+        look_down=False
+    )'''
     agent.reset()
 
     app.run(host='0.0.0.0', port=5801)

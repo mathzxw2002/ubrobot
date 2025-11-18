@@ -139,33 +139,47 @@ ros2 launch realsense2_camera rs_launch.py align_depth.enable:=true
 
 ```
 
+#### Config RTABMAP to get ODOM 
+https://github.com/introlab/rtabmap_ros
 
-from launch import LaunchDescription
-from launch_ros.actions import Node
 
-def generate_launch_description():
-    return LaunchDescription([
-        # 启动RealSense相机节点
-        Node(
-            package='realsense2_camera',
-            executable='realsense2_camera_node',
-            parameters=[{
-                'enable_gyro': True,
-                'enable_accel': True,
-                'depth_module.profile': '640x480x30',
-                'color_module.profile': '640x480x30'
-            }]
-        ),
-        # 启动RTAB-Map节点，发布odom_bridge话题
-        Node(
-            package='rtabmap_ros',
-            executable='rtabmap',
-            parameters=[{
-                'rgb_topic': '/camera/color/image_raw',
-                'depth_topic': '/camera/depth/image_rect_raw',
-                'camera_info_topic': '/camera/color/camera_info',
-                'imu_topic': '/camera/imu',
-                'odom_topic': '/odom_bridge'  # 自定义odom_bridge话题
-            }]
-        )
-    ])
+# Installation 
+
+### Binaries
+```bash
+sudo apt install ros-$ROS_DISTRO-rtabmap-ros
+```
+
+### From Source
+* Make sure to uninstall any rtabmap binaries:
+    ```
+    sudo apt remove ros-$ROS_DISTRO-rtabmap*
+    ```
+* RTAB-Map ROS2 package:
+    ```bash
+    cd ~/ros2_ws
+    git clone https://github.com/introlab/rtabmap.git src/rtabmap
+    git clone --branch ros2 https://github.com/introlab/rtabmap_ros.git src/rtabmap_ros
+    rosdep update && rosdep install --from-paths src --ignore-src -r -y
+    export MAKEFLAGS="-j6" # Can be ignored if you have a lot of RAM (>16GB)
+    colcon build --symlink-install --cmake-args -DCMAKE_BUILD_TYPE=Release
+    ```
+
+* To build with `rgbd_cameras>1` support and/or `subscribe_user_data` support:
+    ```bash
+    colcon build --symlink-install --cmake-args -DRTABMAP_SYNC_MULTI_RGBD=ON -DRTABMAP_SYNC_USER_DATA=ON -DCMAKE_BUILD_TYPE=Release
+    ```
+
+# Usage
+
+* For sensor integration examples (stereo and RGB-D cameras, 3D LiDAR), see [rtabmap_examples](https://github.com/introlab/rtabmap_ros/tree/ros2/rtabmap_examples/launch) sub-folder.
+
+* For robot integration examples (turtlebot3 and turtlebot4, nav2 integration), see [rtabmap_demos](https://github.com/introlab/rtabmap_ros/tree/ros2/rtabmap_demos) sub-folder.
+
+
+
+# Requirements:
+#   A realsense D435i
+#   Install realsense2 ros2 package (ros-$ROS_DISTRO-realsense2-camera)
+# Example:
+#   $ ros2 launch rtabmap_examples realsense_d435i_color.launch.py

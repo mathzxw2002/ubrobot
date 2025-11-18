@@ -135,9 +135,27 @@ sudo apt-get install ros-${ROS_DISTRO}-realsense2-description
 ```
 
 ```bash
-ros2 launch realsense2_camera rs_launch.py align_depth.enable:=true
+ros2 launch realsense2_camera rs_launch.py align_depth.enable:=true  
 
 ```
+
+```bash
+ros2 launch realsense2_camera rs_launch.py \
+  enable_color:=true \
+  enable_depth:=true \
+  enable_gyro:=true \
+  enable_accel:=true \
+  unite_imu_method:=linear_interpolation  # 合并 IMU 数据为 /imu/data 话题
+```
+
+```bash
+# 查看里程计话题
+ros2 topic list | grep odom
+
+# 查看里程计数据（位置、姿态、速度等）
+ros2 topic echo /odom
+```
+
 
 #### Config RTABMAP to get ODOM 
 https://github.com/introlab/rtabmap_ros

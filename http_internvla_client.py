@@ -200,14 +200,14 @@ class Go2Manager(Node):
     def __init__(self):
         super().__init__('go2_manager')
 
-        rgb_down_sub = Subscriber(self, Image, "/camera/camera/color/image_raw")
-        depth_down_sub = Subscriber(self, Image, "/camera/camera/aligned_depth_to_color/image_raw")
+        rgb_down_sub = Subscriber(self, Image, "/camera/color/image_raw")
+        depth_down_sub = Subscriber(self, Image, "/camera/aligned_depth_to_color/image_raw")
 
         qos_profile = QoSProfile(reliability=ReliabilityPolicy.BEST_EFFORT, history=HistoryPolicy.KEEP_LAST, depth=10)
 
         self.syncronizer = ApproximateTimeSynchronizer([rgb_down_sub, depth_down_sub], 1, 0.1)
         self.syncronizer.registerCallback(self.rgb_depth_down_callback)
-        self.odom_sub = self.create_subscription(Odometry, "/odom_bridge", self.odom_callback, qos_profile)
+        self.odom_sub = self.create_subscription(Odometry, "/odom", self.odom_callback, qos_profile)
 
         # publisher
         self.control_pub = self.create_publisher(Twist, '/cmd_vel_bridge', 5)

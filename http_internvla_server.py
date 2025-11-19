@@ -13,8 +13,6 @@ from PIL import Image, ImageDraw, ImageFont
 import torch
 from flask import Flask, jsonify, request
 
-from internnav.agent.internvla_n1_agent_realworld import InternVLAN1AsyncAgent
-
 import cv2
 
 # Add project path

@@ -65,6 +65,8 @@ def annotate_image(idx, image, llm_output, trajectory, pixel_goal, output_dir):
 
     # Draw trajectory visualization in the top-right corner using matplotlib
     if trajectory is not None and len(trajectory) > 0:
+        import matplotlib
+        matplotlib.use("Agg")
         import matplotlib.pyplot as plt
         from matplotlib.backends.backend_agg import FigureCanvasAgg
 
@@ -145,7 +147,7 @@ def annotate_image(idx, image, llm_output, trajectory, pixel_goal, output_dir):
     image.save(f'{output_dir}/rgb_{idx}_annotated.png')
     # to numpy array
 
-    cv2.imshow("vis_dul_sys_traj", image)
+    #cv2.imshow("vis_dul_sys_traj", image)
     return np.array(image)
 
 @app.route("/eval_dual", methods=['POST'])

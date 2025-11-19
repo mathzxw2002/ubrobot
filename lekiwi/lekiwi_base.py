@@ -30,9 +30,9 @@ from lerobot.motors.feetech import (
 )
 from lerobot.utils.errors import DeviceAlreadyConnectedError, DeviceNotConnectedError
 
-from ..robot import Robot
-from ..utils import ensure_safe_goal_position
-from .config_lekiwi import LeKiwiConfig
+from lerobot.robots.robot import Robot
+from lerobot.robots.utils import ensure_safe_goal_position
+from .config_lekiwi_base import LeKiwiConfig
 
 logger = logging.getLogger(__name__)
 
@@ -71,7 +71,7 @@ class LeKiwi(Robot):
         )
         #self.arm_motors = [motor for motor in self.bus.motors if motor.startswith("arm")]
         self.base_motors = [motor for motor in self.bus.motors if motor.startswith("base")]
-        self.cameras = make_cameras_from_configs(config.cameras)
+        #self.cameras = make_cameras_from_configs(config.cameras)
 
     @property
     def _state_ft(self) -> dict[str, type]:

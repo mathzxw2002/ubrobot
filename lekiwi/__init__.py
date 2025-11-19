@@ -14,6 +14,6 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from .config_lekiwi import LeKiwiClientConfig, LeKiwiConfig
-from .lekiwi import LeKiwi
-from .lekiwi_client import LeKiwiClient
+from .config_lekiwi_base import LeKiwiClientConfig, LeKiwiConfig
+from .lekiwi_base import LeKiwi
+#from .lekiwi_client import LeKiwiClient

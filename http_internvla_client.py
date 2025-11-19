@@ -53,7 +53,9 @@ mpc_rw_lock = ReadWriteLock()
 
 def dual_sys_eval(image_bytes, depth_bytes, front_image_bytes, url='http://192.168.18.230:5801/eval_dual'):
     global policy_init, http_idx, first_running_time
-    data = {"reset": policy_init, "idx": http_idx}
+
+    instruction = "Turn around and walk out of this office. Turn towards your slight right at the chair. Move forward to the walkway and go near the red bin. You can see an open door on your right side, go inside the open door. Stop at the computer monitor"
+    data = {"reset": policy_init, "idx": http_idx, "ins": instruction}
     json_data = json.dumps(data)
 
     policy_init = False

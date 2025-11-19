@@ -54,7 +54,11 @@ mpc_rw_lock = ReadWriteLock()
 def dual_sys_eval(image_bytes, depth_bytes, front_image_bytes, url='http://192.168.18.230:5801/eval_dual'):
     global policy_init, http_idx, first_running_time
 
-    instruction = "Turn around and walk out of this office. Turn towards your slight right at the chair. Move forward to the walkway and go near the red bin. You can see an open door on your right side, go inside the open door. Stop at the computer monitor"
+    #instruction = "Turn around and walk out of this office. Turn towards your slight right at the chair. Move forward to the walkway and go near the red bin. You can see an open door on your right side, go inside the open door. Stop at the computer monitor"
+    #instruction = "walk close to office chair, walk away from the package with SANY brand."
+    #instruction = "turn around to the office chair side."
+
+    instruction = "trun around to the bag side"
     data = {"reset": policy_init, "idx": http_idx, "ins": instruction}
     json_data = json.dumps(data)
 
@@ -359,7 +363,7 @@ class Go2Manager(Node):
                   "y.vel": 0,
                   "theta.vel": vyaw
                   }
-        #self.lekiwi_base.send_action(action)
+        self.lekiwi_base.send_action(action)
 
 
 if __name__ == '__main__':

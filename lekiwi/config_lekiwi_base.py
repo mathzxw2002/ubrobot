@@ -17,7 +17,7 @@ from dataclasses import dataclass, field
 from lerobot.cameras.configs import CameraConfig, Cv2Rotation
 from lerobot.cameras.opencv.configuration_opencv import OpenCVCameraConfig
 
-from ..config import RobotConfig
+from lerobot.robots.config import RobotConfig
 
 
 def lekiwi_cameras_config() -> dict[str, CameraConfig]:

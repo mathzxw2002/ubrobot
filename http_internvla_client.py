@@ -25,6 +25,7 @@ from rclpy.node import Node
 from rclpy.qos import HistoryPolicy, QoSProfile, ReliabilityPolicy
 from thread_utils import ReadWriteLock
 
+from lekiwi.lekiwi_base import LeKiwi
 
 class ControlMode(Enum):
     PID_Mode = 1
@@ -74,6 +75,8 @@ def control_thread():
     global desired_v, desired_w
     while True:
         global current_control_mode
+
+        print("=============== in control thread...", current_control_mode)
         if current_control_mode == ControlMode.MPC_Mode:
             odom_rw_lock.acquire_read()
             odom = manager.odom.copy() if manager.odom else None
@@ -93,11 +96,14 @@ def control_thread():
             vel = manager.vel.copy() if manager.vel is not None else None
             homo_goal = manager.homo_goal.copy() if manager.homo_goal is not None else None
 
+            print("homo_odom, vel, homo_goal...", homo_odom, vel, homo_goal)
             if homo_odom is not None and vel is not None and homo_goal is not None:
                 v, w, e_p, e_r = pid.solve(homo_odom, homo_goal, vel)
                 if v < 0.0:
                     v = 0.0
                 desired_v, desired_w = v, w
+
+                print(v, w)
                 manager.move(v, 0.0, w)
 
         time.sleep(0.1)
@@ -349,6 +355,7 @@ if __name__ == '__main__':
     rclpy.init()
 
     try:
+        print("start robot client...")
         manager = Go2Manager()
 
         control_thread_instance.start()

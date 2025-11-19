@@ -245,6 +245,10 @@ class Go2Manager(Node):
         self.homo_goal = None
         self.vel = None
 
+        # init lekiwi base robot
+        lekiwi_base_config = LeKiwiConfig()
+        lekiwi_base = LeKiwi(lekiwi_base_config)
+
     def rgb_forward_callback(self, rgb_msg):
         raw_image = self.cv_bridge.imgmsg_to_cv2(rgb_msg, 'rgb8')[:, :, :]
         self.rgb_forward_image = raw_image

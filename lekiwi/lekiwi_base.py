@@ -106,7 +106,8 @@ class LeKiwi(Robot):
 
     @property
     def is_connected(self) -> bool:
-        return self.bus.is_connected and all(cam.is_connected for cam in self.cameras.values())
+        #return self.bus.is_connected and all(cam.is_connected for cam in self.cameras.values())
+        return self.bus.is_connected
 
     def connect(self, calibrate: bool = True) -> None:
         if self.is_connected:
@@ -119,8 +120,8 @@ class LeKiwi(Robot):
         #    )
         #    self.calibrate()
 
-        for cam in self.cameras.values():
-            cam.connect()
+        #for cam in self.cameras.values():
+        #    cam.connect()
 
         self.configure()
         logger.info(f"{self} connected.")

@@ -26,6 +26,7 @@ from rclpy.qos import HistoryPolicy, QoSProfile, ReliabilityPolicy
 from thread_utils import ReadWriteLock
 
 from lekiwi.lekiwi_base import LeKiwi
+from lekiwi.config_lekiwi_base import LeKiwiConfig
 
 class ControlMode(Enum):
     PID_Mode = 1
@@ -247,7 +248,9 @@ class Go2Manager(Node):
 
         # init lekiwi base robot
         lekiwi_base_config = LeKiwiConfig()
-        lekiwi_base = LeKiwi(lekiwi_base_config)
+        self.lekiwi_base = LeKiwi(lekiwi_base_config)
+
+        self.lekiwi_base.connect()
 
     def rgb_forward_callback(self, rgb_msg):
         raw_image = self.cv_bridge.imgmsg_to_cv2(rgb_msg, 'rgb8')[:, :, :]
@@ -349,6 +352,12 @@ class Go2Manager(Node):
         request.angular.z = vyaw
 
         self.control_pub.publish(request)
+
+        action = {"x.vel": vx, 
+                  "y.vel": 0,
+                  "theta.vel": vyaw
+                  }
+        #self.lekiwi_base.send_action(action)
 
 
 if __name__ == '__main__':

@@ -12,6 +12,8 @@ https://droid-dataset.github.io/
 
 
 
-## Synria Robotics
+## Synria Robotics, https://synriarobotics.ai/
 https://docs.sparklingrobo.com/docs/alicia-d-series/follower/doc_04_moveit_usage
+
+<img width="1856" height="1078" alt="image" src="https://github.com/user-attachments/assets/ce63c250-6294-484c-a85f-b01150fcd223" />
 

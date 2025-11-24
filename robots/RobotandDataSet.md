@@ -17,3 +17,11 @@ https://docs.sparklingrobo.com/docs/alicia-d-series/follower/doc_04_moveit_usage
 
 <img width="1856" height="1078" alt="image" src="https://github.com/user-attachments/assets/ce63c250-6294-484c-a85f-b01150fcd223" />
 
+
+# Reachy2
+
+https://github.com/pollen-robotics/Reachy2Teleoperation
+
+<img width="1066" height="999" alt="image" src="https://github.com/user-attachments/assets/01e661df-1c4c-429b-95af-66877709f178" />
+
+

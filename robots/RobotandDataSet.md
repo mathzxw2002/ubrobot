@@ -49,3 +49,17 @@ RoboTwin 2.0: A Scalable Data Generator and Benchmark with Strong Domain Randomi
 
 #
 
+
+
+# PiPer
+
+https://discourse.openrobotics.org/t/mobile-aloha-agilex-achieves-two-arm-collaborative-tasks-based-on-mobile-aloha/37785
+
+AloHA
+
+<img width="858" height="1205" alt="image" src="https://github.com/user-attachments/assets/e0e0e563-716d-4b3a-9b13-5e540bdc6dc3" />
+
+
+<img width="1332" height="653" alt="image" src="https://github.com/user-attachments/assets/5596fc4a-4e27-42e3-8255-718e5dc1fb05" />
+
+

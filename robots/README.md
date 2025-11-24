@@ -37,3 +37,12 @@ https://github.com/XR-Robotics
 ### U-Arm, U-Arm: Lerobot-Everything-Cross-Embodiment-Teleoperation
 
 https://github.com/MINT-SJTU/LeRobot-Anything-U-Arm
+
+U-ARM : Ultra low-cost general teleoperation interface for robot manipulation
+
+```Plain
+We provide simulation examples for controlling 7 different robot arms at our website, including Arx-x5, Xarm, SO100, Panda. Some examples are shown in Fig. 4.
+```
+
+<img width="2139" height="1579" alt="image" src="https://github.com/user-attachments/assets/4c84e3ef-6759-450e-8c5d-f7c7df2e9ea6" />
+

@@ -25,3 +25,27 @@ https://github.com/pollen-robotics/Reachy2Teleoperation
 <img width="1066" height="999" alt="image" src="https://github.com/user-attachments/assets/01e661df-1c4c-429b-95af-66877709f178" />
 
 
+# bridgedata
+https://rail-berkeley.github.io/bridgedata/
+
+
+BridgeData V2: A Dataset for Robot Learning at Scale
+
+<img width="1235" height="811" alt="image" src="https://github.com/user-attachments/assets/9a0cf6fc-9cae-499d-9d40-901bd37e6c1e" />
+
+
+# AgiBotWorld-Alpha
+
+https://huggingface.co/datasets/agibot-world/AgiBotWorld-Alpha
+
+
+# RoboTwin
+
+RoboTwin 2.0: A Scalable Data Generator and Benchmark with Strong Domain Randomization for Robust Bimanual Robotic Manipulation
+
+
+<img width="897" height="565" alt="image" src="https://github.com/user-attachments/assets/ad6b7bf5-88d2-49ee-80c3-4364c486fbb1" />
+
+
+#
+

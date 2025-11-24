@@ -34,5 +34,6 @@ https://github.com/XR-Robotics
 
 ## 
 
-### U-Arm
+### U-Arm, U-Arm: Lerobot-Everything-Cross-Embodiment-Teleoperation
+
 https://github.com/MINT-SJTU/LeRobot-Anything-U-Arm

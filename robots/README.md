@@ -46,4 +46,6 @@ We provide simulation examples for controlling 7 different robot arms at our web
 
 <img width="1083" height="537" alt="image" src="https://github.com/user-attachments/assets/51884717-d986-4905-becc-b4e939c3d8ce" />
 
+<img width="1263" height="478" alt="image" src="https://github.com/user-attachments/assets/69712361-e017-4881-97c8-d4b7699a01f1" />
+
 

@@ -52,6 +52,13 @@ We provide simulation examples for controlling 7 different robot arms at our web
 <img width="1263" height="478" alt="image" src="https://github.com/user-attachments/assets/69712361-e017-4881-97c8-d4b7699a01f1" />
 
 
+
+# Game Controller
+
+https://blog.csdn.net/2508_90533928/article/details/153253949
+
+
+
 ## teleop
 
 https://github.com/SpesRobotics/teleop

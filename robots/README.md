@@ -32,6 +32,11 @@ https://github.com/XR-Robotics
 https://github.com/SpesRobotics/lerobot-teleoperator-teleop
 
 
+
+https://docs.galaxea-ai.com/zh/Guide/R1Pro/vr_teleop/ros2/R1Pro_VR_Teleop_Usage_Tutorial_ros2/#732-vr
+
+<img width="1168" height="1081" alt="image" src="https://github.com/user-attachments/assets/fdccc51a-e6aa-424c-8644-4c2f2d644f20" />
+
 ### 
 
 

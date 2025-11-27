@@ -22,7 +22,6 @@ sys.path.insert(0, str(project_root / 'src/diffusion-policy'))
 
 from internnav.agent.internvla_n1_agent_realworld import InternVLAN1AsyncAgent
 
-
 app = Flask(__name__)
 idx = 0
 start_time = time.time()

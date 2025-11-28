@@ -23,15 +23,17 @@ output_dir = ''
 @app.route("/eval_cosmos_reason1", methods=['POST'])
 def eval_cosmos_reason1():
 
-    image_file = request.files['image']
+    print("eval cosmos reason ...")
+
+    '''image_file = request.files['image']
     json_data = request.form['json']
     data = json.loads(json_data)
 
     image = Image.open(image_file.stream)
     image = image.convert('RGB')
-    image = np.asarray(image)
+    image = np.asarray(image)'''
 
-    instruction = data['ins']
+    #instruction = data['ins']
 
     instruction = "Describe this video."
 

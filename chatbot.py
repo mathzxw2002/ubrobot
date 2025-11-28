@@ -24,13 +24,13 @@ def cosmos_reason1_infer(image_bytes, instruction, url='http://192.168.18.230:58
     }
     start = time.time()
     response = requests.post(url, files=files, data={'json': json_data}, timeout=100)
-    print(f"response {response.text}")
+    print(f"==================================================response {response.text}")
     '''http_idx += 1
     if http_idx == 0:
         first_running_time = time.time()
     print(f"idx: {http_idx} after http {time.time() - start}")'''
 
-    return json.loads(response.text)
+    return response.text
 
 def create_chatbot_interface() -> gr.Blocks:
     """

@@ -39,6 +39,9 @@ def create_chatbot_interface() -> gr.Blocks:
     """
     with gr.Blocks(title="UBRobot ChatUI") as demo:
         
+        gr.Markdown("<h1 style='text-align: center;'> UBRobot Management Demo </h1>")
+
+
         chatbot = gr.Chatbot()
         msg = gr.Textbox()
         clear = gr.ClearButton([msg, chatbot])

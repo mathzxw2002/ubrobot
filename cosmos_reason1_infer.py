@@ -28,6 +28,8 @@ class CosmosReason1Infer:
         infer_instruct_str: task instruction
         """
 
+        print("===================", infer_instruct_str)
+
         # Create inputs
         conversation = [
             {
@@ -40,7 +42,7 @@ class CosmosReason1Infer:
                         # 6422528 = 8192 * 28**2 = vision_tokens * (2*spatial_patch_size)^2
                         "total_pixels": 6422528,
                     },
-                    {"type": "text", "text": infer_instruct_str}, #"Describe this video."
+                    {"type": "text", "text": infer_instruct_str}, 
                 ],
             }
         ]

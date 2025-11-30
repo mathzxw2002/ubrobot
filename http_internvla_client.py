@@ -15,8 +15,6 @@ from nav_msgs.msg import Odometry
 from PIL import Image as PIL_Image
 from sensor_msgs.msg import Image
 
-frame_data = {}
-frame_idx = 0
 # user-specific
 from controllers import Mpc_controller, PID_controller
 from cv_bridge import CvBridge
@@ -27,6 +25,10 @@ from thread_utils import ReadWriteLock
 
 from lekiwi.lekiwi_base import LeKiwi
 from lekiwi.config_lekiwi_base import LeKiwiConfig
+
+frame_data = {}
+frame_idx = 0
+
 
 class ControlMode(Enum):
     PID_Mode = 1

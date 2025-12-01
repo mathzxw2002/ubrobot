@@ -4,6 +4,8 @@ import time
 
 from pathlib import Path
 
+
+from collections import OrderedDict
 import qwen_vl_utils
 import transformers
 import json
@@ -17,11 +19,13 @@ from enum import Enum
 
 import numpy as np
 import rclpy
+from rclpy.executors import MultiThreadedExecutor, SingleThreadedExecutor
 import requests
+
 from geometry_msgs.msg import Twist
 from nav_msgs.msg import Odometry
 from PIL import Image as PIL_Image
-
+from PIL import ImageDraw, ImageFont
 # user-specific
 from controllers import Mpc_controller, PID_controller
 from cv_bridge import CvBridge
@@ -46,7 +50,6 @@ frame_lock = threading.Lock()
 frame_data = {}
 frame_idx = 0
 
-
 class ControlMode(Enum):
     PID_Mode = 1
     MPC_Mode = 2
@@ -70,14 +73,145 @@ odom_rw_lock = ReadWriteLock()
 mpc_rw_lock = ReadWriteLock()
 
 
+planning_response = []
+
+global_nav_instruction_str = None
+
+# visualize tracjectory and pixel goal image
+def annotate_image(idx, image, llm_output, trajectory, pixel_goal, output_dir):
+    image = PIL_Image.fromarray(image)
+    draw = ImageDraw.Draw(image)
+    font_size = 20
+    font = ImageFont.truetype("DejaVuSansMono.ttf", font_size)
+    text_content = []
+    text_content.append(f"Frame    Id  : {idx}")
+    text_content.append(f"Actions      : {llm_output}" )
+    max_width = 0
+    total_height = 0
+    for line in text_content:
+        bbox = draw.textbbox((0, 0), line, font=font)
+        text_width = bbox[2] - bbox[0]
+        text_height = 26
+        max_width = max(max_width, text_width)
+        total_height += text_height
+
+    padding = 10
+    box_x, box_y = 10, 10
+    box_width = max_width + 2 * padding
+    box_height = total_height + 2 * padding
+
+    draw.rectangle([box_x, box_y, box_x + box_width, box_y + box_height], fill='black')
+
+    text_color = 'white'
+    y_position = box_y + padding
+
+    for line in text_content:
+        draw.text((box_x + padding, y_position), line, fill=text_color, font=font)
+        bbox = draw.textbbox((0, 0), line, font=font)
+        text_height = 26
+        y_position += text_height
+    image = np.array(image)
+
+    # Draw trajectory visualization in the top-right corner using matplotlib
+    if trajectory is not None and len(trajectory) > 0:
+        import matplotlib
+        matplotlib.use("Agg")
+        import matplotlib.pyplot as plt
+        from matplotlib.backends.backend_agg import FigureCanvasAgg
+
+        img_height, img_width = image.shape[:2]
+
+        # Window parameters
+        window_size = 200  # Window size in pixels
+        window_margin = 0  # Margin from edge
+        window_x = img_width - window_size - window_margin
+        window_y = window_margin
+
+        # Extract trajectory points
+        traj_points = []
+        for point in trajectory:
+            if isinstance(point, (list, tuple, np.ndarray)) and len(point) >= 2:
+                traj_points.append([float(point[0]), float(point[1])])
+
+        if len(traj_points) > 0:
+            traj_array = np.array(traj_points)
+            x_coords = traj_array[:, 0]
+            y_coords = traj_array[:, 1]
+
+            # Create matplotlib figure
+            fig, ax = plt.subplots(figsize=(2, 2), dpi=100)
+            fig.patch.set_alpha(0.6)  # Semi-transparent background
+            fig.patch.set_facecolor('gray')
+            ax.set_facecolor('lightgray')
+
+            # Plot trajectory
+            # Coordinate system: x-axis points up, y-axis points left
+            # Origin at bottom center
+            ax.plot(y_coords, x_coords, 'b-', linewidth=2, label='Trajectory')
+
+            # Mark start point (green) and end point (red)
+            ax.plot(y_coords[0], x_coords[0], 'go', markersize=6, label='Start')
+            ax.plot(y_coords[-1], x_coords[-1], 'ro', markersize=6, label='End')
+
+            # Mark origin
+            ax.plot(0, 0, 'w+', markersize=10, markeredgewidth=2, label='Origin')
+
+            # Set axis labels
+            ax.set_xlabel('Y (left +)', fontsize=8)
+            ax.set_ylabel('X (up +)', fontsize=8)
+            ax.invert_xaxis()
+            ax.tick_params(labelsize=6)
+            ax.grid(True, alpha=0.3, linewidth=0.5)
+
+            # Set equal aspect ratio
+            ax.set_aspect('equal', adjustable='box')
+
+            # Add legend
+            ax.legend(fontsize=6, loc='upper right')
+
+            # Adjust layout
+            plt.tight_layout(pad=0.3)
+
+            # Convert matplotlib figure to numpy array
+            canvas = FigureCanvasAgg(fig)
+            canvas.draw()
+            plot_img = np.frombuffer(canvas.tostring_argb(), dtype=np.uint8)
+
+            print("check value ...")
+            print(fig.canvas.get_width_height()[::-1])
+            plot_img = plot_img.reshape(fig.canvas.get_width_height()[::-1] + (4,))[...,1:4]
+            plt.close(fig)
+
+            # Resize plot to fit window
+            plot_img = cv2.resize(plot_img, (window_size, window_size))
+
+            # Overlay plot on image
+            image[window_y:window_y+window_size, window_x:window_x+window_size] = plot_img
+
+    if pixel_goal is not None:
+        cv2.circle(image, (pixel_goal[1], pixel_goal[0]), 5, (255, 0, 0), -1)
+    image = PIL_Image.fromarray(image).convert('RGB')
+    #print("saving image.....................")
+    #print(f'++++++++++++++++++++++++++++++++++++++++{output_dir}/rgb_{idx}_annotated.png')
+    #image.save(f'{output_dir}/rgb_{idx}_annotated.png')
+    # to numpy array
+
+    #cv2.imshow("vis_dul_sys_traj", image)
+    return image
+
+
 def dual_sys_eval(image_bytes, depth_bytes, front_image_bytes, url='http://192.168.18.230:5801/eval_dual'):
-    global policy_init, http_idx, first_running_time
+    global policy_init, http_idx, first_running_time, global_nav_instruction_str
 
     #instruction = "Turn around and walk out of this office. Turn towards your slight right at the chair. Move forward to the walkway and go near the red bin. You can see an open door on your right side, go inside the open door. Stop at the computer monitor"
     #instruction = "walk close to office chair, walk away from the package with SANY brand."
     #instruction = "turn around to the office chair side."
 
-    instruction = "trun around to the bag side"
+    if global_nav_instruction_str is not None:
+        instruction = global_nav_instruction_str
+    else:
+        instruction = "keep still"
+
     data = {"reset": policy_init, "idx": http_idx, "ins": instruction}
     json_data = json.dumps(data)
 
@@ -121,7 +255,7 @@ def control_thread():
             vel = manager.vel.copy() if manager.vel is not None else None
             homo_goal = manager.homo_goal.copy() if manager.homo_goal is not None else None
 
-            print("homo_odom, vel, homo_goal...", homo_odom, vel, homo_goal)
+            #print("homo_odom, vel, homo_goal...", homo_odom, vel, homo_goal)
             if homo_odom is not None and vel is not None and homo_goal is not None:
                 v, w, e_p, e_r = pid.solve(homo_odom, homo_goal, vel)
                 if v < 0.0:
@@ -176,6 +310,13 @@ def planning_thread():
             if len(frame_data) > 100:
                 del frame_data[min(frame_data.keys())]
             response = dual_sys_eval(rgb_bytes, depth_bytes, None)
+
+            #print("=====================================================================\n")
+            #print(response)
+            global planning_response
+            planning_response.append(response)
+
+            #planning_response = planning_response + "\n================================================================\n" + str(response)
 
             global current_control_mode
             traj_len = 0.0
@@ -396,11 +537,6 @@ def cosmos_reason1_infer(image_bytes, instruction, url='http://192.168.18.230:58
     start = time.time()
     response = requests.post(url, files=files, data={'json': json_data}, timeout=100)
     print(f"==================================================response {response.text}")
-    '''http_idx += 1
-    if http_idx == 0:
-        first_running_time = time.time()
-    print(f"idx: {http_idx} after http {time.time() - start}")'''
-
     return response.text
 
 
@@ -463,11 +599,42 @@ def gradio_video_update():
             print("in gradio video update...", latest_frame)
             if latest_frame is not None:
                 #cv2.imwrite("./t.png", latest_frame)
-                yield PILImage.fromarray(latest_frame)
+                yield PIL_Image.fromarray(latest_frame)
             else:
                 #print("captured video frame is none or empty...")
-                yield PILImage.new("RGB", (640, 480), color="gray")
+                yield PIL_Image.new("RGB", (640, 480), color="gray")
         time.sleep(0.03)
+
+
+def gradio_planning_txt_update():
+    global planning_response, frame_data, global_nav_instruction_str
+
+    print("len(planning_response)...", len(planning_response))
+    
+    idx2actions = OrderedDict({"0": "STOP", "1": "↑", "2": "←", "3": "→", "5": "↓", })
+
+    planning_response_str = ""
+    pil_annotated_img = None
+    if len(planning_response) >= 1:
+
+        json_output_dict = planning_response[-1]
+
+        print(json_output_dict)
+        pixel_goal = json_output_dict.get('pixel_goal', None)
+        traj_path = json_output_dict.get('trajectory', None)
+
+        if global_nav_instruction_str is not None:
+            planning_response_str = "nav ins: " + global_nav_instruction_str + "\n" + str(idx2actions) + "\n" + str(planning_response[-1])
+
+        print("value of pixel goal and traj_path:", pixel_goal, traj_path)
+
+        print((pixel_goal is not None) or (traj_path is not None))
+        if (pixel_goal is not None) or (traj_path is not None):       
+            image_id = "{:04d}.jpg".format(0)
+            print("============================= visualize nav image...")
+            pil_annotated_img = annotate_image(0, frame_data[-1]['infer_rgb'], 'traj', traj_path, pixel_goal, "./")
+
+    return planning_response_str, pil_annotated_img
 
 
 def respond(message, chat_history):
@@ -480,6 +647,14 @@ def respond(message, chat_history):
     time.sleep(2)
     return "", chat_history
 
+
+def update_instruction(ins_str):
+
+    global global_nav_instruction_str
+    print("update instruction...", ins_str)
+    global_nav_instruction_str = ins_str
+
+    print("global_nav_instruction_str...", global_nav_instruction_str)
 
 def create_chatbot_interface() -> gr.Blocks:
     """
@@ -498,6 +673,17 @@ def create_chatbot_interface() -> gr.Blocks:
                     height=480,
                 )
                 #video_output.stream(gradio_video_update, outputs=video_output)
+
+                check_video_bt = gr.Button("check")
+
+
+                ins_msg = gr.Textbox(lines=1)
+                ins_msg_bt = gr.Button("nav instruction")
+
+                nav_img_output = gr.Image(type="pil", height=480,)
+
+                planning_response_txt = gr.Textbox(interactive=False, lines=5)
+                check_planning_bt = gr.Button("planning_check")
             
             with gr.Column(scale=2, min_width=500):
                 gr.Markdown("### Robot Control by Instruction")
@@ -509,13 +695,24 @@ def create_chatbot_interface() -> gr.Blocks:
                     clear = gr.ClearButton([msg, chatbot])
 
         #video_output.stream(gradio_video_update, outputs=video_output)
+        check_video_bt.click(gradio_video_update, inputs=None, outputs=video_output)
 
-        test_bt = gr.Button("test")
-        test_bt.click(gradio_video_update, inputs=None, outputs=video_output)
+        check_planning_bt.click(gradio_planning_txt_update, inputs=None, outputs=[planning_response_txt, nav_img_output])
+
+        ins_msg_bt.click(update_instruction, inputs=ins_msg, outputs=None)
         msg.submit(respond, [msg, chatbot], [msg, chatbot])
     
     return demo
 
+
+def run_launch():
+    demo.launch(
+        server_name="0.0.0.0",
+        server_port=7862,
+        share=False,
+        inbrowser=True,
+        show_error=True
+    )
 
 if __name__ == "__main__":
     demo = create_chatbot_interface()
@@ -531,25 +728,24 @@ if __name__ == "__main__":
     rclpy.init()
     
     subscriber_node = ROS2VideoSubscriber(ROS2_VIDEO_TOPIC, IS_COMPRESSED)
-    ros2_thread = threading.Thread(target=rclpy.spin, args=(subscriber_node,), daemon=True)
-    ros2_thread.start()
     
     print("start robot client...")
+    launching_thread = threading.Thread(target=run_launch, daemon=True)
+    launching_thread.start()
+    
+
     manager = Go2Manager()
+
+    executor = SingleThreadedExecutor()
+    executor.add_node(subscriber_node)
+    executor.add_node(manager)
 
     #control_thread_instance.start()
     planning_thread_instance.start()
-    rclpy.spin(manager)
+    
+    executor.spin()
 
-    demo.launch(
-        server_name="0.0.0.0",
-        server_port=7862,
-        share=False,
-        inbrowser=True,
-        show_error=True
-    )
-
+    executor.shutdown()
     subscriber_node.destroy_node()
     manager.destroy_node()
     rclpy.shutdown()
-    ros2_thread.join()

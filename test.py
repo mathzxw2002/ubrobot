@@ -77,6 +77,9 @@ planning_response = []
 
 global_nav_instruction_str = None
 
+planning_thread_instance = None
+
+
 # visualize tracjectory and pixel goal image
 def annotate_image(idx, image, llm_output, trajectory, pixel_goal, output_dir):
     image = PIL_Image.fromarray(image)
@@ -654,6 +657,10 @@ def update_instruction(ins_str):
     print("update instruction...", ins_str)
     global_nav_instruction_str = ins_str
 
+    planning_thread_instance.start()
+
+    control_thread_instance.start()
+
     print("global_nav_instruction_str...", global_nav_instruction_str)
 
 def create_chatbot_interface() -> gr.Blocks:
@@ -717,9 +724,9 @@ def run_launch():
 if __name__ == "__main__":
     demo = create_chatbot_interface()
 
-    #control_thread_instance = threading.Thread(target=control_thread)
+    control_thread_instance = threading.Thread(target=control_thread)
     planning_thread_instance = threading.Thread(target=planning_thread)
-    #control_thread_instance.daemon = True
+    control_thread_instance.daemon = True
     planning_thread_instance.daemon = True
 
     ROS2_VIDEO_TOPIC = "/camera/color/image_raw"
@@ -741,7 +748,7 @@ if __name__ == "__main__":
     executor.add_node(manager)
 
     #control_thread_instance.start()
-    planning_thread_instance.start()
+    #planning_thread_instance.start()
     
     executor.spin()
 

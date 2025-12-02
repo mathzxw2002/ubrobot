@@ -48,7 +48,6 @@ SEPARATOR = "-" * 20
 frame_lock = threading.Lock()
 
 frame_data = {}
-frame_idx = 0
 
 class ControlMode(Enum):
     PID_Mode = 1

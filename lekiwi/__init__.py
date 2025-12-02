@@ -16,4 +16,3 @@
 
 from .config_lekiwi_base import LeKiwiClientConfig, LeKiwiConfig
 from .lekiwi_base import LeKiwi
-#from .lekiwi_client import LeKiwiClient

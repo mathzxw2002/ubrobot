@@ -44,7 +44,6 @@ import threading
 ROOT = Path(__file__).parents[2]
 SEPARATOR = "-" * 20
 
-#latest_frame = None
 frame_lock = threading.Lock()
 
 frame_data = {}
@@ -60,7 +59,6 @@ mpc = None
 pid = PID_controller(Kp_trans=2.0, Kd_trans=0.0, Kp_yaw=1.5, Kd_yaw=0.0, max_v=0.6, max_w=0.5)
 http_idx = -1
 first_running_time = 0.0
-last_pixel_goal = None
 last_s2_step = -1
 manager = None
 current_control_mode = ControlMode.MPC_Mode
@@ -208,11 +206,7 @@ def dual_sys_eval(image_bytes, depth_bytes, front_image_bytes, url='http://192.1
     #instruction = "walk close to office chair, walk away from the package with SANY brand."
     #instruction = "turn around to the office chair side."
 
-    if global_nav_instruction_str is not None:
-        instruction = global_nav_instruction_str
-    else:
-        instruction = "keep still"
-
+    instruction = global_nav_instruction_str
     data = {"reset": policy_init, "idx": http_idx, "ins": instruction}
     json_data = json.dumps(data)
 
@@ -278,6 +272,11 @@ def planning_thread():
         time.sleep(0.05)
 
         if not manager.new_image_arrived:
+            time.sleep(0.01)
+            continue
+
+        # wait for new instruction
+        if global_nav_instruction_str is None:
             time.sleep(0.01)
             continue
         manager.new_image_arrived = False
@@ -608,10 +607,6 @@ def gradio_planning_txt_update(ins_str):
 
     global_nav_instruction_str = ins_str
 
-    planning_thread_instance.start()
-    #control_thread_inistance.start()
-
-
     # TODO double check
     image_bytes = copy.deepcopy(manager.rgb_bytes)
     result_str = cosmos_reason1_infer(image_bytes, global_nav_instruction_str)
@@ -641,17 +636,6 @@ def gradio_planning_txt_update(ins_str):
             yield gr.update(value=planning_response_str), gr.update(value=pil_annotated_img), gr.update(value=chat_history)
         time.sleep(1)
 
-
-'''def respond(message, chat_history):
-    image_bytes = None
-    resut_str = cosmos_reason1_infer(image_bytes, message)
-    
-    bot_message = resut_str
-    chat_history.append({"role": "user", "content": message})
-    chat_history.append({"role": "assistant", "content": bot_message})
-    time.sleep(2)
-    return "", chat_history
-'''
 def create_chatbot_interface() -> gr.Blocks:
     """
     Robot UI
@@ -664,38 +648,22 @@ def create_chatbot_interface() -> gr.Blocks:
         with gr.Row():
             with gr.Column(scale=1, min_width=300):
                 gr.Markdown("### Nav with Instruction")
-                #video_output = gr.Image(
-                #    type="pil",
-                #    height=480,
-                #)
-                #check_video_bt = gr.Button("check")
-
-
-                #ins_msg = gr.Textbox(lines=1)
-                #ins_msg_bt = gr.Button("nav instruction")
 
                 nav_img_output = gr.Image(type="pil", height=480,)
                 planning_response_txt = gr.Textbox(interactive=False, lines=5)
             
             with gr.Column(scale=2, min_width=500):
                 gr.Markdown("### Robot Control by Instruction")
-                chatbot = gr.Chatbot(
-                    #avatar_images=["user.png", "bot.png"]  # 可选：设置头像
-                )
+                chatbot = gr.Chatbot()
                 
                 ins_msg = gr.Textbox(lines=1)
-                #ins_msg_bt = gr.Button("nav instruction")
-
-                #msg = gr.Textbox(lines=1)
                 with gr.Row():
                     with gr.Column(scale=1):
                         ins_msg_bt = gr.Button("nav instruction")
                     with gr.Column(scale=1):
                         clear = gr.ClearButton([chatbot])
 
-        #check_video_bt.click(gradio_video_update, inputs=None, outputs=video_output)
         ins_msg_bt.click(gradio_planning_txt_update, inputs=ins_msg, outputs=[planning_response_txt, nav_img_output, chatbot])
-        #msg.submit(respond, [msg, chatbot], [msg, chatbot])
     return demo
 
 def run_launch():
@@ -715,26 +683,19 @@ if __name__ == "__main__":
     control_thread_instance.daemon = True
     planning_thread_instance.daemon = True
 
-    ROS2_VIDEO_TOPIC = "/camera/color/image_raw"
-    IS_COMPRESSED = False
-
     rclpy.init()
-    
-    #subscriber_node = ROS2VideoSubscriber(ROS2_VIDEO_TOPIC, IS_COMPRESSED)
     
     print("start robot client...")
     launching_thread = threading.Thread(target=run_launch, daemon=True)
     launching_thread.start()
-    
 
     manager = Go2Manager()
 
     executor = SingleThreadedExecutor()
-    #executor.add_node(subscriber_node)
     executor.add_node(manager)
 
     #control_thread_instance.start()
-    #planning_thread_instance.start()
+    planning_thread_instance.start()
     
     executor.spin()
 

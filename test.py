@@ -79,6 +79,7 @@ global_nav_instruction_str = None
 
 planning_thread_instance = None
 
+nav_img_for_infer_response = None
 
 # visualize tracjectory and pixel goal image
 def annotate_image(idx, image, llm_output, trajectory, pixel_goal, output_dir):
@@ -316,8 +317,9 @@ def planning_thread():
 
             #print("=====================================================================\n")
             #print(response)
-            global planning_response
+            global planning_response, nav_img_for_infer_response
             planning_response.append(response)
+            nav_img_for_infer_response = infer_rgb
 
             #planning_response = planning_response + "\n================================================================\n" + str(response)
 
@@ -530,7 +532,6 @@ class Go2Manager(Node):
 
 def cosmos_reason1_infer(image_bytes, instruction, url='http://192.168.18.230:5802/eval_cosmos_reason1'):
 
-    instruction = "trun around to the bag side"
     data = {"ins": instruction}
     json_data = json.dumps(data)
 
@@ -543,7 +544,7 @@ def cosmos_reason1_infer(image_bytes, instruction, url='http://192.168.18.230:58
     return response.text
 
 
-class ROS2VideoSubscriber(Node):
+'''class ROS2VideoSubscriber(Node):
     def __init__(self, topic_name, is_compressed=False):
         super().__init__("gradio_ros2_video_subscriber")
         self.is_compressed = is_compressed
@@ -607,40 +608,57 @@ def gradio_video_update():
                 #print("captured video frame is none or empty...")
                 yield PIL_Image.new("RGB", (640, 480), color="gray")
         time.sleep(0.03)
+'''
+
+def gradio_planning_txt_update(ins_str):
+
+    global planning_response, nav_img_for_infer_response, frame_data, global_nav_instruction_str
+
+    print("update nav instruction...", global_nav_instruction_str)
+
+    global_nav_instruction_str = ins_str
+
+    planning_thread_instance.start()
+    #control_thread_inistance.start()
 
 
-def gradio_planning_txt_update():
-    global planning_response, frame_data, global_nav_instruction_str
+    # TODO double check
+    image_bytes = copy.deepcopy(manager.rgb_bytes)
+    result_str = cosmos_reason1_infer(image_bytes, global_nav_instruction_str)
 
-    print("len(planning_response)...", len(planning_response))
+    chat_history = []
+    chat_history.append({"role": "user", "content": global_nav_instruction_str})
+    chat_history.append({"role": "assistant", "content": result_str})
+
+    while True:
+        print("len(planning_response)...", len(planning_response))
     
-    idx2actions = OrderedDict({"0": "STOP", "1": "↑", "2": "←", "3": "→", "5": "↓", })
+        idx2actions = OrderedDict({"0": "STOP", "1": "↑", "2": "←", "3": "→", "5": "↓", })
 
-    planning_response_str = ""
-    pil_annotated_img = None
-    if len(planning_response) >= 1:
+        planning_response_str = ""
+        pil_annotated_img = None
+        if len(planning_response) >= 1:
 
-        json_output_dict = planning_response[-1]
+            json_output_dict = planning_response[-1]
 
-        print(json_output_dict)
-        pixel_goal = json_output_dict.get('pixel_goal', None)
-        traj_path = json_output_dict.get('trajectory', None)
+            pixel_goal = json_output_dict.get('pixel_goal', None)
+            traj_path = json_output_dict.get('trajectory', None)
 
-        if global_nav_instruction_str is not None:
-            planning_response_str = "nav ins: " + global_nav_instruction_str + "\n" + str(idx2actions) + "\n" + str(planning_response[-1])
+            if global_nav_instruction_str is not None:
+                planning_response_str = "nav ins: " + global_nav_instruction_str + "\n" + str(idx2actions) + "\n" + str(planning_response[-1])
 
-        print("value of pixel goal and traj_path:", pixel_goal, traj_path)
+            print("value of pixel goal and traj_path:", pixel_goal, traj_path)
 
-        print((pixel_goal is not None) or (traj_path is not None))
-        if (pixel_goal is not None) or (traj_path is not None):       
             image_id = "{:04d}.jpg".format(0)
             print("============================= visualize nav image...")
+            #pil_annotated_img = annotate_image(0, nav_img_for_infer_response, 'traj', traj_path, pixel_goal, "./")
             pil_annotated_img = annotate_image(0, frame_data[-1]['infer_rgb'], 'traj', traj_path, pixel_goal, "./")
+                
+            yield gr.update(value=planning_response_str), gr.update(value=pil_annotated_img), gr.update(value=chat_history)
+        time.sleep(1)
 
-    return planning_response_str, pil_annotated_img
 
-
-def respond(message, chat_history):
+'''def respond(message, chat_history):
     image_bytes = None
     resut_str = cosmos_reason1_infer(image_bytes, message)
     
@@ -649,20 +667,7 @@ def respond(message, chat_history):
     chat_history.append({"role": "assistant", "content": bot_message})
     time.sleep(2)
     return "", chat_history
-
-
-def update_instruction(ins_str):
-
-    global global_nav_instruction_str
-    print("update instruction...", ins_str)
-    global_nav_instruction_str = ins_str
-
-    planning_thread_instance.start()
-
-    control_thread_instance.start()
-
-    print("global_nav_instruction_str...", global_nav_instruction_str)
-
+'''
 def create_chatbot_interface() -> gr.Blocks:
     """
     Robot UI
@@ -674,43 +679,40 @@ def create_chatbot_interface() -> gr.Blocks:
 
         with gr.Row():
             with gr.Column(scale=1, min_width=300):
-                gr.Markdown("### Image/Video Stream")
-                video_output = gr.Image(
-                    type="pil",
-                    height=480,
-                )
-                #video_output.stream(gradio_video_update, outputs=video_output)
-
-                check_video_bt = gr.Button("check")
+                gr.Markdown("### Nav with Instruction")
+                #video_output = gr.Image(
+                #    type="pil",
+                #    height=480,
+                #)
+                #check_video_bt = gr.Button("check")
 
 
-                ins_msg = gr.Textbox(lines=1)
-                ins_msg_bt = gr.Button("nav instruction")
+                #ins_msg = gr.Textbox(lines=1)
+                #ins_msg_bt = gr.Button("nav instruction")
 
                 nav_img_output = gr.Image(type="pil", height=480,)
-
                 planning_response_txt = gr.Textbox(interactive=False, lines=5)
-                check_planning_bt = gr.Button("planning_check")
             
             with gr.Column(scale=2, min_width=500):
                 gr.Markdown("### Robot Control by Instruction")
                 chatbot = gr.Chatbot(
                     #avatar_images=["user.png", "bot.png"]  # 可选：设置头像
                 )
-                msg = gr.Textbox(lines=1)
+                
+                ins_msg = gr.Textbox(lines=1)
+                #ins_msg_bt = gr.Button("nav instruction")
+
+                #msg = gr.Textbox(lines=1)
                 with gr.Row():
-                    clear = gr.ClearButton([msg, chatbot])
+                    with gr.Column(scale=1):
+                        ins_msg_bt = gr.Button("nav instruction")
+                    with gr.Column(scale=1):
+                        clear = gr.ClearButton([chatbot])
 
-        #video_output.stream(gradio_video_update, outputs=video_output)
-        check_video_bt.click(gradio_video_update, inputs=None, outputs=video_output)
-
-        check_planning_bt.click(gradio_planning_txt_update, inputs=None, outputs=[planning_response_txt, nav_img_output])
-
-        ins_msg_bt.click(update_instruction, inputs=ins_msg, outputs=None)
-        msg.submit(respond, [msg, chatbot], [msg, chatbot])
-    
+        #check_video_bt.click(gradio_video_update, inputs=None, outputs=video_output)
+        ins_msg_bt.click(gradio_planning_txt_update, inputs=ins_msg, outputs=[planning_response_txt, nav_img_output, chatbot])
+        #msg.submit(respond, [msg, chatbot], [msg, chatbot])
     return demo
-
 
 def run_launch():
     demo.launch(
@@ -734,7 +736,7 @@ if __name__ == "__main__":
 
     rclpy.init()
     
-    subscriber_node = ROS2VideoSubscriber(ROS2_VIDEO_TOPIC, IS_COMPRESSED)
+    #subscriber_node = ROS2VideoSubscriber(ROS2_VIDEO_TOPIC, IS_COMPRESSED)
     
     print("start robot client...")
     launching_thread = threading.Thread(target=run_launch, daemon=True)
@@ -744,7 +746,7 @@ if __name__ == "__main__":
     manager = Go2Manager()
 
     executor = SingleThreadedExecutor()
-    executor.add_node(subscriber_node)
+    #executor.add_node(subscriber_node)
     executor.add_node(manager)
 
     #control_thread_instance.start()

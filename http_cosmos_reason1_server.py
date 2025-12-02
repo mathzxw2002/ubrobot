@@ -25,19 +25,16 @@ def eval_cosmos_reason1():
 
     print("eval cosmos reason ...")
 
-    '''image_file = request.files['image']
+    image_file = request.files['image']
     json_data = request.form['json']
     data = json.loads(json_data)
 
     image = Image.open(image_file.stream)
     image = image.convert('RGB')
-    image = np.asarray(image)'''
 
-    #instruction = data['ins']
-
-    instruction = "Describe this video."
-
-    resut_str = cosmos_infer.infer_once("image_path", instruction)
+    instruction = data['ins']
+    #instruction = "Describe this video."
+    resut_str = cosmos_infer.infer_once(image, instruction)
     
     return resut_str
 

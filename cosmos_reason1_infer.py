@@ -4,6 +4,8 @@ import torch
 import transformers
 import qwen_vl_utils
 
+from PIL import Image, ImageDraw, ImageFont
+
 SEPARATOR = "-" * 20
 
 
@@ -22,13 +24,14 @@ class CosmosReason1Infer:
         print("[Cosmos-Reason1] Model loaded successfully ✅")
 
     @torch.no_grad()
-    def infer_once(self, image_path: str, infer_instruct_str: str):
+    #def infer_once(self, image_path: str, infer_instruct_str: str):
+    def infer_once(self, img: Image, infer_instruct_str: str):
         """
         image_path: path for the image
         infer_instruct_str: task instruction
         """
 
-        print("===================", infer_instruct_str)
+        print("new infer onece ===================", infer_instruct_str)
 
         # Create inputs
         conversation = [
@@ -36,9 +39,8 @@ class CosmosReason1Infer:
                 "role": "user",
                 "content": [
                     {
-                        "type": "video",
-                        "video": f"./sample.mp4",
-                        "fps": 4,
+                        "type": "image",
+                        "image": img,
                         # 6422528 = 8192 * 28**2 = vision_tokens * (2*spatial_patch_size)^2
                         "total_pixels": 6422528,
                     },

@@ -44,7 +44,7 @@ import threading
 ROOT = Path(__file__).parents[2]
 SEPARATOR = "-" * 20
 
-latest_frame = None
+#latest_frame = None
 frame_lock = threading.Lock()
 
 frame_data = {}
@@ -73,13 +73,11 @@ odom_rw_lock = ReadWriteLock()
 mpc_rw_lock = ReadWriteLock()
 
 
-planning_response = []
+planning_response = None
 
 global_nav_instruction_str = None
 
 planning_thread_instance = None
-
-nav_img_for_infer_response = None
 
 # visualize tracjectory and pixel goal image
 def annotate_image(idx, image, llm_output, trajectory, pixel_goal, output_dir):
@@ -181,8 +179,8 @@ def annotate_image(idx, image, llm_output, trajectory, pixel_goal, output_dir):
             canvas.draw()
             plot_img = np.frombuffer(canvas.tostring_argb(), dtype=np.uint8)
 
-            print("check value ...")
-            print(fig.canvas.get_width_height()[::-1])
+            #print("check value ...")
+            #print(fig.canvas.get_width_height()[::-1])
             plot_img = plot_img.reshape(fig.canvas.get_width_height()[::-1] + (4,))[...,1:4]
             plt.close(fig)
 
@@ -315,13 +313,8 @@ def planning_thread():
                 del frame_data[min(frame_data.keys())]
             response = dual_sys_eval(rgb_bytes, depth_bytes, None)
 
-            #print("=====================================================================\n")
-            #print(response)
-            global planning_response, nav_img_for_infer_response
-            planning_response.append(response)
-            nav_img_for_infer_response = infer_rgb
-
-            #planning_response = planning_response + "\n================================================================\n" + str(response)
+            global planning_response
+            planning_response = response
 
             global current_control_mode
             traj_len = 0.0
@@ -612,9 +605,7 @@ def gradio_video_update():
 
 def gradio_planning_txt_update(ins_str):
 
-    global planning_response, nav_img_for_infer_response, frame_data, global_nav_instruction_str
-
-    print("update nav instruction...", global_nav_instruction_str)
+    global planning_response, global_nav_instruction_str, http_idx
 
     global_nav_instruction_str = ins_str
 
@@ -631,29 +622,23 @@ def gradio_planning_txt_update(ins_str):
     chat_history.append({"role": "assistant", "content": result_str})
 
     while True:
-        print("len(planning_response)...", len(planning_response))
     
         idx2actions = OrderedDict({"0": "STOP", "1": "↑", "2": "←", "3": "→", "5": "↓", })
 
         planning_response_str = ""
         pil_annotated_img = None
-        if len(planning_response) >= 1:
+        if planning_response is not None:
 
-            json_output_dict = planning_response[-1]
+            json_output_dict = planning_response
 
             pixel_goal = json_output_dict.get('pixel_goal', None)
             traj_path = json_output_dict.get('trajectory', None)
+            discrete_act = json_output_dict.get('discrete_action', None)
 
-            if global_nav_instruction_str is not None:
-                planning_response_str = "nav ins: " + global_nav_instruction_str + "\n" + str(idx2actions) + "\n" + str(planning_response[-1])
+            planning_response_str = str(idx2actions) + "\n" + str(planning_response)
 
-            print("value of pixel goal and traj_path:", pixel_goal, traj_path)
-
-            image_id = "{:04d}.jpg".format(0)
-            print("============================= visualize nav image...")
-            #pil_annotated_img = annotate_image(0, nav_img_for_infer_response, 'traj', traj_path, pixel_goal, "./")
-            pil_annotated_img = annotate_image(0, frame_data[-1]['infer_rgb'], 'traj', traj_path, pixel_goal, "./")
-                
+            pil_annotated_img = annotate_image(http_idx, manager.rgb_image, discrete_act, traj_path, pixel_goal, "./")
+             
             yield gr.update(value=planning_response_str), gr.update(value=pil_annotated_img), gr.update(value=chat_history)
         time.sleep(1)
 

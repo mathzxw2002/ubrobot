@@ -34,8 +34,8 @@ from rclpy.node import Node
 from rclpy.qos import HistoryPolicy, QoSProfile, ReliabilityPolicy
 from thread_utils import ReadWriteLock
 
-from lekiwi.lekiwi_base import LeKiwi
-from lekiwi.config_lekiwi_base import LeKiwiConfig
+from src.ubrobot.robots.lekiwi.lekiwi_base import LeKiwi
+from src.ubrobot.robots.lekiwi.config_lekiwi_base import LeKiwiConfig
 
 from sensor_msgs.msg import Image, CompressedImage
 import cv2

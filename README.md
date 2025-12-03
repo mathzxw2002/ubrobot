@@ -3,7 +3,8 @@ repo for robot navigation and manipulation (WIP)
 
 # TODOs
 - [ ] add architecure for this project
-- [ ] add a seperate document for learning resources, e.g. releated papers, tutorials, models, etc.
+- [ ] docker
+- [ ] add support for unitree go2
 - [ ] xx
 
 
@@ -26,12 +27,22 @@ When using conda, install ffmpeg in your environment:
 conda install ffmpeg=7.1.1 -c conda-forge
 ```
 
+gpu version
 ```bash
 pip install torch==2.8.0 torchvision==0.23.0 torchaudio==2.8.0 --index-url https://download.pytorch.org/whl/cu128
 
 wget https://github.com/Dao-AILab/flash-attention/releases/download/v2.8.3/flash_attn-2.8.3+cu12torch2.8cxx11abiFALSE-cp310-cp310-linux_x86_64.whl
 pip install flash_attn-2.8.3+cu12torch2.8cxx11abiFALSE-cp310-cp310-linux_x86_64.whl
 
+pip install transformers==4.51.0 diffusers==0.31.0 accelerate==1.10.1 opencv-python==4.10.0.82 pillow==10.4.0 gym==0.23.1
+pip install imageio==2.37.0 imageio-ffmpeg==0.6.0 ftfy==6.3.1
+pip install scipy matplotlib
+pip install qwen_vl_utils
+```
+
+cpu version
+```bash
+pip install torch==2.8.0 torchvision==0.23.0 torchaudio==2.8.0 --index-url https://download.pytorch.org/whl/cpu
 pip install transformers==4.51.0 diffusers==0.31.0 accelerate==1.10.1 opencv-python==4.10.0.82 pillow==10.4.0 gym==0.23.1
 pip install imageio==2.37.0 imageio-ffmpeg==0.6.0 ftfy==6.3.1
 pip install scipy matplotlib

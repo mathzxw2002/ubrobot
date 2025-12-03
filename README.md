@@ -9,7 +9,7 @@ repo for robot navigation and manipulation (WIP)
 
 # Installation
 
-UBRobot works with Python 3.10+ and PyTorch 2.8+.
+UBRobot works with Ubuntu 24.04, Python 3.10+ and PyTorch 2.8+.
 
 ## Environment Setup
 

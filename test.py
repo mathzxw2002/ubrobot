@@ -205,7 +205,6 @@ def dual_sys_eval(image_bytes, depth_bytes, front_image_bytes, url='http://192.1
     #instruction = "Turn around and walk out of this office. Turn towards your slight right at the chair. Move forward to the walkway and go near the red bin. You can see an open door on your right side, go inside the open door. Stop at the computer monitor"
     #instruction = "walk close to office chair, walk away from the package with SANY brand."
     #instruction = "turn around to the office chair side."
-
     instruction = global_nav_instruction_str
     data = {"reset": policy_init, "idx": http_idx, "ins": instruction}
     json_data = json.dumps(data)
@@ -226,9 +225,15 @@ def dual_sys_eval(image_bytes, depth_bytes, front_image_bytes, url='http://192.1
     return json.loads(response.text)
 
 def control_thread():
-    global desired_v, desired_w
+    global desired_v, desired_w, global_nav_instruction_str
+
+
     while True:
         global current_control_mode
+
+        if global_nav_instruction_str is None:
+            time.sleep(0.01)
+            continue
 
         print("=============== in control thread...", current_control_mode)
         if current_control_mode == ControlMode.MPC_Mode:
@@ -264,7 +269,7 @@ def control_thread():
 
 
 def planning_thread():
-    global trajs_in_world
+    global trajs_in_world, global_nav_instruction_str
 
     while True:
         start_time = time.time()
@@ -355,6 +360,8 @@ def planning_thread():
                 if actions != [5] and actions != [9]:
                     manager.incremental_change_goal(actions)
                     current_control_mode = ControlMode.PID_Mode
+                if actions == [0]:
+                    global_nav_instruction_str = None
         else:
             print(
                 f"skip planning. odom_infer: {odom_infer is not None} rgb_bytes: {rgb_bytes is not None} depth_bytes: {depth_bytes is not None}"
@@ -609,32 +616,45 @@ def gradio_planning_txt_update(ins_str):
 
     # TODO double check
     image_bytes = copy.deepcopy(manager.rgb_bytes)
-    result_str = cosmos_reason1_infer(image_bytes, global_nav_instruction_str)
+    #result_str = cosmos_reason1_infer(image_bytes, global_nav_instruction_str)
+    result_str = ""
 
     chat_history = []
     chat_history.append({"role": "user", "content": global_nav_instruction_str})
     chat_history.append({"role": "assistant", "content": result_str})
 
-    while True:
+    if global_nav_instruction_str is not None:
+        while True:
     
-        idx2actions = OrderedDict({"0": "STOP", "1": "↑", "2": "←", "3": "→", "5": "↓", })
+            idx2actions = OrderedDict({"0": "STOP", "1": "↑", "2": "←", "3": "→", "5": "↓", })
 
-        planning_response_str = ""
-        pil_annotated_img = None
-        if planning_response is not None:
+            planning_response_str = ""
+            pil_annotated_img = None
+            if planning_response is not None:
 
-            json_output_dict = planning_response
+                json_output_dict = planning_response
 
-            pixel_goal = json_output_dict.get('pixel_goal', None)
-            traj_path = json_output_dict.get('trajectory', None)
-            discrete_act = json_output_dict.get('discrete_action', None)
+                pixel_goal = json_output_dict.get('pixel_goal', None)
+                traj_path = json_output_dict.get('trajectory', None)
+                discrete_act = json_output_dict.get('discrete_action', None)
 
-            planning_response_str = str(idx2actions) + "\n" + str(planning_response)
+                planning_response_str = str(idx2actions) + "\n" + str(planning_response)
 
-            pil_annotated_img = annotate_image(http_idx, manager.rgb_image, discrete_act, traj_path, pixel_goal, "./")
+                pil_annotated_img = annotate_image(http_idx, manager.rgb_image, discrete_act, traj_path, pixel_goal, "./")
              
-            yield gr.update(value=planning_response_str), gr.update(value=pil_annotated_img), gr.update(value=chat_history)
-        time.sleep(1)
+                yield gr.update(value=planning_response_str), gr.update(value=pil_annotated_img), gr.update(value=chat_history)
+            time.sleep(1)
+
+
+def nav_task_reset():
+
+    global global_nav_instruction_str
+
+    global_nav_instruction_str = None
+    #task_completed = False
+
+    # TODO stop the robot
+    
 
 def create_chatbot_interface() -> gr.Blocks:
     """
@@ -662,8 +682,10 @@ def create_chatbot_interface() -> gr.Blocks:
                         ins_msg_bt = gr.Button("nav instruction")
                     with gr.Column(scale=1):
                         clear = gr.ClearButton([chatbot])
+                        task_reset_bt = gr.Button("nav task reset")
 
         ins_msg_bt.click(gradio_planning_txt_update, inputs=ins_msg, outputs=[planning_response_txt, nav_img_output, chatbot])
+        task_reset_bt.click(nav_task_reset, inputs=None, outputs=None)
     return demo
 
 def run_launch():
@@ -694,7 +716,7 @@ if __name__ == "__main__":
     executor = SingleThreadedExecutor()
     executor.add_node(manager)
 
-    #control_thread_instance.start()
+    control_thread_instance.start()
     planning_thread_instance.start()
     
     executor.spin()

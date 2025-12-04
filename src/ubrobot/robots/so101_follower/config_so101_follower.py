@@ -19,7 +19,7 @@ from dataclasses import dataclass, field
 from lerobot.cameras.configs import CameraConfig, Cv2Rotation
 from lerobot.cameras.opencv.configuration_opencv import OpenCVCameraConfig
 
-from ..config import RobotConfig
+from lerobot.robots.config import RobotConfig
 
 
 def so101_cameras_config() -> dict[str, CameraConfig]:
@@ -28,10 +28,10 @@ def so101_cameras_config() -> dict[str, CameraConfig]:
         #    index_or_path=1, fps=30, width=640, height=480, rotation=Cv2Rotation.ROTATE_180#front
         #),
         "front": OpenCVCameraConfig(
-            index_or_path=1, fps=30, width=640, height=480, rotation=Cv2Rotation.NO_ROTATION#wrist
+            index_or_path="/dev/video0", fps=25, width=640, height=480, rotation=Cv2Rotation.NO_ROTATION#front
         ),
         "wrist": OpenCVCameraConfig(
-            index_or_path=0, fps=30, width=640, height=480, rotation=Cv2Rotation.ROTATE_180#front
+            index_or_path="/dev/video2", fps=25, width=640, height=480, rotation=Cv2Rotation.ROTATE_180#wrist
         ),
     }
 

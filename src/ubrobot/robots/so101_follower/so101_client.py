@@ -24,7 +24,7 @@ import numpy as np
 from lerobot.utils.constants import ACTION, OBS_STATE
 from lerobot.utils.errors import DeviceAlreadyConnectedError, DeviceNotConnectedError
 
-from ..robot import Robot
+from lerobot.robots.robot import Robot
 from .config_so101_follower import SO101ClientConfig
 
 

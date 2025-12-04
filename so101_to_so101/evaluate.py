@@ -24,7 +24,7 @@ from lerobot.datasets.lerobot_dataset import LeRobotDataset
 from lerobot.datasets.utils import hw_to_dataset_features
 from lerobot.policies.factory import make_policy, make_pre_post_processors
 from lerobot.processor import make_default_processors
-from lerobot.robots.so101_follower.so101_client import SO101Client, SO101ClientConfig
+from src.ubrobot.robots.so101_follower.so101_client import SO101Client, SO101ClientConfig
 from lerobot.scripts.lerobot_record import record_loop
 from lerobot.utils.constants import ACTION, OBS_STR
 from lerobot.utils.control_utils import init_keyboard_listener
@@ -37,13 +37,13 @@ EPISODE_TIME_SEC = 600
 TASK_DESCRIPTION = "Grab pens and place into pen holder."
 # IMPORTANT: Set this to the path of the policy you want to evaluate.
 # Can be a local path or a Hugging Face Hub repo ID.
-HF_MODEL_ID = "D:/lerobot_new/lerobot/output/table-cleanup2/checkpoints/060000/pretrained_model"
+HF_MODEL_ID = "/home/sany/060000/pretrained_model"
 # IMPORTANT: Set this to your desired local path for saving the evaluation dataset.
-LOCAL_EVAL_PATH = f"D:/lerobot_new/lerobot/data/so101_evaluations_{datetime.now().strftime('%Y%m%d_%H%M%S')}"
+LOCAL_EVAL_PATH = f"/home/sany/so101_evaluations_{datetime.now().strftime('%Y%m%d_%H%M%S')}"
 
 # --- Robot Configuration ---
 # IMPORTANT: Make sure to replace the remote_ip with the IP of the machine running the so101_host
-robot_config = SO101ClientConfig(remote_ip="10.88.228.133", id="my_so101")
+robot_config = SO101ClientConfig(remote_ip="192.168.18.159", id="my_so101")
 
 # --- Initialize Robot ---
 robot = SO101Client(robot_config)

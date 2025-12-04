@@ -25,7 +25,8 @@ from lerobot.datasets.utils import hw_to_dataset_features
 from lerobot.policies.factory import make_policy, make_pre_post_processors
 from lerobot.processor import make_default_processors
 from src.ubrobot.robots.so101_follower.so101_client import SO101Client, SO101ClientConfig
-from lerobot.scripts.lerobot_record import record_loop
+#from lerobot.scripts.lerobot_record import record_loop
+from lerobot_record import record_loop
 from lerobot.utils.constants import ACTION, OBS_STR
 from lerobot.utils.control_utils import init_keyboard_listener
 from lerobot.utils.utils import log_say

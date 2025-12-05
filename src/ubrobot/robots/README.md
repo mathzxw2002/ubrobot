@@ -2,6 +2,11 @@
 
 robot arms
 
+# configuration for unitree go 2
+
+nvidia nx 192.168.18.113, unitree, 123
+
+
 
 
 

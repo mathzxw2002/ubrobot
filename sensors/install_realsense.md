@@ -63,6 +63,19 @@ cmake .. -DCMAKE_BUILD_TYPE=Release \
          -DCMAKE_CXX_FLAGS="-march=armv8-a+crc -mtune=cortex-a76"  # Optimized for Raspberry Pi 5 (change to cortex-a72 for Pi 4B)
 ```
 
+for Jeston Orin NX/OX
+```Plain Text
+
+mkdir build && cd build
+
+# CMake configuration (enable Python interface, force libuvc backend, optimize for ARM performance)
+cmake .. -DCMAKE_BUILD_TYPE=Release \
+         -DBUILD_PYTHON_BINDINGS=bool:true \
+         -DFORCE_LIBUVC=true \
+         -DBUILD_EXAMPLES=true \
+         -DCMAKE_CXX_FLAGS="-march=armv8.2-a+crc+crypto -mtune=cortex-a78ae"
+```
+
 #### 3. Compile and Install
 
 ```Plain Text

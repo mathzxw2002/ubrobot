@@ -72,8 +72,7 @@ mkdir build && cd build
 cmake .. -DCMAKE_BUILD_TYPE=Release \
          -DBUILD_PYTHON_BINDINGS=bool:true \
          -DFORCE_LIBUVC=true \
-         -DBUILD_EXAMPLES=true \
-         -DCMAKE_CXX_FLAGS="-march=armv8.2-a+crc+crypto -mtune=cortex-a78ae"
+         -DBUILD_EXAMPLES=true
 ```
 
 #### 3. Compile and Install

@@ -4,7 +4,6 @@ import time
 
 from pathlib import Path
 
-
 from collections import OrderedDict
 import qwen_vl_utils
 import transformers
@@ -40,6 +39,28 @@ from src.ubrobot.robots.lekiwi.config_lekiwi_base import LeKiwiConfig
 from sensor_msgs.msg import Image, CompressedImage
 import cv2
 import threading
+
+
+import asyncio
+import base64
+import os
+import time
+from io import BytesIO
+
+import traceback
+
+from fastrtc import (
+    AsyncAudioVideoStreamHandler,
+    WebRTC,
+    async_aggregate_bytes_to_16bit,
+    VideoEmitType,
+    AudioEmitType,
+    get_twilio_turn_credentials,
+    ReplyOnPause,
+    #StreamHandler,
+)
+
+from fastrtc.webrtc import StreamHandler
 
 ROOT = Path(__file__).parents[2]
 SEPARATOR = "-" * 20
@@ -416,9 +437,9 @@ class Go2Manager(Node):
 
         # init lekiwi base robot
         lekiwi_base_config = LeKiwiConfig()
-        self.lekiwi_base = LeKiwi(lekiwi_base_config)
+        #self.lekiwi_base = LeKiwi(lekiwi_base_config)
 
-        self.lekiwi_base.connect()
+        #self.lekiwi_base.connect()
 
     def rgb_forward_callback(self, rgb_msg):
         raw_image = self.cv_bridge.imgmsg_to_cv2(rgb_msg, 'rgb8')[:, :, :]
@@ -525,7 +546,7 @@ class Go2Manager(Node):
                   "y.vel": 0,
                   "theta.vel": vyaw
                   }
-        self.lekiwi_base.send_action(action)
+        #self.lekiwi_base.send_action(action)
 
 
 def cosmos_reason1_infer(image_bytes, instruction, url='http://192.168.18.230:5802/eval_cosmos_reason1'):
@@ -654,7 +675,113 @@ def nav_task_reset():
     #task_completed = False
 
     # TODO stop the robot
-    
+
+class AudioStreamHandler(StreamHandler):
+    """
+    适配FastRTC抽象基类的音频处理器
+    必须实现：copy、emit、receive、handle 四个方法
+    """
+    def __init__(self):
+        super().__init__()
+        self.volume_gain = 0.8  # 音量增益（自定义参数）
+        self.buffer = []  # 音频缓冲区（可选）
+        self.max_buffer_size = 100  # 缓冲区最大长度（防止内存泄漏）
+        print("[AudioStreamHandler] ✅ 处理器初始化完成")
+
+    # 抽象方法1：copy（复制处理器实例）
+    def copy(self):
+        """创建处理器副本（FastRTC内部调用）"""
+        new_handler = AudioStreamHandler()
+        new_handler.volume_gain = self.volume_gain  # 复制自定义参数
+        new_handler.max_buffer_size = self.max_buffer_size
+        print("[AudioStreamHandler] 📋 处理器副本创建完成")
+        return new_handler
+
+    # 抽象方法2：emit（发送音频数据）
+    def emit(self, data: tuple, context: dict = None):
+        """
+        发送处理后的音频数据
+        :param data: (采样率, numpy数组)
+        :param context: 上下文（流ID、设备ID等）
+        """
+
+        print("emit.......")
+        if data is None:
+            return
+        # 可添加发送前的最终处理（如格式校验）
+        sample_rate, audio_data = data
+        self.buffer.append(audio_data)  # 可选：缓存发送数据
+        # FastRTC内部会自动处理数据发送，此处无需额外逻辑
+        return data
+
+    # 抽象方法3：receive（接收音频数据）
+    def receive(self, data: tuple, context: dict = None):
+        """
+        接收原始音频数据并预处理
+        :param data: (采样率, numpy数组)
+        :param context: 上下文
+        """
+
+        ctx_info = context if context else "无上下文"
+        print(f"[AudioStreamHandler] 📥 receive：接收到数据 - 上下文：{ctx_info}，数据：{data}")
+
+        print("==================receive...", data)
+        if data is None:
+            return None
+        # 接收数据后先校验格式
+        sample_rate, audio_data = data
+        if not isinstance(audio_data, np.ndarray):
+            audio_data = np.array(audio_data, dtype=np.float32)
+        # 调用核心处理方法
+        processed_data = self.handle((sample_rate, audio_data), context)
+        # 将处理后的数据交给emit发送
+        return self.emit(processed_data, context)
+
+    def handle(self, audio_data: tuple, context: dict = None) -> tuple:
+        """
+        核心处理方法（必须实现）
+        :param audio_data: 输入音频数据，格式为 (采样率, numpy数组)
+        :param context: 上下文信息（如设备ID、流ID）
+        :return: 处理后的音频数据（需与输入格式一致）
+        """
+
+        print("================handle...")
+        if audio_data is None:
+            return None
+
+        # 解析音频数据
+        sample_rate, data = audio_data
+
+        # 自定义处理逻辑（示例：调整音量）
+        processed_data = data * self.volume_gain
+
+        # 返回处理后的音频（保持格式一致）
+        return (sample_rate, processed_data)
+
+
+def audio_stream_processor(audio):
+    """This function must yield audio frames"""
+    try:
+        # Add your actual processing logic here
+        print("Processing audio frame...")
+        if audio is None:
+            print("Received None audio input.")
+        else:
+            audio_tuple = audio.audio
+            print("==================================", audio)
+            sample_rate, data = audio_tuple
+            print(f"Sample rate: {sample_rate}, Data shape: {data.shape}")
+
+        print("===============================================")
+
+        processed_audio = (sample_rate, data)
+        yield processed_audio # Yield the input back for testing
+    except Exception as e:
+        print(f"An ERROR occurred in response function: {e}")
+        traceback.print_exc() # Print the full traceback for debugging
+        # You might need to yield something to keep the generator alive, 
+        # though the error will likely still disrupt the stream.
+        yield audio 
 
 def create_chatbot_interface() -> gr.Blocks:
     """
@@ -674,15 +801,57 @@ def create_chatbot_interface() -> gr.Blocks:
             
             with gr.Column(scale=2, min_width=500):
                 gr.Markdown("### Robot Control by Instruction")
-                chatbot = gr.Chatbot()
+                chatbot = gr.Chatbot(type="messages", allow_tags=False)
                 
                 ins_msg = gr.Textbox(lines=1)
+
+                '''webrtc = WebRTC(
+                    modality="audio-video",
+                    mode="send-receive",
+                    #rtc_configuration=get_twilio_turn_credentials(),
+                    #pulse_color="rgb(35, 157, 225)",
+                    #icon_button_color="rgb(35, 157, 225)",
+                    width=400,
+                )'''
+
+                audio_webrtc = WebRTC(modality="audio", mode="send-receive", variant="textbox", )
+
+                '''
+                webrtc_stream = Stream(
+                        fn=audio_stream_processor,
+                        inputs=webrtc_base,
+                        outputs=webrtc_base,
+                        ui_args=webrtc_ui_config,
+                        show_progress="hidden"
+                )'''
+
+                audio_handler = AudioStreamHandler()
+                audio_webrtc.stream(
+                    fn=ReplyOnPause(audio_stream_processor),
+                    #fn=audio_handler,
+                    inputs=[audio_webrtc],
+                    outputs=[audio_webrtc],
+                )
+
+                #audio_input = gr.Audio(sources="microphone", type="numpy", )
+                
                 with gr.Row():
                     with gr.Column(scale=1):
                         ins_msg_bt = gr.Button("nav instruction")
                     with gr.Column(scale=1):
                         clear = gr.ClearButton([chatbot])
                         task_reset_bt = gr.Button("nav task reset")
+
+                    '''webrtc = WebRTC(
+                        label="Video Chat",
+                        modality="audio-video",
+                        mode="send-receive",
+                        #elem_id="video-source",
+                        #rtc_configuration=get_twilio_turn_credentials(),
+                        icon="https://www.gstatic.com/lamda/images/gemini_favicon_f069958c85030456e93de685481c559f160ea06b.png",
+                        #pulse_color="rgb(35, 157, 225)",
+                        #icon_button_color="rgb(35, 157, 225)",
+                    )'''
 
         ins_msg_bt.click(gradio_planning_txt_update, inputs=ins_msg, outputs=[planning_response_txt, nav_img_output, chatbot])
         task_reset_bt.click(nav_task_reset, inputs=None, outputs=None)
@@ -691,10 +860,13 @@ def create_chatbot_interface() -> gr.Blocks:
 def run_launch():
     demo.launch(
         server_name="0.0.0.0",
-        server_port=7862,
+        server_port=7863,
         share=False,
         inbrowser=True,
-        show_error=True
+        show_error=True,
+        ssl_certfile="./ub_cert.pem",
+        ssl_keyfile="./ub_key.pem",
+        ssl_verify=False,
     )
 
 if __name__ == "__main__":
@@ -716,8 +888,8 @@ if __name__ == "__main__":
     executor = SingleThreadedExecutor()
     executor.add_node(manager)
 
-    control_thread_instance.start()
-    planning_thread_instance.start()
+    #control_thread_instance.start()
+    #planning_thread_instance.start()
     
     executor.spin()
 

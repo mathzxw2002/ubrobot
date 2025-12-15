@@ -641,8 +641,8 @@ def gradio_planning_txt_update(ins_str):
 
     # TODO double check
     image_bytes = copy.deepcopy(manager.rgb_bytes)
-    #result_str = cosmos_reason1_infer(image_bytes, global_nav_instruction_str)
-    result_str = ""
+    result_str = cosmos_reason1_infer(image_bytes, global_nav_instruction_str)
+    #result_str = ""
 
     chat_history = []
     chat_history.append({"role": "user", "content": global_nav_instruction_str})
@@ -937,7 +937,7 @@ if __name__ == "__main__":
     executor.add_node(manager)
 
     #control_thread_instance.start()
-    #planning_thread_instance.start()
+    planning_thread_instance.start()
     
     executor.spin()
 

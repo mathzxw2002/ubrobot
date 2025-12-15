@@ -49,6 +49,8 @@ pip install scipy matplotlib
 pip install qwen_vl_utils
 ```
 
+pip install "fastrtc[vad, tts]"
+
 ## Install LeRobot
 
 ### From Source

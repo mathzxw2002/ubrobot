@@ -49,6 +49,9 @@ from io import BytesIO
 
 import traceback
 
+import soundfile as sf
+
+
 from fastrtc import (
     AsyncAudioVideoStreamHandler,
     WebRTC,
@@ -59,6 +62,7 @@ from fastrtc import (
     ReplyOnPause,
     #StreamHandler,
 )
+import resampy
 
 from fastrtc.webrtc import StreamHandler
 
@@ -676,6 +680,29 @@ def nav_task_reset():
 
     # TODO stop the robot
 
+import asyncio
+import websockets
+
+async def send_audio_stream(audio, url='ws://192.168.18.141:8000/ws/asr'):
+
+    sample_rate, audio_data = audio
+
+    print("=======send_audio_stream...", audio)
+    #audio_data = (audio_data * 32768).astype(np.int16)
+    audio_data = audio_data.astype(np.int16)
+
+    async with websockets.connect(url) as websocket:
+        # 分块大小：每100ms发送一次（16000采样率 → 1600个样本/100ms）
+        chunk_length = 16000 // 10
+        for i in range(0, len(audio_data), chunk_length):
+            chunk = audio_data[i:i+chunk_length]
+            await websocket.send(chunk.tobytes())
+            result = await websocket.recv()
+            print(f"实时识别结果：{result}")
+            await asyncio.sleep(0.1)
+    return "" #TODO add merged result
+
+
 class AudioStreamHandler(StreamHandler):
     """
     适配FastRTC抽象基类的音频处理器
@@ -705,7 +732,7 @@ class AudioStreamHandler(StreamHandler):
         :param context: 上下文（流ID、设备ID等）
         """
 
-        print("emit.......")
+        #print("emit.......")
         if data is None:
             return
         # 可添加发送前的最终处理（如格式校验）
@@ -723,9 +750,9 @@ class AudioStreamHandler(StreamHandler):
         """
 
         ctx_info = context if context else "无上下文"
-        print(f"[AudioStreamHandler] 📥 receive：接收到数据 - 上下文：{ctx_info}，数据：{data}")
+        #print(f"[AudioStreamHandler] 📥 receive：接收到数据 - 上下文：{ctx_info}，数据：{data}")
 
-        print("==================receive...", data)
+        #print("==================receive...", data)
         if data is None:
             return None
         # 接收数据后先校验格式
@@ -759,29 +786,69 @@ class AudioStreamHandler(StreamHandler):
         return (sample_rate, processed_data)
 
 
-def audio_stream_processor(audio):
+async def audio_stream_processor(audio):
     """This function must yield audio frames"""
     try:
-        # Add your actual processing logic here
         print("Processing audio frame...")
         if audio is None:
             print("Received None audio input.")
         else:
             audio_tuple = audio.audio
-            print("==================================", audio)
+            #audio_tuple = audio
             sample_rate, data = audio_tuple
-            print(f"Sample rate: {sample_rate}, Data shape: {data.shape}")
+            print(f"Sample rate: {sample_rate}, Data shape: {data.shape}", audio_tuple, audio)
 
-        print("===============================================")
+            if sample_rate != 16000:
+                audio_data = resampy.resample(data.flatten().astype(np.float32), sample_rate, 16000).astype(np.int16)
+                #audio_data = audio_data[np.newaxis, :]
+                processed_audio = (16000, audio_data)
 
-        processed_audio = (sample_rate, data)
-        yield processed_audio # Yield the input back for testing
+                sf.write("./audio_16k.wav", audio_data, 16000)
+
+                await send_audio_stream(processed_audio)
+                #yield processed_audio # Yield the input back for testing
     except Exception as e:
         print(f"An ERROR occurred in response function: {e}")
         traceback.print_exc() # Print the full traceback for debugging
         # You might need to yield something to keep the generator alive, 
         # though the error will likely still disrupt the stream.
         yield audio 
+
+def process_audio(audio):
+    """
+    将音频转为WAV文件，提交到第三方ASR HTTP服务
+    """
+    if audio is None:
+        print( "请先录制音频！", "")
+        return None
+
+    sample_rate, audio_data = audio
+    # 步骤1：临时保存为WAV文件（适配HTTP文件上传）
+    temp_wav = "./temp_audio.wav"
+    sf.write(temp_wav, audio_data, sample_rate)
+
+    # 步骤2：提交到ASR服务（替换为你的服务地址）
+    asr_api_url = "http://192.168.18.141:8000/api/asr"  # 示例ASR服务地址
+    try:
+        files = {"file": open(temp_wav, "rb")}
+        # 发送POST请求（超时30秒）
+        response = requests.post(
+            asr_api_url,
+            files=files,
+            timeout=30
+        )
+        response.raise_for_status()  # 抛出HTTP错误
+        result = response.json()
+        asr_text = result.get("text", "识别结果为空")
+        print("提交成功！", f"ASR识别结果：\n{asr_text}")
+        return None
+    except requests.exceptions.RequestException as e:
+        print( "提交失败！", f"错误信息：{str(e)}")
+        return None
+    finally:
+        # 清理临时文件
+        if os.path.exists(temp_wav):
+            os.remove(temp_wav)
 
 def create_chatbot_interface() -> gr.Blocks:
     """
@@ -805,35 +872,21 @@ def create_chatbot_interface() -> gr.Blocks:
                 
                 ins_msg = gr.Textbox(lines=1)
 
-                '''webrtc = WebRTC(
-                    modality="audio-video",
-                    mode="send-receive",
-                    #rtc_configuration=get_twilio_turn_credentials(),
-                    #pulse_color="rgb(35, 157, 225)",
-                    #icon_button_color="rgb(35, 157, 225)",
-                    width=400,
-                )'''
-
-                audio_webrtc = WebRTC(modality="audio", mode="send-receive", variant="textbox", )
-
-                '''
-                webrtc_stream = Stream(
-                        fn=audio_stream_processor,
-                        inputs=webrtc_base,
-                        outputs=webrtc_base,
-                        ui_args=webrtc_ui_config,
-                        show_progress="hidden"
-                )'''
-
+                audio_webrtc = WebRTC(modality="audio", mode="send-receive", variant="textbox")
+               
+                #audio_webrtc = gr.
                 audio_handler = AudioStreamHandler()
                 audio_webrtc.stream(
-                    fn=ReplyOnPause(audio_stream_processor),
+                    #fn=ReplyOnPause(audio_stream_processor),
+                    fn=ReplyOnPause(process_audio),
                     #fn=audio_handler,
                     inputs=[audio_webrtc],
                     outputs=[audio_webrtc],
                 )
 
-                #audio_input = gr.Audio(sources="microphone", type="numpy", )
+                audio_input = gr.Audio(sources="microphone", type="numpy")
+
+                local_btn = gr.Button("save audio...", variant="primary")
                 
                 with gr.Row():
                     with gr.Column(scale=1):
@@ -842,19 +895,14 @@ def create_chatbot_interface() -> gr.Blocks:
                         clear = gr.ClearButton([chatbot])
                         task_reset_bt = gr.Button("nav task reset")
 
-                    '''webrtc = WebRTC(
-                        label="Video Chat",
-                        modality="audio-video",
-                        mode="send-receive",
-                        #elem_id="video-source",
-                        #rtc_configuration=get_twilio_turn_credentials(),
-                        icon="https://www.gstatic.com/lamda/images/gemini_favicon_f069958c85030456e93de685481c559f160ea06b.png",
-                        #pulse_color="rgb(35, 157, 225)",
-                        #icon_button_color="rgb(35, 157, 225)",
-                    )'''
-
         ins_msg_bt.click(gradio_planning_txt_update, inputs=ins_msg, outputs=[planning_response_txt, nav_img_output, chatbot])
         task_reset_bt.click(nav_task_reset, inputs=None, outputs=None)
+
+        local_btn.click(
+            fn=process_audio,
+            inputs=audio_input,
+            outputs=[audio_input]
+        )
     return demo
 
 def run_launch():

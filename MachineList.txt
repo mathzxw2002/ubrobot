@@ -1,7 +1,12 @@
 
 Machine List for Developement
 1, LLM for Nav: 192.168.18.230 (ToDesk ID: 867 306 803)
-2, LLM for ASR and TTS: 192.168.18.141 (ToDesk ID: )
+2, LLM for ASR and TTS: 192.168.18.141 (ToDesk ID: 316 312 275)
+
+    https://github.com/modelscope/FunASR/blob/main/runtime/docs/SDK_tutorial_online.md
+
+    https://github.com/Henry-23/VideoChat
+    
 3, Rasp PI : 192.168.18.233
 4, NVIDIA Orion NX: 
 

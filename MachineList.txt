@@ -8,5 +8,5 @@ Machine List for Developement
     https://github.com/Henry-23/VideoChat
     
 3, Rasp PI : 192.168.18.233
-4, NVIDIA Orion NX: 
+4, NVIDIA Orion NX: unitree@192.168.18.113 (ToDesk ID: 971 694 715)   
 

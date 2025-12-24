@@ -1,4 +1,13 @@
 
+## piper torch torchvisio yolov8
+
+https://developer.nvidia.com/embedded/downloads#?search=torch
+
+https://blog.csdn.net/python_yjys/article/details/145451271
+
+catkin_make --cmake-args -DCMAKE_BUILD_TYPE=Release -DCATKIN_WHITELIST_PACKAGES="piper_msgs"
+
+
 
 robot arms
 

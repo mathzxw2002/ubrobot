@@ -13,6 +13,20 @@ import logging
 
 logging.basicConfig(level=logging.WARNING)
 
+from fastrtc import (
+    AsyncAudioVideoStreamHandler,
+    WebRTC,
+    async_aggregate_bytes_to_16bit,
+    VideoEmitType,
+    AudioEmitType,
+    get_twilio_turn_credentials,
+    ReplyOnPause,
+    #StreamHandler,
+)
+import resampy
+
+from fastrtc.webrtc import StreamHandler
+
 os.environ["DASHSCOPE_API_KEY"] = "sk-479fdd23120c4201bff35a107883c7c3"
 os.environ["is_half"] = "True"
 
@@ -21,16 +35,17 @@ shutil.rmtree('./workspaces/results', ignore_errors= True)
 from src.pipeline import chat_pipeline
 
 def create_gradio():
-    with gr.Blocks() as demo:   
+    with gr.Blocks(title="UBRobot ChatUI") as demo:   
         gr.Markdown(
             """
             <div style="text-align: center; font-size: 32px; font-weight: bold; margin-bottom: 20px;">
-            Chat with Digital Human
+            UBRobot ChatBot
             </div>  
             """
         )
         with gr.Row():
             with gr.Column(scale = 2):
+                gr.Markdown("### Robot Control by Instruction")
                 user_chatbot = mgr.Chatbot(
                     label = "Chat History 💬",
                     value = [[None, {"text":"您好，请问有什么可以帮到您？您可以在下方的输入框点击麦克风录制音频或直接输入文本与我聊天。"}],],
@@ -50,28 +65,23 @@ def create_gradio():
                     
                 user_input = mgr.MultimodalInput(sources=["microphone"])
 
-            #with gr.Column(scale = 1):
-                #video_stream = gr.Video(label="Video Stream 🎬 (基于Gradio 5测试版，网速不佳可能卡顿)", streaming=True, height = 500, scale = 1)  
-                #user_input_audio = gr.Audio(label="音色克隆(可选项，输入音频控制在3-10s。如果不需要音色克隆，请清空。)", sources = ["microphone", "upload"],type = "filepath")
-                #stop_button = gr.Button(value="停止生成")
+            with gr.Column(scale = 1):
+                #video_stream = gr.Video(label="Video Stream 🎬 (基于Gradio 5测试版，网速不佳可能卡顿)", streaming=True, height = 500, scale = 1) 
+                gr.Markdown("### Nav with Instruction")
+                nav_img_output = gr.Image(type="pil", height=480,)
+                planning_response_txt = gr.Textbox(interactive=False, lines=5)
 
         # Use State to store user chat history
         user_messages = gr.State([{'role': 'system', 'content': None}])
         user_processing_flag = gr.State(False)
         lifecycle = mgr.Lifecycle()
 
-        # voice clone
-        '''user_input_audio.stop_recording(chat_pipeline.load_voice,
-            inputs = [avatar_voice, tts_module, user_input_audio],
-            outputs = [user_input])'''
         # loading TTS Voice
         avatar_voice.change(chat_pipeline.load_voice, 
-            #inputs=[avatar_voice, tts_module, user_input_audio],
             inputs=[avatar_voice, tts_module],
             outputs=[user_input]
             )
         lifecycle.mount(chat_pipeline.load_voice,
-            #inputs=[avatar_voice, tts_module, user_input_audio],
             inputs=[avatar_voice, tts_module],
             outputs=[user_input]
         )
@@ -79,12 +89,10 @@ def create_gradio():
         # Submit
         user_input.submit(chat_pipeline.run_pipeline,
             inputs=[user_input, user_messages, chunk_size, avatar_name, tts_module, chat_mode],
-            #inputs=[user_input, user_messages, chunk_size, avatar_name, tts_module, chat_mode],
             outputs=[user_messages]
             )
         user_input.submit(chat_pipeline.yield_results, 
             inputs=[user_input, user_chatbot, user_processing_flag],
-            #outputs = [user_input, user_chatbot, video_stream, user_processing_flag]
             outputs = [user_input, user_chatbot, user_processing_flag]
             )
 
@@ -94,12 +102,25 @@ def create_gradio():
             outputs = user_processing_flag
             )
 
-        # stop
-        '''stop_button.click(chat_pipeline.stop_pipeline, 
-            inputs = user_processing_flag, 
-            outputs = user_processing_flag
-            )'''
-        
+        #with gr.Row():
+            #with gr.Column(scale=1, min_width=300):
+                #gr.Markdown("### Nav with Instruction")
+
+                #nav_img_output = gr.Image(type="pil", height=480,)
+                #planning_response_txt = gr.Textbox(interactive=False, lines=5)
+            
+            #with gr.Column(scale=2, min_width=500):
+                #gr.Markdown("### Robot Control by Instruction")
+                #chatbot = gr.Chatbot(type="messages")
+                
+                #ins_msg = gr.Textbox(lines=1)
+
+                #with gr.Row():
+                #    with gr.Column(scale=1):
+                #        ins_msg_bt = gr.Button("nav instruction")
+                #    with gr.Column(scale=1):
+                #        clear = gr.ClearButton([chatbot])
+                #        task_reset_bt = gr.Button("nav task reset")
     return demo.queue()
 
 if __name__ == "__main__":
@@ -109,6 +130,8 @@ if __name__ == "__main__":
     uvicorn.run(
         app, 
         host = "0.0.0.0",
-        port = 7860, 
+        port = 7862, 
         log_level = "warning",
+        ssl_keyfile="./key.pem",
+        ssl_certfile="./cert.pem"
     )

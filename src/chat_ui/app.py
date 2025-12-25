@@ -65,19 +65,19 @@ import traceback
 import soundfile as sf
 
 
-from fastrtc import (
-    AsyncAudioVideoStreamHandler,
-    WebRTC,
-    async_aggregate_bytes_to_16bit,
-    VideoEmitType,
-    AudioEmitType,
-    get_twilio_turn_credentials,
-    ReplyOnPause,
-    #StreamHandler,
-)
-import resampy
+#from fastrtc import (
+#    AsyncAudioVideoStreamHandler,
+#    WebRTC,
+#    async_aggregate_bytes_to_16bit,
+#    VideoEmitType,
+#    AudioEmitType,
+#    get_twilio_turn_credentials,
+#    ReplyOnPause,
+#    #StreamHandler,
+#)
+#import resampy
 
-from fastrtc.webrtc import StreamHandler
+#from fastrtc.webrtc import StreamHandler
 
 from pipeline import chat_pipeline
 
@@ -675,7 +675,7 @@ if __name__ == "__main__":
     gradio_app = create_gradio()
     app = gr.mount_gradio_app(app, gradio_app, path='/')
 
-    manager = Go2Manager()
+    #manager = Go2Manager()
     
     uvicorn.run(
         app, 

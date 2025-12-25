@@ -12,6 +12,9 @@ description = "UBRobot"
 requires-python = ">=3.8"
 
 dependencies = [
+	# Core dependencies
+	"qwen_vl_utils",
+
 ]
 
 [project.scripts]

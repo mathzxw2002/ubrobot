@@ -39,15 +39,15 @@ from nav_msgs.msg import Odometry
 from PIL import Image as PIL_Image
 from PIL import ImageDraw, ImageFont
 # user-specific
-from controllers import Mpc_controller, PID_controller
+#from utils.controllers import Mpc_controller, PID_controller
 from cv_bridge import CvBridge
 from message_filters import ApproximateTimeSynchronizer, Subscriber
 from rclpy.node import Node
 from rclpy.qos import HistoryPolicy, QoSProfile, ReliabilityPolicy
-from thread_utils import ReadWriteLock
+#from thread_utils import ReadWriteLock
 
-from src.ubrobot.robots.lekiwi.lekiwi_base import LeKiwi
-from src.ubrobot.robots.lekiwi.config_lekiwi_base import LeKiwiConfig
+#from ubrobot.robots.lekiwi.lekiwi_base import LeKiwi
+#from ubrobot.robots.lekiwi.config_lekiwi_base import LeKiwiConfig
 
 from sensor_msgs.msg import Image, CompressedImage
 import cv2
@@ -105,7 +105,7 @@ class ControlMode(Enum):
 # global variable
 policy_init = True
 mpc = None
-pid = PID_controller(Kp_trans=2.0, Kd_trans=0.0, Kp_yaw=1.5, Kd_yaw=0.0, max_v=0.6, max_w=0.5)
+#pid = PID_controller(Kp_trans=2.0, Kd_trans=0.0, Kp_yaw=1.5, Kd_yaw=0.0, max_v=0.6, max_w=0.5)
 http_idx = -1
 first_running_time = 0.0
 last_s2_step = -1
@@ -114,9 +114,9 @@ current_control_mode = ControlMode.MPC_Mode
 trajs_in_world = None
 
 desired_v, desired_w = 0.0, 0.0
-rgb_depth_rw_lock = ReadWriteLock()
-odom_rw_lock = ReadWriteLock()
-mpc_rw_lock = ReadWriteLock()
+#rgb_depth_rw_lock = ReadWriteLock()
+#odom_rw_lock = ReadWriteLock()
+#mpc_rw_lock = ReadWriteLock()
 
 
 planning_response = None
@@ -422,6 +422,9 @@ def planning_thread():
 
 class Go2Manager(Node):
     def __init__(self):
+        if not rclpy.ok():
+            rclpy.init()
+
         super().__init__('go2_manager')
 
         rgb_down_sub = Subscriber(self, Image, "/camera/color/image_raw")
@@ -464,7 +467,7 @@ class Go2Manager(Node):
         self.vel = None
 
         # init lekiwi base robot
-        lekiwi_base_config = LeKiwiConfig()
+        #lekiwi_base_config = LeKiwiConfig()
         #self.lekiwi_base = LeKiwi(lekiwi_base_config)
 
         #self.lekiwi_base.connect()

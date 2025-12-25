@@ -58,3 +58,7 @@ transformers 4.44.1 requires huggingface-hub<1.0,>=0.23.2, but you have huggingf
 https://blog.csdn.net/qq_63234089/article/details/146914002
 
 
+
+# Generate Encrypt
+penssl req -x509 -newkey rsa:4096 -keyout key.pem -out cert.pem -days 365 -nodes
+

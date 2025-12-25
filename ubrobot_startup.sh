@@ -1,4 +1,4 @@
-source /home/china/vision_opencv/install/setup.bash
+#source /home/china/vision_opencv/install/setup.bash
 #sudo chmod 666 /dev/ttyACM0
-
-python test.py
+python3 src/chat_ui/app.py
+#python test.py

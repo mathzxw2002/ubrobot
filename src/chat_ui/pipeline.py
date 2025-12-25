@@ -20,12 +20,10 @@ import threading
 import gradio as gr
 import pandas as pd
 
-from src.utils import get_timestamp_str, merge_videos, merge_audios, merge_frames_with_audio
-
-#from src.tts import GPT_SoVits_TTS, CosyVoice_API
-from src.tts import CosyVoice_API
-from src.asr import Fun_ASR
-from src.llm import Qwen_API
+from utils import get_timestamp_str, merge_videos, merge_audios, merge_frames_with_audio
+from tts import CosyVoice_API
+from asr import Fun_ASR
+from llm import Qwen_API
 
 
 @torch.no_grad()
@@ -47,7 +45,6 @@ class ChatPipeline:
         self.video_queue = queue.Queue()
         self.llm_queue = queue.Queue()
         self.tts_queue = queue.Queue()
-        #self.thg_queue = queue.Queue()
         self.chat_history = []
         self.stop = threading.Event()
     
@@ -73,7 +70,6 @@ class ChatPipeline:
         self.video_queue = queue.Queue()
         self.llm_queue = queue.Queue()
         self.tts_queue = queue.Queue()
-        #self.thg_queue = queue.Queue()
         self.chat_history = []
         self.idx = 0
         self.start_time = None
@@ -140,6 +136,8 @@ class ChatPipeline:
                 chunk_size,
                 chat_mode
             )
+
+            #self.llm.cosmos_reason1_infer(image_bytes, instruction)
 
             print("============================================llm_response_txt", llm_response_txt)
 

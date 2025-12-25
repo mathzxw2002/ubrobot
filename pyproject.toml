@@ -1,0 +1,20 @@
+[build-system]
+requires = ["setuptools"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "ubrobot"
+version = "0.0.1"
+authors = [
+  { name = "Xiaowei Zhao", email = "mathzxw2002@gmail.com" }
+]
+description = "UBRobot"
+requires-python = ">=3.8"
+
+dependencies = [
+]
+
+[project.scripts]
+
+[tool.setuptools.packages.find]
+where = ["src"]

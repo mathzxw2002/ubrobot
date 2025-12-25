@@ -32,7 +32,7 @@ os.environ["is_half"] = "True"
 
 shutil.rmtree('./workspaces/results', ignore_errors= True)
 
-from src.pipeline import chat_pipeline
+from pipeline import chat_pipeline
 
 def create_gradio():
     with gr.Blocks(title="UBRobot ChatUI") as demo:   
@@ -50,8 +50,8 @@ def create_gradio():
                     label = "Chat History 💬",
                     value = [[None, {"text":"您好，请问有什么可以帮到您？您可以在下方的输入框点击麦克风录制音频或直接输入文本与我聊天。"}],],
                     avatar_images=[
-                        {"avatar": os.path.abspath("data/icon/user.png")},
-                        {"avatar": os.path.abspath("data/icon/qwen.png")},
+                        {"avatar": os.path.abspath("assets/icon/user.png")},
+                        {"avatar": os.path.abspath("assets/icon/qwen.png")},
                     ],
                     height= 500,
                     )
@@ -132,6 +132,6 @@ if __name__ == "__main__":
         host = "0.0.0.0",
         port = 7862, 
         log_level = "warning",
-        ssl_keyfile="./key.pem",
-        ssl_certfile="./cert.pem"
+        ssl_keyfile="./assets/key.pem",
+        ssl_certfile="./assets/cert.pem"
     )

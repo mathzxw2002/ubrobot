@@ -1,21 +1,11 @@
 --extra-index-url https://download.pytorch.org/whl/cu121
-# https://gradio-builds.s3.amazonaws.com/bed454c3d22cfacedc047eb3b0ba987b485ac3fd/gradio-4.40.0-py3-none-any.whl
 gradio==5.4.0
 modelscope_studio==0.5.2
-# torch==2.1.2 
-# torchvision==0.16.2
-# torchaudio==2.1.2
 torch==2.3.0
 torchvision==0.18.0
 torchaudio==2.3.0
 
 pydantic==2.10.6
-
-                                                                                             
-# 安装命令：pip install -r requirements.txt -f https://download.openmmlab.com/mmcv/dist/cu121/torch2.3.0/index.html --force-reinstall --no-cache-dir                                      
-#mmcv==2.1.0
-#mmdet==3.2.0
-#mmpose==1.1.0
 
 diffusers==0.27.2
 accelerate==0.28.0
@@ -65,11 +55,9 @@ modelscope==1.19.2
 pydub
 dashscope
 edge-tts
-# fastapi==0.112.2
 
 # GLM-4-Voice requirements
 transformers==4.44.1
-conformer==0.3.2
 deepspeed==0.14.2; sys_platform == 'linux'
 pynini==2.1.7
 #grpcio==1.57.0
@@ -84,8 +72,5 @@ openai-whisper==20231117
 protobuf==4.25
 rich==13.7.1
 Requests==2.32.3
-safetensors==0.4.5
-soundfile==0.12.1
-tensorboard==2.14.0
 wget==3.2
-#WeTextProcessing==1.0.3
+safetensors>=0.4.1

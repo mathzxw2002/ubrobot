@@ -1,6 +1,6 @@
 from openai import OpenAI
-from modelscope import AutoModelForCausalLM, AutoTokenizer
-from transformers import TextStreamer, TextIteratorStreamer
+#from modelscope import AutoModelForCausalLM, AutoTokenizer
+#from transformers import TextStreamer, TextIteratorStreamer
 from threading import Thread
 import re
 import queue
@@ -9,7 +9,7 @@ import json
 import time
 
 
-class Qwen:
+'''class Qwen:
     def __init__(self, model_name = "Qwen/Qwen2.5-7B-Instruct"):
         self.model = AutoModelForCausalLM.from_pretrained(
             model_name,
@@ -123,7 +123,7 @@ class Qwen:
         print(f"[LLM] Response: {chat_response}\n")
         
         return chat_response, user_messages, time_cost
-
+'''
 
 class Qwen_API:
     def __init__(self, api_key = None, base_url = "https://dashscope.aliyuncs.com/compatible-mode/v1"):

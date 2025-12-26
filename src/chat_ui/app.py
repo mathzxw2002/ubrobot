@@ -680,7 +680,7 @@ if __name__ == "__main__":
     uvicorn.run(
         app, 
         host = "0.0.0.0",
-        port = 7862, 
+        port = 7863, 
         log_level = "warning",
         ssl_keyfile="./assets/key.pem",
         ssl_certfile="./assets/cert.pem"

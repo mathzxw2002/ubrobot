@@ -39,7 +39,8 @@ dependencies = [
 	"pybind11 >= 2.10.0",
 
 	# remote git resource
-	"pytracik @ git+https://github.com/mathzxw2002/pytracik.git"
+	"pytracik @ git+https://github.com/mathzxw2002/pytracik.git",
+	"unitree_sdk2py @ git+https://github.com/unitreerobotics/unitree_sdk2_python.git"
 	
 
 ]

@@ -5,12 +5,7 @@ import numpy as np
 from piper_sdk import *
 
 # Choose the appropriate controller based on the inverse kinematics algorithm
-# from src.gamepad_pin import RoboticArmController
-# from src.gamepad_curobo import RoboticArmController
 from src.gamepad_trac_ik import RoboticArmController
-# from src.gamepad_limit import RoboticArmController
-# from src.gamepad_no_limit import RoboticArmController
-
 
 # Inherit RoboticArmController class, add physical robot arm control function
 class Teleop(RoboticArmController):

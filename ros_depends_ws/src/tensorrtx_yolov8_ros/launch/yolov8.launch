@@ -4,11 +4,11 @@
     <arg name="cuda_post_process" default="c"/>  <!-- 'c' for CPU or 'g' for GPU post-processing -->
     <arg name="debug" default="true"/>
     <arg name="publish_results" default="false"/>
-    <arg name="color_image_topic" default="/camera/color/image_raw"/>
-    <arg name="depth_camera_info_topic" default="/camera/aligned_depth_to_color/camera_info"/>
-    <arg name="depth_image_topic" default="/camera/aligned_depth_to_color/image_raw"/>   
-    <!-- <arg name="depth_camera_info_topic" default="/camera/depth/camera_info"/>
-    <arg name="depth_image_topic" default="/camera/depth/image_raw"/> -->
+    <arg name="color_image_topic" default="/cam_arm/camera/color/image_raw"/>
+    <arg name="depth_camera_info_topic" default="/cam_arm/camera/aligned_depth_to_color/camera_info"/>
+    <arg name="depth_image_topic" default="/cam_arm/camera/aligned_depth_to_color/image_raw"/>   
+    <!-- <arg name="depth_camera_info_topic" default="/cam_arm/camera/depth/camera_info"/>
+    <arg name="depth_image_topic" default="/cam_arm/camera/depth/image_raw"/> -->
 
 
     <node pkg="tensorrtx_yolov8_ros" type="yolov8_seg" name="yolov8_seg_node" output="screen">

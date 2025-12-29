@@ -30,8 +30,9 @@ from collections import deque
 from enum import Enum
 
 import numpy as np
-import rclpy
-from rclpy.executors import MultiThreadedExecutor, SingleThreadedExecutor
+#import rclpy
+import rospy
+#from rclpy.executors import MultiThreadedExecutor, SingleThreadedExecutor
 import requests
 
 from geometry_msgs.msg import Twist
@@ -42,8 +43,9 @@ from PIL import ImageDraw, ImageFont
 #from utils.controllers import Mpc_controller, PID_controller
 from cv_bridge import CvBridge
 from message_filters import ApproximateTimeSynchronizer, Subscriber
-from rclpy.node import Node
-from rclpy.qos import HistoryPolicy, QoSProfile, ReliabilityPolicy
+#from rclpy.node import Node
+from std_msgs.msg import String
+#from rclpy.qos import HistoryPolicy, QoSProfile, ReliabilityPolicy
 #from thread_utils import ReadWriteLock
 
 #from ubrobot.robots.lekiwi.lekiwi_base import LeKiwi

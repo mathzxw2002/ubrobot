@@ -1,5 +1,3 @@
-import subprocess
-import sys
 import os
 import shutil
 import gradio as gr
@@ -11,48 +9,41 @@ warnings.filterwarnings("ignore")
 
 import logging
 
-import random
-import time
+#from pathlib import Path
 
-from pathlib import Path
+#from collections import OrderedDict
+#import qwen_vl_utils
+#import transformers
+#import json
+#import requests
 
-from collections import OrderedDict
-import qwen_vl_utils
-import transformers
-import json
-import requests
+#import copy
+#import io
+#import math
+#from collections import deque
+#from enum import Enum
 
-import copy
-import io
-import math
-from collections import deque
-from enum import Enum
+#import numpy as np
 
-import numpy as np
-import rospy
-import requests
+#import requests
 
-from geometry_msgs.msg import Twist
-from nav_msgs.msg import Odometry
-from PIL import Image as PIL_Image
-from PIL import ImageDraw, ImageFont
-from cv_bridge import CvBridge
-from message_filters import ApproximateTimeSynchronizer, Subscriber
-from std_msgs.msg import String
+#from geometry_msgs.msg import Twist
+#from nav_msgs.msg import Odometry
+#from PIL import ImageDraw, ImageFont
 
-from sensor_msgs.msg import Image, CompressedImage
-import cv2
-import threading
+#from sensor_msgs.msg import Image, CompressedImage
+#import cv2
+#import threading
 
-import asyncio
-import base64
+#import asyncio
+#import base64
 import os
-import time
-from io import BytesIO
+#import time
+#from io import BytesIO
 
-import traceback
+#import traceback
 
-import soundfile as sf
+#import soundfile as sf
 
 from pipeline import chat_pipeline
 

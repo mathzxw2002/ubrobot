@@ -110,3 +110,8 @@ python src/lerobot/processor/migrate_policy_normalization.py --pretrained-path /
     year = {2025}
 }
 ```
+
+
+
+
+export CYCLONEDDS_HOME="/{path to your cyclonedds}/cyclonedds/install"

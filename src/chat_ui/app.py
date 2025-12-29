@@ -6,45 +6,11 @@ import uvicorn
 from fastapi import FastAPI
 import warnings
 warnings.filterwarnings("ignore")
+import copy
+import time
 
 import logging
-
-#from pathlib import Path
-
-#from collections import OrderedDict
-#import qwen_vl_utils
-#import transformers
-#import json
-#import requests
-
-#import copy
-#import io
-#import math
-#from collections import deque
-#from enum import Enum
-
-#import numpy as np
-
-#import requests
-
-#from geometry_msgs.msg import Twist
-#from nav_msgs.msg import Odometry
-#from PIL import ImageDraw, ImageFont
-
-#from sensor_msgs.msg import Image, CompressedImage
-#import cv2
-#import threading
-
-#import asyncio
-#import base64
 import os
-#import time
-#from io import BytesIO
-
-#import traceback
-
-#import soundfile as sf
-
 from pipeline import chat_pipeline
 
 logging.basicConfig(level=logging.WARNING)
@@ -54,8 +20,65 @@ os.environ["is_half"] = "True"
 
 shutil.rmtree('./workspaces/results', ignore_errors= True)
 
+from ubrobot.robots.ubrobot import Go2Manager
+
 manager = None
-trajs_in_world = None
+
+def gradio_planning_txt_update():
+
+    #global planning_response, global_nav_instruction_str, http_idx
+
+    #global_nav_instruction_str = ins_str
+
+    # TODO double check
+    #image_bytes = copy.deepcopy(manager.rgb_bytes)
+    #result_str = cosmos_reason1_infer(image_bytes, global_nav_instruction_str)
+    #result_str = ""
+
+    '''chat_history = []
+    chat_history.append({"role": "user", "content": global_nav_instruction_str})
+    chat_history.append({"role": "assistant", "content": result_str})
+
+    if global_nav_instruction_str is not None:
+        while True:
+    
+            idx2actions = OrderedDict({"0": "STOP", "1": "↑", "2": "←", "3": "→", "5": "↓", })
+
+            planning_response_str = ""
+            pil_annotated_img = None
+            if planning_response is not None:
+
+                json_output_dict = planning_response
+
+                pixel_goal = json_output_dict.get('pixel_goal', None)
+                traj_path = json_output_dict.get('trajectory', None)
+                discrete_act = json_output_dict.get('discrete_action', None)
+
+                planning_response_str = str(idx2actions) + "\n" + str(planning_response)
+
+                pil_annotated_img = annotate_image(http_idx, manager.rgb_image, discrete_act, traj_path, pixel_goal, "./")
+             
+                yield gr.update(value=planning_response_str), gr.update(value=pil_annotated_img), gr.update(value=chat_history)
+            time.sleep(1)'''
+    #print(ins_str)
+
+    while True:
+        #planning_response_str = ""
+        pil_annotated_img = None
+        
+        #json_output_dict = planning_response
+
+        #pixel_goal = json_output_dict.get('pixel_goal', None)
+        #traj_path = json_output_dict.get('trajectory', None)
+        #discrete_act = json_output_dict.get('discrete_action', None)
+
+        #planning_response_str = str(idx2actions) + "\n" + str(planning_response)
+
+        #pil_annotated_img = annotate_image(http_idx, manager.rgb_image, discrete_act, traj_path, pixel_goal, "./")
+        
+        yield gr.update(value=pil_annotated_img)
+        time.sleep(1)
+
 
 def create_gradio():
     with gr.Blocks(title="UBRobot ChatUI") as demo:   
@@ -93,6 +116,7 @@ def create_gradio():
                 gr.Markdown("### Nav with Instruction")
                 nav_img_output = gr.Image(type="pil", height=480,)
                 planning_response_txt = gr.Textbox(interactive=False, lines=5)
+                ins_msg_bt = gr.Button("nav instruction")
 
         # Use State to store user chat history
         user_messages = gr.State([{'role': 'system', 'content': None}])
@@ -124,6 +148,8 @@ def create_gradio():
             inputs = user_processing_flag, 
             outputs = user_processing_flag
             )
+        
+        ins_msg_bt.click(gradio_planning_txt_update, inputs=[], outputs=[nav_img_output])
 
         #with gr.Row():
             #with gr.Column(scale=1, min_width=300):
@@ -144,6 +170,7 @@ def create_gradio():
                 #    with gr.Column(scale=1):
                 #        clear = gr.ClearButton([chatbot])
                 #        task_reset_bt = gr.Button("nav task reset")
+        
     return demo.queue()
 
 if __name__ == "__main__":
@@ -151,7 +178,7 @@ if __name__ == "__main__":
     gradio_app = create_gradio()
     app = gr.mount_gradio_app(app, gradio_app, path='/')
 
-    #manager = Go2Manager()
+    manager = Go2Manager()
     
     uvicorn.run(
         app, 

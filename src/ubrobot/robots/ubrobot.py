@@ -10,10 +10,21 @@ import math
 from collections import deque
 from enum import Enum
 import numpy as np
-import rclpy
-from rclpy.executors import SingleThreadedExecutor
+
+# ROS2
+#import rclpy
+#from rclpy.executors import SingleThreadedExecutor
+#from geometry_msgs.msg import Twist
+#from nav_msgs.msg import Odometry
+
+# ROS1
+import rospy
+from message_filters import ApproximateTimeSynchronizer, Subscriber
+from cv_bridge import CvBridge
 from geometry_msgs.msg import Twist
 from nav_msgs.msg import Odometry
+from sensor_msgs.msg import Image, CompressedImage
+
 from PIL import Image as PIL_Image
 from PIL import ImageDraw, ImageFont
 # user-specific
@@ -41,9 +52,11 @@ class ControlMode(Enum):
     PID_Mode = 1
     MPC_Mode = 2
 
-class Go2Manager(Node):
+#class Go2Manager(Node):
+class Go2Manager():
     def __init__(self):
-        super().__init__('go2_manager')
+        #super().__init__('go2_manager')
+        rospy.init_node('go2_manager', anonymous=True) 
 
         # ===================== 1. 初始化实例属性（原全局变量） =====================
         # 控制模式相关
@@ -73,14 +86,17 @@ class Go2Manager(Node):
         rgb_down_sub = Subscriber(self, Image, "/camera/color/image_raw")
         depth_down_sub = Subscriber(self, Image, "/camera/aligned_depth_to_color/image_raw")
 
-        qos_profile = QoSProfile(reliability=ReliabilityPolicy.BEST_EFFORT, history=HistoryPolicy.KEEP_LAST, depth=10)
+        #qos_profile = QoSProfile(reliability=ReliabilityPolicy.BEST_EFFORT, history=HistoryPolicy.KEEP_LAST, depth=10)
 
         self.syncronizer = ApproximateTimeSynchronizer([rgb_down_sub, depth_down_sub], 1, 0.1)
         self.syncronizer.registerCallback(self.rgb_depth_down_callback)
-        self.odom_sub = self.create_subscription(Odometry, "/odom", self.odom_callback, qos_profile)
+        #self.odom_sub = self.create_subscription(Odometry, "/odom", self.odom_callback)
+        self.odom_sub = rospy.Subscriber("/odom", Odometry, self.odom_callback)
+
 
         # 控制指令发布器
-        self.control_pub = self.create_publisher(Twist, '/cmd_vel_bridge', 5)
+        #self.control_pub = self.create_publisher(Twist, '/cmd_vel_bridge', 5)
+        self.control_pub = rospy.Publisher('/cmd_vel_bridge', Twist, queue_size=5)
 
         # ===================== 3. 初始化类成员变量 =====================
         self.cv_bridge = CvBridge()
@@ -574,8 +590,7 @@ class Go2Manager(Node):
 
 if __name__ == "__main__":
     # 初始化ROS2
-    rclpy.init()
-
+    #rclpy.init()
     print("======= Starting Go2Manager Core =======")
     # 初始化Go2Manager实例
     manager = Go2Manager()
@@ -587,18 +602,39 @@ if __name__ == "__main__":
     # manager.set_nav_instruction("walk close to office chair")
 
     # 启动ROS2执行器
-    executor = SingleThreadedExecutor()
-    executor.add_node(manager)
+    #executor = SingleThreadedExecutor()
+    #executor.add_node(manager)
 
+    #try:
+    #    # 持续运行执行器
+    #    executor.spin()
+    #except KeyboardInterrupt:
+    #    # 捕获Ctrl+C，优雅退出
+    #    print("\n======= Stopping Go2Manager Core =======")
+    #    manager.nav_task_reset()
+    #finally:
+    #    # 关闭资源
+    #    executor.shutdown()
+    #    manager.destroy_node()
+    #    rclpy.shutdown()
+    
+    print("======= Starting Go2Manager Core =======")
     try:
-        # 持续运行执行器
-        executor.spin()
+        # 初始化 Go2Manager 实例（内部已调用 rospy.init_node）
+        manager = Go2Manager()
+        # 启动控制线程和规划线程
+        manager.start_threads()
+        # 可选：设置默认导航指令
+        # manager.set_nav_instruction("walk close to office chair")
+        # ROS 1 核心：保持节点运行（对应 ROS 2 executor.spin()）
+        rospy.spin()
     except KeyboardInterrupt:
-        # 捕获Ctrl+C，优雅退出
+        # 捕获 Ctrl+C，优雅退出
         print("\n======= Stopping Go2Manager Core =======")
         manager.nav_task_reset()
+    except Exception as e:
+        print(f"Error occurred: {e}")
+        traceback.print_exc()
     finally:
-        # 关闭资源
-        executor.shutdown()
-        manager.destroy_node()
-        rclpy.shutdown()
+        # ROS 1 无需手动销毁节点，rospy.spin() 退出后自动释放资源
+        print("======= Go2Manager Core Exited =======")

@@ -28,14 +28,14 @@ from sensor_msgs.msg import Image, CompressedImage
 from PIL import Image as PIL_Image
 from PIL import ImageDraw, ImageFont
 # user-specific
-from controllers import Mpc_controller, PID_controller
+from .controllers import Mpc_controller, PID_controller
 from cv_bridge import CvBridge
 from message_filters import ApproximateTimeSynchronizer, Subscriber
-from rclpy.node import Node
-from rclpy.qos import HistoryPolicy, QoSProfile, ReliabilityPolicy
+#from rclpy.node import Node
+#from rclpy.qos import HistoryPolicy, QoSProfile, ReliabilityPolicy
 from thread_utils import ReadWriteLock
-from src.ubrobot.robots.lekiwi.lekiwi_base import LeKiwi
-from src.ubrobot.robots.lekiwi.config_lekiwi_base import LeKiwiConfig
+#from src.ubrobot.robots.lekiwi.lekiwi_base import LeKiwi
+#from src.ubrobot.robots.lekiwi.config_lekiwi_base import LeKiwiConfig
 from sensor_msgs.msg import Image, CompressedImage
 import cv2
 import threading
@@ -83,8 +83,8 @@ class Go2Manager():
         self.cosmos_reason1_url = "http://192.168.18.230:5802/eval_cosmos_reason1"
 
         # ===================== 2. 初始化ROS2订阅/发布器 =====================
-        rgb_down_sub = Subscriber(self, Image, "/camera/color/image_raw")
-        depth_down_sub = Subscriber(self, Image, "/camera/aligned_depth_to_color/image_raw")
+        rgb_down_sub = Subscriber(Image, "/cam_front/camera/color/image_raw")
+        depth_down_sub = Subscriber(Image, "/cam_front/camera/aligned_depth_to_color/image_raw")
 
         #qos_profile = QoSProfile(reliability=ReliabilityPolicy.BEST_EFFORT, history=HistoryPolicy.KEEP_LAST, depth=10)
 

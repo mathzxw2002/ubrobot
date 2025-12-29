@@ -44,6 +44,7 @@ dependencies = [
 	"piper_sdk",
 	"pygame<2.6.2",
 	"numpy<=1.26.0",
+	"casadi",
 
 	# remote git resource
 	"pytracik @ git+https://github.com/mathzxw2002/pytracik.git",

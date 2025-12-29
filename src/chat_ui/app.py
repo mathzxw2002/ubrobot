@@ -11,7 +11,6 @@ warnings.filterwarnings("ignore")
 
 import logging
 
-import gradio as gr
 import random
 import time
 
@@ -30,31 +29,20 @@ from collections import deque
 from enum import Enum
 
 import numpy as np
-#import rclpy
 import rospy
-#from rclpy.executors import MultiThreadedExecutor, SingleThreadedExecutor
 import requests
 
 from geometry_msgs.msg import Twist
 from nav_msgs.msg import Odometry
 from PIL import Image as PIL_Image
 from PIL import ImageDraw, ImageFont
-# user-specific
-#from utils.controllers import Mpc_controller, PID_controller
 from cv_bridge import CvBridge
 from message_filters import ApproximateTimeSynchronizer, Subscriber
-#from rclpy.node import Node
 from std_msgs.msg import String
-#from rclpy.qos import HistoryPolicy, QoSProfile, ReliabilityPolicy
-#from thread_utils import ReadWriteLock
-
-#from ubrobot.robots.lekiwi.lekiwi_base import LeKiwi
-#from ubrobot.robots.lekiwi.config_lekiwi_base import LeKiwiConfig
 
 from sensor_msgs.msg import Image, CompressedImage
 import cv2
 import threading
-
 
 import asyncio
 import base64
@@ -66,23 +54,7 @@ import traceback
 
 import soundfile as sf
 
-
-#from fastrtc import (
-#    AsyncAudioVideoStreamHandler,
-#    WebRTC,
-#    async_aggregate_bytes_to_16bit,
-#    VideoEmitType,
-#    AudioEmitType,
-#    get_twilio_turn_credentials,
-#    ReplyOnPause,
-#    #StreamHandler,
-#)
-#import resampy
-
-#from fastrtc.webrtc import StreamHandler
-
 from pipeline import chat_pipeline
-
 
 logging.basicConfig(level=logging.WARNING)
 
@@ -91,35 +63,8 @@ os.environ["is_half"] = "True"
 
 shutil.rmtree('./workspaces/results', ignore_errors= True)
 
-
-ROOT = Path(__file__).parents[2]
-SEPARATOR = "-" * 20
-
-frame_lock = threading.Lock()
-
-frame_data = {}
-
-class ControlMode(Enum):
-    PID_Mode = 1
-    MPC_Mode = 2
-
-
-# global variable
-policy_init = True
-mpc = None
-#pid = PID_controller(Kp_trans=2.0, Kd_trans=0.0, Kp_yaw=1.5, Kd_yaw=0.0, max_v=0.6, max_w=0.5)
-http_idx = -1
-first_running_time = 0.0
-last_s2_step = -1
 manager = None
-current_control_mode = ControlMode.MPC_Mode
 trajs_in_world = None
-
-desired_v, desired_w = 0.0, 0.0
-#rgb_depth_rw_lock = ReadWriteLock()
-#odom_rw_lock = ReadWriteLock()
-#mpc_rw_lock = ReadWriteLock()
-
 
 def create_gradio():
     with gr.Blocks(title="UBRobot ChatUI") as demo:   

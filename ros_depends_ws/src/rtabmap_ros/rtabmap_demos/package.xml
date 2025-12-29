@@ -1,7 +1,8 @@
 <?xml version="1.0"?>
-<package format="2">
+<?xml-model href="http://download.ros.org/schema/package_format3.xsd" schematypens="http://www.w3.org/2001/XMLSchema"?>
+<package format="3">
   <name>rtabmap_demos</name>
-  <version>0.21.13</version>
+  <version>0.22.1</version>
   <description>RTAB-Map's demo launch files.</description>
   <maintainer email="matlabbe@gmail.com">Mathieu Labbe</maintainer>
   <author>Mathieu Labbe</author>
@@ -9,27 +10,17 @@
   <url type="bugtracker">https://github.com/introlab/rtabmap_ros/issues</url>
   <url type="repository">https://github.com/introlab/rtabmap_ros</url>
 
-  <buildtool_depend>catkin</buildtool_depend>
+  <buildtool_depend>ament_cmake</buildtool_depend>
 
-  <depend>find_object_2d</depend>
-  <depend>rtabmap_conversions</depend>
-  <depend>rtabmap_msgs</depend>
-  <depend>visualization_msgs</depend>
-
-  <exec_depend>rtabmap_costmap_plugins</exec_depend>
-  <exec_depend>rtabmap_launch</exec_depend>
-  <!--exec_depend>rtabmap_legacy</exec_depend-->
   <exec_depend>rtabmap_odom</exec_depend>
   <exec_depend>rtabmap_slam</exec_depend>
-  <exec_depend>rtabmap_sync</exec_depend>
+  <exec_depend>rtabmap_util</exec_depend>
   <exec_depend>rtabmap_rviz_plugins</exec_depend>
   <exec_depend>rtabmap_viz</exec_depend>
-  <exec_depend>rtabmap_util</exec_depend>
+  <exec_depend>nav2_bringup</exec_depend>
   
-  <exec_depend>hector_mapping</exec_depend>
-  <exec_depend>husky_navigation</exec_depend>
-  <exec_depend>turtlebot3_gazebo</exec_depend>
-  <exec_depend>turtlebot3_bringup</exec_depend>
-  <exec_depend>turtlebot3_navigation</exec_depend>
+  <export>
+    <build_type>ament_cmake</build_type>
+  </export>
 
 </package>

@@ -1,43 +1,65 @@
 cmake_minimum_required(VERSION 3.5)
 project(rtabmap_viz)
 
-find_package(catkin REQUIRED COMPONENTS
-             cv_bridge geometry_msgs std_msgs std_srvs nav_msgs rtabmap_msgs rtabmap_sync tf
+if(CMAKE_COMPILER_IS_GNUCXX OR CMAKE_CXX_COMPILER_ID MATCHES "Clang")
+  add_compile_options(-Wall -Wextra -Wpedantic)
+endif()
+
+if(CMAKE_SYSTEM_PROCESSOR STREQUAL "aarch64")
+  # issues #1285 #1288
+  find_library(
+    builtin_interfaces__rosidl_generator_c_LIB NAMES builtin_interfaces__rosidl_generator_c
+    PATHS "/opt/ros/$ENV{ROS_DISTRO}/lib"
+    NO_DEFAULT_PATH NO_CMAKE_FIND_ROOT_PATH REQUIRED
+  )
+  find_library(
+    rcutils_LIB NAMES rcutils
+    PATHS "/opt/ros/$ENV{ROS_DISTRO}/lib"
+    NO_DEFAULT_PATH NO_CMAKE_FIND_ROOT_PATH REQUIRED
+  )
+  find_library(
+    crypto_LIB NAMES crypto
+    PATHS "/usr/lib/${CMAKE_SYSTEM_PROCESSOR}-linux-gnu"
+    NO_DEFAULT_PATH NO_CMAKE_FIND_ROOT_PATH REQUIRED
+  )
+endif()
+
+find_package(ament_cmake REQUIRED)
+find_package(cv_bridge REQUIRED)
+find_package(geometry_msgs REQUIRED)
+find_package(rclcpp REQUIRED)
+find_package(std_msgs REQUIRED)
+find_package(std_srvs REQUIRED)
+find_package(nav_msgs REQUIRED)
+find_package(rtabmap_msgs REQUIRED)
+find_package(rtabmap_sync REQUIRED)
+find_package(tf2 REQUIRED)
+
+find_package(RTABMap COMPONENTS gui REQUIRED)
+
+include_directories(
+  ${CMAKE_CURRENT_SOURCE_DIR}/include
 )
 
-###################################
-## catkin specific configuration ##
-###################################
-
-catkin_package(
-  INCLUDE_DIRS include
-  CATKIN_DEPENDS cv_bridge geometry_msgs std_msgs std_srvs nav_msgs rtabmap_msgs rtabmap_sync tf
+# libraries
+SET(Libraries
+   cv_bridge
+   geometry_msgs
+   rclcpp
+   std_msgs
+   std_srvs
+   nav_msgs
+   rtabmap_msgs
+   rtabmap_sync
+   tf2
 )
-
-# catkin is not using cmake targets for dependencies,
-# so we should explcitly look for Qt to get compilation
-# flags (-fPIC missing)
-FIND_PACKAGE(Qt5 COMPONENTS Widgets Core Gui QUIET)
-IF(NOT Qt5_FOUND)
-    FIND_PACKAGE(Qt4 COMPONENTS QtCore QtGui REQUIRED)
-    INCLUDE(${QT_USE_FILE})
-ENDIF(NOT Qt5_FOUND)
 
 ###########
 ## Build ##
 ###########
 
-# include_directories(include)
-include_directories(
-  ${CMAKE_CURRENT_SOURCE_DIR}/include
-  ${catkin_INCLUDE_DIRS}
-)
-
 add_executable(rtabmap_viz src/GuiNode.cpp src/GuiWrapper.cpp src/PreferencesDialogROS.cpp include/${PROJECT_NAME}/PreferencesDialogROS.h)
-IF(Qt5_FOUND)
-    QT5_USE_MODULES(rtabmap_viz Widgets Core Gui)
-ENDIF(Qt5_FOUND)
-target_link_libraries(rtabmap_viz ${catkin_LIBRARIES})
+ament_target_dependencies(rtabmap_viz ${Libraries})
 SET_TARGET_PROPERTIES(
   rtabmap_viz
    PROPERTIES
@@ -46,6 +68,15 @@ SET_TARGET_PROPERTIES(
      AUTORCC ON
 )
 
+add_executable(rgbd_image_viewer src/RGBDImageViewerNode.cpp src/rgbd_image_viewer.cpp include/${PROJECT_NAME}/rgbd_image_viewer.hpp)
+ament_target_dependencies(rgbd_image_viewer ${Libraries})
+SET_TARGET_PROPERTIES(
+  rgbd_image_viewer
+   PROPERTIES
+	   AUTOUIC ON
+     AUTOMOC ON
+     AUTORCC ON
+)
 
 #############
 ## Install ##
@@ -53,14 +84,8 @@ SET_TARGET_PROPERTIES(
 
 install(TARGETS 
    rtabmap_viz
-   ARCHIVE DESTINATION ${CATKIN_PACKAGE_LIB_DESTINATION}
-   LIBRARY DESTINATION ${CATKIN_PACKAGE_LIB_DESTINATION}
-   RUNTIME DESTINATION ${CATKIN_PACKAGE_BIN_DESTINATION}
+   rgbd_image_viewer
+   DESTINATION lib/${PROJECT_NAME}
 )
 
-## Mark cpp header files for installation
-install(DIRECTORY include/${PROJECT_NAME}/
-   DESTINATION ${CATKIN_PACKAGE_INCLUDE_DESTINATION}
-   FILES_MATCHING PATTERN "*.h"
-)
-
+ament_package()

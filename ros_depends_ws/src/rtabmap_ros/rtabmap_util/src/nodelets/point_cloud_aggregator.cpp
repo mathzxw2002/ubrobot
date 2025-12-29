@@ -25,255 +25,343 @@ ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
 SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 */
 
-#include <ros/ros.h>
-#include <pluginlib/class_list_macros.hpp>
-#include <nodelet/nodelet.h>
+#include <rtabmap_util/point_cloud_aggregator.hpp>
 
 #include <pcl/point_cloud.h>
 #include <pcl/point_types.h>
 #include <pcl_conversions/pcl_conversions.h>
-#include <pcl/io/pcd_io.h>
-
-#include <pcl_ros/transforms.h>
-
-#include <tf/transform_listener.h>
-
-#include <sensor_msgs/PointCloud2.h>
-
-#include <image_transport/image_transport.h>
-#include <image_transport/subscriber_filter.h>
-
-#include <message_filters/sync_policies/approximate_time.h>
-#include <message_filters/subscriber.h>
-#include <message_filters/sync_policies/exact_time.h>
 
 #include <rtabmap_conversions/MsgConversion.h>
 #include <rtabmap/utilite/UConversion.h>
+#include <rtabmap/utilite/ULogger.h>
 #include <rtabmap/core/util3d_filtering.h>
 
 namespace rtabmap_util
 {
 
-/**
- * Nodelet used to merge point clouds from different sensors into a single
- * assembled cloud. If fixed_frame_id is set and approx_sync is true,
- * the clouds are adjusted to include the displacement of the robot
- * in the output cloud.
- */
-class PointCloudAggregator : public nodelet::Nodelet
+PointCloudAggregator::PointCloudAggregator(const rclcpp::NodeOptions & options) :
+	Node("point_cloud_aggregator", options),
+	warningThread_(0),
+	callbackCalled_(false),
+	exactSync4_(0),
+	approxSync4_(0),
+	exactSync3_(0),
+	approxSync3_(0),
+	exactSync2_(0),
+	approxSync2_(0),
+	waitForTransform_(0.1),
+	xyzOutput_(false)
 {
-public:
-	PointCloudAggregator() :
-		warningThread_(0),
-		callbackCalled_(false),
-		exactSync4_(0),
-		approxSync4_(0),
-		exactSync3_(0),
-		approxSync3_(0),
-		exactSync2_(0),
-		approxSync2_(0),
-		waitForTransformDuration_(0.1),
-		xyzOutput_(false)
-	{}
+	tfBuffer_ = std::make_shared<tf2_ros::Buffer>(this->get_clock());
+	//auto timer_interface = std::make_shared<tf2_ros::CreateTimerROS>(
+	//	this->get_node_base_interface(),
+	//	this->get_node_timers_interface());
+	//tfBuffer_->setCreateTimerInterface(timer_interface);
+	tfListener_ = std::make_shared<tf2_ros::TransformListener>(*tfBuffer_);
 
-	virtual ~PointCloudAggregator()
+	int topicQueueSize = 1;
+	int syncQueueSize = 5;
+	int count = 2;
+	bool approx=true;
+	double approxSyncMaxInterval = 0.0;
+	int qos=RMW_QOS_POLICY_RELIABILITY_SYSTEM_DEFAULT;
+	topicQueueSize = this->declare_parameter("topic_queue_size", topicQueueSize);
+	int queueSize = this->declare_parameter("queue_size", -1);
+	if(queueSize != -1)
 	{
-	    delete exactSync4_;
-	    delete approxSync4_;
-	    delete exactSync3_;
-	    delete approxSync3_;
-	    delete exactSync2_;
-	    delete approxSync2_;
-
-	    if(warningThread_)
-		{
-			callbackCalled_=true;
-			warningThread_->join();
-			delete warningThread_;
-		}
+		syncQueueSize = queueSize;
+		RCLCPP_WARN(this->get_logger(), "Parameter \"queue_size\" has been renamed "
+				 "to \"sync_queue_size\" and will be removed "
+				 "in future versions! The value (%d) is copied to "
+				 "\"sync_queue_size\".", syncQueueSize);
 	}
+	syncQueueSize = this->declare_parameter("sync_queue_size", syncQueueSize);
+	qos = this->declare_parameter("qos", qos);
+	frameId_ = this->declare_parameter("frame_id", frameId_);
+	fixedFrameId_ = this->declare_parameter("fixed_frame_id", fixedFrameId_);
+	approx = this->declare_parameter("approx_sync", approx);
+	approxSyncMaxInterval = this->declare_parameter("approx_sync_max_interval", approxSyncMaxInterval);
+	count = this->declare_parameter("count", count);
+	waitForTransform_ = this->declare_parameter("wait_for_transform", waitForTransform_);
+	xyzOutput_ = this->declare_parameter("xyz_output", xyzOutput_);
 
-private:
-	virtual void onInit()
+	cloudPub_ = create_publisher<sensor_msgs::msg::PointCloud2>("combined_cloud", rclcpp::QoS(1).reliability((rmw_qos_reliability_policy_t)qos));
+
+	cloudSub_1_.subscribe(this, "cloud1", RCLCPP_QOS(topicQueueSize, qos));
+	cloudSub_2_.subscribe(this, "cloud2", RCLCPP_QOS(topicQueueSize, qos));
+
+	std::string subscribedTopicsMsg;
+	if(count == 4)
 	{
-		ros::NodeHandle & nh = getNodeHandle();
-		ros::NodeHandle & pnh = getPrivateNodeHandle();
-
-		int queueSize = 1;
-		int syncQueueSize = 5;
-		int count = 2;
-		bool approx=true;
-		double approxSyncMaxInterval = 0.0;
-		pnh.param("topic_queue_size", queueSize, queueSize);
-		if(pnh.hasParam("queue_size") && !pnh.hasParam("sync_queue_size"))
+		cloudSub_3_.subscribe(this, "cloud3", RCLCPP_QOS(topicQueueSize, qos));
+		cloudSub_4_.subscribe(this, "cloud4", RCLCPP_QOS(topicQueueSize, qos));
+		if(approx)
 		{
-			pnh.param("queue_size", syncQueueSize, syncQueueSize);
-			ROS_WARN("Parameter \"queue_size\" has been renamed "
-					"to \"sync_queue_size\" and will be removed "
-					"in future versions! The value (%d) is copied to "
-					"\"sync_queue_size\".", syncQueueSize);
+			approxSync4_ = new message_filters::Synchronizer<ApproxSync4Policy>(ApproxSync4Policy(syncQueueSize), cloudSub_1_, cloudSub_2_, cloudSub_3_, cloudSub_4_);
+			if(approxSyncMaxInterval > 0.0)
+				approxSync4_->setMaxIntervalDuration(rclcpp::Duration::from_seconds(approxSyncMaxInterval));
+			approxSync4_->registerCallback(std::bind(&rtabmap_util::PointCloudAggregator::clouds4_callback, this, std::placeholders::_1, std::placeholders::_2, std::placeholders::_3, std::placeholders::_4));
 		}
 		else
 		{
-			pnh.param("sync_queue_size", syncQueueSize, syncQueueSize);
+			exactSync4_ = new message_filters::Synchronizer<ExactSync4Policy>(ExactSync4Policy(syncQueueSize), cloudSub_1_, cloudSub_2_, cloudSub_3_, cloudSub_4_);
+			exactSync4_->registerCallback(std::bind(&rtabmap_util::PointCloudAggregator::clouds4_callback, this, std::placeholders::_1, std::placeholders::_2, std::placeholders::_3, std::placeholders::_4));
 		}
-		pnh.param("frame_id", frameId_, frameId_);
-		pnh.param("fixed_frame_id", fixedFrameId_, fixedFrameId_);
-		pnh.param("approx_sync", approx, approx);
-		pnh.param("approx_sync_max_interval", approxSyncMaxInterval, approxSyncMaxInterval);
-		pnh.param("count", count, count);
-		pnh.param("wait_for_transform_duration", waitForTransformDuration_, waitForTransformDuration_);
-		pnh.param("xyz_output", xyzOutput_, xyzOutput_);
-
-		cloudSub_1_.subscribe(nh, "cloud1", queueSize);
-		cloudSub_2_.subscribe(nh, "cloud2", queueSize);
-
-		std::string subscribedTopicsMsg;
-		if(count == 4)
+		subscribedTopicsMsg = uFormat("\n%s subscribed to (%s sync%s):\n   %s,\n   %s,\n   %s,\n   %s",
+				get_name(),
+				approx?"approx":"exact",
+				approx&&approxSyncMaxInterval!=0.0?uFormat(", max interval=%fs", approxSyncMaxInterval).c_str():"",
+				cloudSub_1_.getSubscriber()->get_topic_name(),
+				cloudSub_2_.getSubscriber()->get_topic_name(),
+				cloudSub_3_.getSubscriber()->get_topic_name(),
+				cloudSub_4_.getSubscriber()->get_topic_name());
+	}
+	else if(count == 3)
+	{
+		cloudSub_3_.subscribe(this, "cloud3", RCLCPP_QOS(topicQueueSize, qos));
+		if(approx)
 		{
-			cloudSub_3_.subscribe(nh, "cloud3", queueSize);
-			cloudSub_4_.subscribe(nh, "cloud4", queueSize);
-			if(approx)
-			{
-				approxSync4_ = new message_filters::Synchronizer<ApproxSync4Policy>(ApproxSync4Policy(syncQueueSize), cloudSub_1_, cloudSub_2_, cloudSub_3_, cloudSub_4_);
-				if(approxSyncMaxInterval > 0.0)
-					approxSync4_->setMaxIntervalDuration(ros::Duration(approxSyncMaxInterval));
-				approxSync4_->registerCallback(boost::bind(&rtabmap_util::PointCloudAggregator::clouds4_callback, this, boost::placeholders::_1, boost::placeholders::_2, boost::placeholders::_3, boost::placeholders::_4));
-			}
-			else
-			{
-				exactSync4_ = new message_filters::Synchronizer<ExactSync4Policy>(ExactSync4Policy(syncQueueSize), cloudSub_1_, cloudSub_2_, cloudSub_3_, cloudSub_4_);
-				exactSync4_->registerCallback(boost::bind(&rtabmap_util::PointCloudAggregator::clouds4_callback, this, boost::placeholders::_1, boost::placeholders::_2, boost::placeholders::_3, boost::placeholders::_4));
-			}
-			subscribedTopicsMsg = uFormat("\n%s subscribed to (%s sync%s):\n   %s,\n   %s,\n   %s,\n   %s",
-					getName().c_str(),
-					approx?"approx":"exact",
-					approx&&approxSyncMaxInterval!=0.0?uFormat(", max interval=%fs", approxSyncMaxInterval).c_str():"",
-					cloudSub_1_.getTopic().c_str(),
-					cloudSub_2_.getTopic().c_str(),
-					cloudSub_3_.getTopic().c_str(),
-					cloudSub_4_.getTopic().c_str());
-		}
-		else if(count == 3)
-		{
-			cloudSub_3_.subscribe(nh, "cloud3", queueSize);
-			if(approx)
-			{
-				approxSync3_ = new message_filters::Synchronizer<ApproxSync3Policy>(ApproxSync3Policy(syncQueueSize), cloudSub_1_, cloudSub_2_, cloudSub_3_);
-				if(approxSyncMaxInterval > 0.0)
-					approxSync3_->setMaxIntervalDuration(ros::Duration(approxSyncMaxInterval));
-				approxSync3_->registerCallback(boost::bind(&rtabmap_util::PointCloudAggregator::clouds3_callback, this, boost::placeholders::_1, boost::placeholders::_2, boost::placeholders::_3));
-			}
-			else
-			{
-				exactSync3_ = new message_filters::Synchronizer<ExactSync3Policy>(ExactSync3Policy(syncQueueSize), cloudSub_1_, cloudSub_2_, cloudSub_3_);
-				exactSync3_->registerCallback(boost::bind(&rtabmap_util::PointCloudAggregator::clouds3_callback, this, boost::placeholders::_1, boost::placeholders::_2, boost::placeholders::_3));
-			}
-			subscribedTopicsMsg = uFormat("\n%s subscribed to (%s sync%s):\n   %s,\n   %s,\n   %s",
-					getName().c_str(),
-					approx?"approx":"exact",
-					approx&&approxSyncMaxInterval!=0.0?uFormat(", max interval=%fs", approxSyncMaxInterval).c_str():"",
-					cloudSub_1_.getTopic().c_str(),
-					cloudSub_2_.getTopic().c_str(),
-					cloudSub_3_.getTopic().c_str());
+			approxSync3_ = new message_filters::Synchronizer<ApproxSync3Policy>(ApproxSync3Policy(syncQueueSize), cloudSub_1_, cloudSub_2_, cloudSub_3_);
+			if(approxSyncMaxInterval > 0.0)
+				approxSync3_->setMaxIntervalDuration(rclcpp::Duration::from_seconds(approxSyncMaxInterval));
+			approxSync3_->registerCallback(std::bind(&rtabmap_util::PointCloudAggregator::clouds3_callback, this, std::placeholders::_1, std::placeholders::_2, std::placeholders::_3));
 		}
 		else
 		{
-			if(approx)
+			exactSync3_ = new message_filters::Synchronizer<ExactSync3Policy>(ExactSync3Policy(syncQueueSize), cloudSub_1_, cloudSub_2_, cloudSub_3_);
+			exactSync3_->registerCallback(std::bind(&rtabmap_util::PointCloudAggregator::clouds3_callback, this, std::placeholders::_1, std::placeholders::_2, std::placeholders::_3));
+		}
+		subscribedTopicsMsg = uFormat("\n%s subscribed to (%s sync%s):\n   %s,\n   %s,\n   %s",
+				this->get_name(),
+				approx?"approx":"exact",
+				approx&&approxSyncMaxInterval!=0.0?uFormat(", max interval=%fs", approxSyncMaxInterval).c_str():"",
+				cloudSub_1_.getSubscriber()->get_topic_name(),
+				cloudSub_2_.getSubscriber()->get_topic_name(),
+				cloudSub_3_.getSubscriber()->get_topic_name());
+	}
+	else
+	{
+		if(approx)
+		{
+			approxSync2_ = new message_filters::Synchronizer<ApproxSync2Policy>(ApproxSync2Policy(syncQueueSize), cloudSub_1_, cloudSub_2_);
+			if(approxSyncMaxInterval > 0.0)
+				approxSync2_->setMaxIntervalDuration(rclcpp::Duration::from_seconds(approxSyncMaxInterval));
+			approxSync2_->registerCallback(std::bind(&rtabmap_util::PointCloudAggregator::clouds2_callback, this, std::placeholders::_1, std::placeholders::_2));
+		}
+		else
+		{
+			exactSync2_ = new message_filters::Synchronizer<ExactSync2Policy>(ExactSync2Policy(syncQueueSize), cloudSub_1_, cloudSub_2_);
+			exactSync2_->registerCallback(std::bind(&rtabmap_util::PointCloudAggregator::clouds2_callback, this, std::placeholders::_1, std::placeholders::_2));
+		}
+		subscribedTopicsMsg = uFormat("\n%s subscribed to (%s sync%s):\n   %s,\n   %s",
+				this->get_name(),
+				approx?"approx":"exact",
+				approx&&approxSyncMaxInterval!=0.0?uFormat(", max interval=%fs", approxSyncMaxInterval).c_str():"",
+				cloudSub_1_.getSubscriber()->get_topic_name(),
+				cloudSub_2_.getSubscriber()->get_topic_name());
+	}
+
+
+	warningThread_ = new std::thread([&](){
+		rclcpp::Rate r(1.0/5.0);
+		while(!callbackCalled_)
+		{
+			r.sleep();
+			if(!callbackCalled_)
 			{
-				approxSync2_ = new message_filters::Synchronizer<ApproxSync2Policy>(ApproxSync2Policy(syncQueueSize), cloudSub_1_, cloudSub_2_);
-				if(approxSyncMaxInterval > 0.0)
-					approxSync2_->setMaxIntervalDuration(ros::Duration(approxSyncMaxInterval));
-				approxSync2_->registerCallback(boost::bind(&rtabmap_util::PointCloudAggregator::clouds2_callback, this, boost::placeholders::_1, boost::placeholders::_2));
+				RCLCPP_WARN(this->get_logger(), "%s: Did not receive data since 5 seconds! Make sure the input topics are "
+						"published (\"$ ros2 topic hz my_topic\") and the timestamps in their "
+						"header are set. %s%s",
+						this->get_name(),
+						approx?"":"Parameter \"approx_sync\" is false, which means that input "
+							"topics should have all the exact timestamp for the callback to be called.",
+						subscribedTopicsMsg.c_str());
 			}
-			else
+		}
+	});
+	RCLCPP_INFO(this->get_logger(), "%s", subscribedTopicsMsg.c_str());
+}
+
+PointCloudAggregator::~PointCloudAggregator()
+{
+	delete exactSync4_;
+	delete approxSync4_;
+	delete exactSync3_;
+	delete approxSync3_;
+	delete exactSync2_;
+	delete approxSync2_;
+
+	if(warningThread_)
+	{
+		callbackCalled_=true;
+		warningThread_->join();
+		delete warningThread_;
+	}
+}
+
+void PointCloudAggregator::clouds4_callback(const sensor_msgs::msg::PointCloud2::ConstSharedPtr cloudMsg_1,
+					 const sensor_msgs::msg::PointCloud2::ConstSharedPtr cloudMsg_2,
+					 const sensor_msgs::msg::PointCloud2::ConstSharedPtr cloudMsg_3,
+					 const sensor_msgs::msg::PointCloud2::ConstSharedPtr cloudMsg_4)
+{
+	std::vector<sensor_msgs::msg::PointCloud2::ConstSharedPtr> clouds;
+	clouds.push_back(cloudMsg_1);
+	clouds.push_back(cloudMsg_2);
+	clouds.push_back(cloudMsg_3);
+	clouds.push_back(cloudMsg_4);
+
+	combineClouds(clouds);
+}
+void PointCloudAggregator::clouds3_callback(const sensor_msgs::msg::PointCloud2::ConstSharedPtr cloudMsg_1,
+					 const sensor_msgs::msg::PointCloud2::ConstSharedPtr cloudMsg_2,
+					 const sensor_msgs::msg::PointCloud2::ConstSharedPtr cloudMsg_3)
+{
+	std::vector<sensor_msgs::msg::PointCloud2::ConstSharedPtr> clouds;
+	clouds.push_back(cloudMsg_1);
+	clouds.push_back(cloudMsg_2);
+	clouds.push_back(cloudMsg_3);
+
+	combineClouds(clouds);
+}
+void PointCloudAggregator::clouds2_callback(const sensor_msgs::msg::PointCloud2::ConstSharedPtr cloudMsg_1,
+					 const sensor_msgs::msg::PointCloud2::ConstSharedPtr cloudMsg_2)
+{
+	std::vector<sensor_msgs::msg::PointCloud2::ConstSharedPtr> clouds;
+	clouds.push_back(cloudMsg_1);
+	clouds.push_back(cloudMsg_2);
+
+	combineClouds(clouds);
+}
+void PointCloudAggregator::combineClouds(const std::vector<sensor_msgs::msg::PointCloud2::ConstSharedPtr> & cloudMsgs)
+{
+	callbackCalled_ = true;
+	UASSERT(cloudMsgs.size() > 1);
+	if(cloudPub_->get_subscription_count())
+	{
+		pcl::PCLPointCloud2::Ptr output(new pcl::PCLPointCloud2);
+
+		std::string frameId = frameId_;
+		if(!frameId.empty() && frameId.compare(cloudMsgs[0]->header.frame_id) != 0)
+		{
+			sensor_msgs::msg::PointCloud2 tmp;
+			rtabmap::Transform t = rtabmap_conversions::getTransform(frameId, cloudMsgs[0]->header.frame_id, cloudMsgs[0]->header.stamp, *tfBuffer_, waitForTransform_);
+			if(t.isNull())
 			{
-				exactSync2_ = new message_filters::Synchronizer<ExactSync2Policy>(ExactSync2Policy(syncQueueSize), cloudSub_1_, cloudSub_2_);
-				exactSync2_->registerCallback(boost::bind(&rtabmap_util::PointCloudAggregator::clouds2_callback, this, boost::placeholders::_1, boost::placeholders::_2));
+				return;
 			}
-			subscribedTopicsMsg = uFormat("\n%s subscribed to (%s sync%s):\n   %s,\n   %s",
-					getName().c_str(),
-					approx?"approx":"exact",
-					approx&&approxSyncMaxInterval!=0.0?uFormat(", max interval=%fs", approxSyncMaxInterval).c_str():"",
-					cloudSub_1_.getTopic().c_str(),
-					cloudSub_2_.getTopic().c_str());
+			rtabmap_conversions::transformPointCloud(t.toEigen4f(), *cloudMsgs[0], tmp);
+			pcl_conversions::toPCL(tmp, *output);
+		}
+		else
+		{
+			pcl_conversions::toPCL(*cloudMsgs[0], *output);
+			frameId = cloudMsgs[0]->header.frame_id;
 		}
 
-		cloudPub_ = nh.advertise<sensor_msgs::PointCloud2>("combined_cloud", 1);
-
-		warningThread_ = new boost::thread(boost::bind(&PointCloudAggregator::warningLoop, this, subscribedTopicsMsg, approx));
-		NODELET_INFO("%s", subscribedTopicsMsg.c_str());
-	}
-
-	void clouds4_callback(const sensor_msgs::PointCloud2ConstPtr & cloudMsg_1,
-						 const sensor_msgs::PointCloud2ConstPtr & cloudMsg_2,
-						 const sensor_msgs::PointCloud2ConstPtr & cloudMsg_3,
-						 const sensor_msgs::PointCloud2ConstPtr & cloudMsg_4)
-	{
-		std::vector<sensor_msgs::PointCloud2ConstPtr> clouds;
-		clouds.push_back(cloudMsg_1);
-		clouds.push_back(cloudMsg_2);
-		clouds.push_back(cloudMsg_3);
-		clouds.push_back(cloudMsg_4);
-
-		combineClouds(clouds);
-	}
-	void clouds3_callback(const sensor_msgs::PointCloud2ConstPtr & cloudMsg_1,
-	                     const sensor_msgs::PointCloud2ConstPtr & cloudMsg_2,
-	                     const sensor_msgs::PointCloud2ConstPtr & cloudMsg_3)
-	{
-		std::vector<sensor_msgs::PointCloud2ConstPtr> clouds;
-		clouds.push_back(cloudMsg_1);
-		clouds.push_back(cloudMsg_2);
-		clouds.push_back(cloudMsg_3);
-
-		combineClouds(clouds);
-	}
-	void clouds2_callback(const sensor_msgs::PointCloud2ConstPtr & cloudMsg_1,
-						 const sensor_msgs::PointCloud2ConstPtr & cloudMsg_2)
-	{
-		std::vector<sensor_msgs::PointCloud2ConstPtr> clouds;
-		clouds.push_back(cloudMsg_1);
-		clouds.push_back(cloudMsg_2);
-
-		combineClouds(clouds);
-	}
-	void combineClouds(const std::vector<sensor_msgs::PointCloud2ConstPtr> & cloudMsgs)
-	{
-		callbackCalled_ = true;
-		ROS_ASSERT(cloudMsgs.size() > 1);
-		if(cloudPub_.getNumSubscribers())
+		if(xyzOutput_ && !output->data.empty())
 		{
-			pcl::PCLPointCloud2::Ptr output(new pcl::PCLPointCloud2);
-
-			std::string frameId = frameId_;
-			if(!frameId.empty() && frameId.compare(cloudMsgs[0]->header.frame_id) != 0)
+			// convert only if not already XYZ cloud
+			bool hasField[4] = {false};
+			for(size_t i=0; i<output->fields.size(); ++i)
 			{
-				sensor_msgs::PointCloud2 tmp;
-				pcl_ros::transformPointCloud(frameId, *cloudMsgs[0], tmp, tfListener_);
-				pcl_conversions::toPCL(tmp, *output);
+				if(output->fields[i].name.compare("x") == 0)
+				{
+					hasField[0] = true;
+				}
+				else if(output->fields[i].name.compare("y") == 0)
+				{
+					hasField[1] = true;
+				}
+				else if(output->fields[i].name.compare("z") == 0)
+				{
+					hasField[2] = true;
+				}
+				else
+				{
+					hasField[3] = true; // other
+					break;
+				}
+			}
+			if(hasField[0] && hasField[1] && hasField[2] && !hasField[3])
+			{
+				// do nothing, already XYZ
 			}
 			else
 			{
-				pcl_conversions::toPCL(*cloudMsgs[0], *output);
-				frameId = cloudMsgs[0]->header.frame_id;
+				pcl::PointCloud<pcl::PointXYZ> cloudxyz;
+				pcl::fromPCLPointCloud2(*output, cloudxyz);
+				pcl::toPCLPointCloud2(cloudxyz, *output);
+			}
+		}
+
+		for(unsigned int i=1; i<cloudMsgs.size(); ++i)
+		{
+			rtabmap::Transform cloudDisplacement;
+			if(!fixedFrameId_.empty() &&
+			   cloudMsgs[0]->header.stamp != cloudMsgs[i]->header.stamp)
+			{
+				// approx sync
+				cloudDisplacement = rtabmap_conversions::getMovingTransform(
+						frameId, //sourceTargetFrame
+						fixedFrameId_, //fixedFrame
+						cloudMsgs[0]->header.stamp, //stampTarget
+						cloudMsgs[i]->header.stamp, //stampSource
+						*tfBuffer_,
+						waitForTransform_);
 			}
 
-			if(xyzOutput_ && !output->data.empty())
+			pcl::PCLPointCloud2::Ptr cloud2(new pcl::PCLPointCloud2);
+			if(frameId.compare(cloudMsgs[i]->header.frame_id) != 0)
+			{
+				sensor_msgs::msg::PointCloud2 tmp;
+				rtabmap::Transform t = rtabmap_conversions::getTransform(frameId, cloudMsgs[i]->header.frame_id, cloudMsgs[i]->header.stamp, *tfBuffer_, waitForTransform_);
+				rtabmap_conversions::transformPointCloud(t.toEigen4f(), *cloudMsgs[i], tmp);
+				if(!cloudDisplacement.isNull())
+				{
+					sensor_msgs::msg::PointCloud2 tmp2;
+					rtabmap_conversions::transformPointCloud(cloudDisplacement.toEigen4f(), tmp, tmp2);
+					pcl_conversions::toPCL(tmp2, *cloud2);
+				}
+				else
+				{
+					pcl_conversions::toPCL(tmp, *cloud2);
+				}
+			}
+			else
+			{
+				if(!cloudDisplacement.isNull())
+				{
+					sensor_msgs::msg::PointCloud2 tmp;
+					rtabmap_conversions::transformPointCloud(cloudDisplacement.toEigen4f(), *cloudMsgs[i], tmp);
+					pcl_conversions::toPCL(tmp, *cloud2);
+				}
+				else
+				{
+					pcl_conversions::toPCL(*cloudMsgs[i], *cloud2);
+				}
+			}
+
+			if(!cloud2->is_dense)
+			{
+				// remove nans
+				cloud2 = rtabmap::util3d::removeNaNFromPointCloud(cloud2);
+			}
+
+			if(xyzOutput_ && !cloud2->data.empty())
 			{
 				// convert only if not already XYZ cloud
 				bool hasField[4] = {false};
-				for(size_t i=0; i<output->fields.size(); ++i)
+				for(size_t i=0; i<cloud2->fields.size(); ++i)
 				{
-					if(output->fields[i].name.compare("x") == 0)
+					if(cloud2->fields[i].name.compare("x") == 0)
 					{
 						hasField[0] = true;
 					}
-					else if(output->fields[i].name.compare("y") == 0)
+					else if(cloud2->fields[i].name.compare("y") == 0)
 					{
 						hasField[1] = true;
 					}
-					else if(output->fields[i].name.compare("z") == 0)
+					else if(cloud2->fields[i].name.compare("z") == 0)
 					{
 						hasField[2] = true;
 					}
@@ -290,187 +378,54 @@ private:
 				else
 				{
 					pcl::PointCloud<pcl::PointXYZ> cloudxyz;
-					pcl::fromPCLPointCloud2(*output, cloudxyz);
-					pcl::toPCLPointCloud2(cloudxyz, *output);
+					pcl::fromPCLPointCloud2(*cloud2, cloudxyz);
+					pcl::toPCLPointCloud2(cloudxyz, *cloud2);
 				}
 			}
 
-			for(unsigned int i=1; i<cloudMsgs.size(); ++i)
+			if(output->data.empty())
 			{
-				rtabmap::Transform cloudDisplacement;
-				if(!fixedFrameId_.empty() &&
-				   cloudMsgs[0]->header.stamp != cloudMsgs[i]->header.stamp)
+				output = cloud2;
+			}
+			else if(!cloud2->data.empty())
+			{
+
+				if(output->fields.size() != cloud2->fields.size())
 				{
-					// approx sync
-					cloudDisplacement = rtabmap_conversions::getMovingTransform(
-							frameId, //sourceTargetFrame
-							fixedFrameId_, //fixedFrame
-							cloudMsgs[0]->header.stamp, //stampTarget
-							cloudMsgs[i]->header.stamp, //stampSource
-							tfListener_,
-							waitForTransformDuration_);
+					RCLCPP_WARN(this->get_logger(), "%s: Input topics don't have all the "
+							"same number of fields (cloud1=%d, cloud%d=%d), concatenation "
+							"may fails. You can enable \"xyz_output\" option "
+							"to convert all inputs to XYZ.",
+							get_name(),
+							(int)output->fields.size(),
+							i+1,
+							(int)output->fields.size());
 				}
 
-				pcl::PCLPointCloud2::Ptr cloud2(new pcl::PCLPointCloud2);
-				if(frameId.compare(cloudMsgs[i]->header.frame_id) != 0)
-				{
-					sensor_msgs::PointCloud2 tmp;
-					pcl_ros::transformPointCloud(frameId, *cloudMsgs[i], tmp, tfListener_);
-					if(!cloudDisplacement.isNull())
-					{
-						sensor_msgs::PointCloud2 tmp2;
-						pcl_ros::transformPointCloud(cloudDisplacement.toEigen4f(), tmp, tmp2);
-						pcl_conversions::toPCL(tmp2, *cloud2);
-					}
-					else
-					{
-						pcl_conversions::toPCL(tmp, *cloud2);
-					}
-
-				}
-				else
-				{
-					if(!cloudDisplacement.isNull())
-					{
-						sensor_msgs::PointCloud2 tmp;
-						pcl_ros::transformPointCloud(cloudDisplacement.toEigen4f(), *cloudMsgs[i], tmp);
-						pcl_conversions::toPCL(tmp, *cloud2);
-					}
-					else
-					{
-						pcl_conversions::toPCL(*cloudMsgs[i], *cloud2);
-					}
-				}
-
-				if(!cloud2->is_dense)
-				{
-					// remove nans
-					cloud2 = rtabmap::util3d::removeNaNFromPointCloud(cloud2);
-				}
-
-				if(xyzOutput_ && !cloud2->data.empty())
-				{
-					// convert only if not already XYZ cloud
-					bool hasField[4] = {false};
-					for(size_t i=0; i<cloud2->fields.size(); ++i)
-					{
-						if(cloud2->fields[i].name.compare("x") == 0)
-						{
-							hasField[0] = true;
-						}
-						else if(cloud2->fields[i].name.compare("y") == 0)
-						{
-							hasField[1] = true;
-						}
-						else if(cloud2->fields[i].name.compare("z") == 0)
-						{
-							hasField[2] = true;
-						}
-						else
-						{
-							hasField[3] = true; // other
-							break;
-						}
-					}
-					if(hasField[0] && hasField[1] && hasField[2] && !hasField[3])
-					{
-						// do nothing, already XYZ
-					}
-					else
-					{
-						pcl::PointCloud<pcl::PointXYZ> cloudxyz;
-						pcl::fromPCLPointCloud2(*cloud2, cloudxyz);
-						pcl::toPCLPointCloud2(cloudxyz, *cloud2);
-					}
-				}
-
-				if(output->data.empty())
-				{
-					output = cloud2;
-				}
-				else if(!cloud2->data.empty())
-				{
-
-					if(output->fields.size() != cloud2->fields.size())
-					{
-						ROS_WARN("%s: Input topics don't have all the "
-								"same number of fields (cloud1=%d, cloud%d=%d), concatenation "
-								"may fails. You can enable \"xyz_output\" option "
-								"to convert all inputs to XYZ.",
-								getName().c_str(),
-								(int)output->fields.size(),
-								i+1,
-								(int)output->fields.size());
-					}
-
-					pcl::PCLPointCloud2::Ptr tmp_output(new pcl::PCLPointCloud2);
+				pcl::PCLPointCloud2::Ptr tmp_output(new pcl::PCLPointCloud2);
 #if PCL_VERSION_COMPARE(>=, 1, 10, 0)
-					pcl::concatenate(*output, *cloud2, *tmp_output);
+				pcl::concatenate(*output, *cloud2, *tmp_output);
 #else
-					pcl::concatenatePointCloud(*output, *cloud2, *tmp_output);
+				pcl::concatenatePointCloud(*output, *cloud2, *tmp_output);
 #endif
-					//Make sure row_step is the sum of both
-					tmp_output->row_step = tmp_output->width * tmp_output->point_step;
-					output = tmp_output;
-				}
-			}
-
-			sensor_msgs::PointCloud2 rosCloud;
-			pcl_conversions::moveFromPCL(*output, rosCloud);
-			rosCloud.header.stamp = cloudMsgs[0]->header.stamp;
-			rosCloud.header.frame_id = frameId;
-			cloudPub_.publish(rosCloud);
-		}
-	}
-
-	void warningLoop(const std::string & subscribedTopicsMsg, bool approxSync)
-	{
-		ros::Duration r(5.0);
-		while(!callbackCalled_)
-		{
-			r.sleep();
-			if(!callbackCalled_)
-			{
-				ROS_WARN("%s: Did not receive data since 5 seconds! Make sure the input topics are "
-						"published (\"$ rostopic hz my_topic\") and the timestamps in their "
-						"header are set. %s%s",
-						getName().c_str(),
-						approxSync?"":"Parameter \"approx_sync\" is false, which means that input "
-							"topics should have all the exact timestamp for the callback to be called.",
-						subscribedTopicsMsg.c_str());
+				//Make sure row_step is the sum of both
+				tmp_output->row_step = tmp_output->width * tmp_output->point_step;
+				output = tmp_output;
 			}
 		}
+
+		sensor_msgs::msg::PointCloud2::UniquePtr rosCloud(new sensor_msgs::msg::PointCloud2);
+		pcl_conversions::moveFromPCL(*output, *rosCloud);
+		rosCloud->header.stamp = cloudMsgs[0]->header.stamp;
+		rosCloud->header.frame_id = frameId;
+		cloudPub_->publish(std::move(rosCloud));
 	}
-
-	boost::thread * warningThread_;
-	bool callbackCalled_;
-
-	typedef message_filters::sync_policies::ExactTime<sensor_msgs::PointCloud2, sensor_msgs::PointCloud2, sensor_msgs::PointCloud2, sensor_msgs::PointCloud2> ExactSync4Policy;
-	typedef message_filters::sync_policies::ApproximateTime<sensor_msgs::PointCloud2, sensor_msgs::PointCloud2, sensor_msgs::PointCloud2, sensor_msgs::PointCloud2> ApproxSync4Policy;
-	typedef message_filters::sync_policies::ExactTime<sensor_msgs::PointCloud2, sensor_msgs::PointCloud2, sensor_msgs::PointCloud2> ExactSync3Policy;
-	typedef message_filters::sync_policies::ApproximateTime<sensor_msgs::PointCloud2, sensor_msgs::PointCloud2, sensor_msgs::PointCloud2> ApproxSync3Policy;
-	typedef message_filters::sync_policies::ExactTime<sensor_msgs::PointCloud2, sensor_msgs::PointCloud2> ExactSync2Policy;
-	typedef message_filters::sync_policies::ApproximateTime<sensor_msgs::PointCloud2, sensor_msgs::PointCloud2> ApproxSync2Policy;
-	message_filters::Synchronizer<ExactSync4Policy>* exactSync4_;
-	message_filters::Synchronizer<ApproxSync4Policy>* approxSync4_;
-	message_filters::Synchronizer<ExactSync3Policy>* exactSync3_;
-	message_filters::Synchronizer<ApproxSync3Policy>* approxSync3_;
-	message_filters::Synchronizer<ExactSync2Policy>* exactSync2_;
-	message_filters::Synchronizer<ApproxSync2Policy>* approxSync2_;
-	message_filters::Subscriber<sensor_msgs::PointCloud2> cloudSub_1_;
-	message_filters::Subscriber<sensor_msgs::PointCloud2> cloudSub_2_;
-	message_filters::Subscriber<sensor_msgs::PointCloud2> cloudSub_3_;
-	message_filters::Subscriber<sensor_msgs::PointCloud2> cloudSub_4_;
-
-	ros::Publisher cloudPub_;
-
-	std::string frameId_;
-	std::string fixedFrameId_;
-	double waitForTransformDuration_;
-	bool xyzOutput_;
-	tf::TransformListener tfListener_;
-};
-
-PLUGINLIB_EXPORT_CLASS(rtabmap_util::PointCloudAggregator, nodelet::Nodelet);
+}
 }
 
+#include "rclcpp_components/register_node_macro.hpp"
+
+// Register the component with class_loader.
+// This acts as a sort of entry point, allowing the component to be discoverable when its library
+// is being loaded into a running process.
+RCLCPP_COMPONENTS_REGISTER_NODE(rtabmap_util::PointCloudAggregator)

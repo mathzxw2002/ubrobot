@@ -25,6 +25,9 @@
 #pragma once
 
 #include <gtsam/nonlinear/NonlinearFactor.h>
+#if GTSAM_VERSION_NUMERIC >= 40300 && defined(GTSAM_WITH_NOISE_MODEL_FACTOR_N)
+#include <gtsam/nonlinear/NoiseModelFactorN.h>
+#endif
 #include <gtsam/geometry/Pose3.h>
 #include <gtsam/geometry/Unit3.h>
 
@@ -74,8 +77,8 @@ public:
   friend class boost::serialization::access;
   template<class ARCHIVE>
   void serialize(ARCHIVE & ar, const unsigned int /*version*/) {
-    ar & boost::serialization::make_nvp("nZ_", const_cast<Unit3&>(nZ_));
-    ar & boost::serialization::make_nvp("bRef_", const_cast<Unit3&>(bRef_));
+    /*ar & boost::serialization::make_nvp("nZ_", const_cast<Unit3&>(nZ_));
+    ar & boost::serialization::make_nvp("bRef_", const_cast<Unit3&>(bRef_));*/
   }
 #endif
 };
@@ -158,10 +161,10 @@ private:
   friend class boost::serialization::access;
   template<class ARCHIVE>
   void serialize(ARCHIVE & ar, const unsigned int /*version*/) {
-    ar & boost::serialization::make_nvp("NoiseModelFactor1",
+    /*ar & boost::serialization::make_nvp("NoiseModelFactor1",
         boost::serialization::base_object<Base>(*this));
     ar & boost::serialization::make_nvp("GravityFactor",
-        boost::serialization::base_object<GravityFactor>(*this));
+        boost::serialization::base_object<GravityFactor>(*this));*/
   }
 #endif
 
@@ -254,10 +257,10 @@ private:
   friend class boost::serialization::access;
   template<class ARCHIVE>
   void serialize(ARCHIVE & ar, const unsigned int /*version*/) {
-    ar & boost::serialization::make_nvp("NoiseModelFactor1",
+    /*ar & boost::serialization::make_nvp("NoiseModelFactor1",
         boost::serialization::base_object<Base>(*this));
     ar & boost::serialization::make_nvp("GravityFactor",
-        boost::serialization::base_object<GravityFactor>(*this));
+        boost::serialization::base_object<GravityFactor>(*this));*/
   }
 #endif
 public:

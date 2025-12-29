@@ -28,19 +28,23 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 #ifndef MSGCONVERSION_H_
 #define MSGCONVERSION_H_
 
-#include <tf/tf.h>
-#include <tf/transform_listener.h>
-#include <geometry_msgs/Transform.h>
-#include <geometry_msgs/Pose.h>
-#include <geometry_msgs/PoseWithCovarianceStamped.h>
-#include <sensor_msgs/CameraInfo.h>
-#include <sensor_msgs/LaserScan.h>
-#include <sensor_msgs/Image.h>
-#include <sensor_msgs/PointCloud2.h>
+#include "rclcpp/time.hpp"
+#include "tf2_ros/buffer.hpp"
+#include <geometry_msgs/msg/transform.hpp>
+#include <geometry_msgs/msg/pose.hpp>
+#include <geometry_msgs/msg/pose_with_covariance_stamped.hpp>
+#include <sensor_msgs/msg/camera_info.hpp>
+#include <sensor_msgs/msg/laser_scan.hpp>
+#include <sensor_msgs/msg/image.hpp>
+#include <sensor_msgs/msg/point_cloud2.hpp>
 
 #include <opencv2/opencv.hpp>
 #include <opencv2/features2d/features2d.hpp>
+#ifdef PRE_ROS_IRON
 #include <cv_bridge/cv_bridge.h>
+#else
+#include <cv_bridge/cv_bridge.hpp>
+#endif
 
 #include <rtabmap/core/Transform.h>
 #include <rtabmap/core/Link.h>
@@ -49,97 +53,103 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 #include <rtabmap/core/Statistics.h>
 #include <rtabmap/core/StereoCameraModel.h>
 
-#include <rtabmap_msgs/Link.h>
-#include <rtabmap_msgs/KeyPoint.h>
-#include <rtabmap_msgs/Point2f.h>
-#include <rtabmap_msgs/Point3f.h>
-#include <rtabmap_msgs/MapData.h>
-#include <rtabmap_msgs/MapGraph.h>
-#include <rtabmap_msgs/Node.h>
-#include <rtabmap_msgs/OdomInfo.h>
-#include <rtabmap_msgs/Info.h>
-#include <rtabmap_msgs/RGBDImage.h>
-#include <rtabmap_msgs/UserData.h>
+#include <rtabmap_msgs/msg/link.hpp>
+#include <rtabmap_msgs/msg/key_point.hpp>
+#include <rtabmap_msgs/msg/point2f.hpp>
+#include <rtabmap_msgs/msg/point3f.hpp>
+#include <rtabmap_msgs/msg/map_data.hpp>
+#include <rtabmap_msgs/msg/map_graph.hpp>
+#include <rtabmap_msgs/msg/node.hpp>
+#include <rtabmap_msgs/msg/odom_info.hpp>
+#include <rtabmap_msgs/msg/info.hpp>
+#include <rtabmap_msgs/msg/rgbd_image.hpp>
+#include <rtabmap_msgs/msg/user_data.hpp>
+
+#ifdef PRE_ROS_KILTED
+#define RCLCPP_QOS(queueSize, qos) rclcpp::QoS(queueSize).reliability((rmw_qos_reliability_policy_t)qos).get_rmw_qos_profile()
+#else
+#define RCLCPP_QOS(queueSize, qos) rclcpp::QoS(queueSize).reliability((rmw_qos_reliability_policy_t)qos)
+#endif
 
 namespace rtabmap_conversions {
 
-void transformToTF(const rtabmap::Transform & transform, tf::Transform & tfTransform);
-rtabmap::Transform transformFromTF(const tf::Transform & transform);
+void transformToTF(const rtabmap::Transform & transform, tf2::Transform & tfTransform);
+rtabmap::Transform transformFromTF(const tf2::Transform & transform);
 
-void transformToGeometryMsg(const rtabmap::Transform & transform, geometry_msgs::Transform & msg);
-rtabmap::Transform transformFromGeometryMsg(const geometry_msgs::Transform & msg);
+void transformToGeometryMsg(const rtabmap::Transform & transform, geometry_msgs::msg::Transform & msg);
+rtabmap::Transform transformFromGeometryMsg(const geometry_msgs::msg::Transform & msg);
 
-void transformToPoseMsg(const rtabmap::Transform & transform, geometry_msgs::Pose & msg);
-rtabmap::Transform transformFromPoseMsg(const geometry_msgs::Pose & msg, bool ignoreRotationIfNotSet = false);
+void transformToPoseMsg(const rtabmap::Transform & transform, geometry_msgs::msg::Pose & msg);
+rtabmap::Transform transformFromPoseMsg(const geometry_msgs::msg::Pose & msg, bool ignoreRotationIfNotSet = false);
 
-void toCvCopy(const rtabmap_msgs::RGBDImage & image, cv_bridge::CvImagePtr & rgb, cv_bridge::CvImagePtr & depth);
-void toCvShare(const rtabmap_msgs::RGBDImageConstPtr & image, cv_bridge::CvImageConstPtr & rgb, cv_bridge::CvImageConstPtr & depth);
-void toCvShare(const rtabmap_msgs::RGBDImage & image, const boost::shared_ptr<void const>& trackedObject, cv_bridge::CvImageConstPtr & rgb, cv_bridge::CvImageConstPtr & depth);
-void rgbdImageToROS(const rtabmap::SensorData & data, rtabmap_msgs::RGBDImage & msg, const std::string & sensorFrameId);
-rtabmap::SensorData rgbdImageFromROS(const rtabmap_msgs::RGBDImageConstPtr & image);
+void toCvCopy(const rtabmap_msgs::msg::RGBDImage & image, cv_bridge::CvImagePtr & rgb, cv_bridge::CvImagePtr & depth);
+void toCvShare(const rtabmap_msgs::msg::RGBDImage::ConstSharedPtr & image, cv_bridge::CvImageConstPtr & rgb, cv_bridge::CvImageConstPtr & depth);
+void toCvShare(const rtabmap_msgs::msg::RGBDImage & image, const std::shared_ptr<void const>& trackedObject, cv_bridge::CvImageConstPtr & rgb, cv_bridge::CvImageConstPtr & depth);
+void rgbdImageToROS(const rtabmap::SensorData & data, rtabmap_msgs::msg::RGBDImage & msg, const std::string & sensorFrameId);
+rtabmap::SensorData rgbdImageFromROS(const rtabmap_msgs::msg::RGBDImage::ConstSharedPtr & image);
 
 // copy data
 void compressedMatToBytes(const cv::Mat & compressed, std::vector<unsigned char> & bytes);
 cv::Mat compressedMatFromBytes(const std::vector<unsigned char> & bytes, bool copy = true);
 
-void infoFromROS(const rtabmap_msgs::Info & info, rtabmap::Statistics & stat);
-void infoToROS(const rtabmap::Statistics & stats, rtabmap_msgs::Info & info);
+void infoFromROS(const rtabmap_msgs::msg::Info & info, rtabmap::Statistics & stat);
+void infoToROS(const rtabmap::Statistics & stats, rtabmap_msgs::msg::Info & info);
 
-rtabmap::Link linkFromROS(const rtabmap_msgs::Link & msg);
-void linkToROS(const rtabmap::Link & link, rtabmap_msgs::Link & msg);
+rtabmap::Link linkFromROS(const rtabmap_msgs::msg::Link & msg);
+void linkToROS(const rtabmap::Link & link, rtabmap_msgs::msg::Link & msg);
 
-cv::KeyPoint keypointFromROS(const rtabmap_msgs::KeyPoint & msg);
-void keypointToROS(const cv::KeyPoint & kpt, rtabmap_msgs::KeyPoint & msg);
+cv::KeyPoint keypointFromROS(const rtabmap_msgs::msg::KeyPoint & msg);
+void keypointToROS(const cv::KeyPoint & kpt, rtabmap_msgs::msg::KeyPoint & msg);
 
-std::vector<cv::KeyPoint> keypointsFromROS(const std::vector<rtabmap_msgs::KeyPoint> & msg);
-void keypointsFromROS(const std::vector<rtabmap_msgs::KeyPoint> & msg, std::vector<cv::KeyPoint> & kpts, int xShift=0);
-void keypointsToROS(const std::vector<cv::KeyPoint> & kpts, std::vector<rtabmap_msgs::KeyPoint> & msg);
+std::vector<cv::KeyPoint> keypointsFromROS(const std::vector<rtabmap_msgs::msg::KeyPoint> & msg);
+void keypointsFromROS(const std::vector<rtabmap_msgs::msg::KeyPoint> & msg, std::vector<cv::KeyPoint> & kpts, int xShift=0);
+void keypointsToROS(const std::vector<cv::KeyPoint> & kpts, std::vector<rtabmap_msgs::msg::KeyPoint> & msg);
 
-rtabmap::GlobalDescriptor globalDescriptorFromROS(const rtabmap_msgs::GlobalDescriptor & msg);
-void globalDescriptorToROS(const rtabmap::GlobalDescriptor & desc, rtabmap_msgs::GlobalDescriptor & msg);
+rtabmap::GlobalDescriptor globalDescriptorFromROS(const rtabmap_msgs::msg::GlobalDescriptor & msg);
+void globalDescriptorToROS(const rtabmap::GlobalDescriptor & desc, rtabmap_msgs::msg::GlobalDescriptor & msg);
 
-std::vector<rtabmap::GlobalDescriptor> globalDescriptorsFromROS(const std::vector<rtabmap_msgs::GlobalDescriptor> & msg);
-void globalDescriptorsToROS(const std::vector<rtabmap::GlobalDescriptor> & desc, std::vector<rtabmap_msgs::GlobalDescriptor> & msg);
+std::vector<rtabmap::GlobalDescriptor> globalDescriptorsFromROS(const std::vector<rtabmap_msgs::msg::GlobalDescriptor> & msg);
+void globalDescriptorsToROS(const std::vector<rtabmap::GlobalDescriptor> & desc, std::vector<rtabmap_msgs::msg::GlobalDescriptor> & msg);
 
-rtabmap::EnvSensor envSensorFromROS(const rtabmap_msgs::EnvSensor & msg);
-void envSensorToROS(const rtabmap::EnvSensor & sensor, rtabmap_msgs::EnvSensor & msg);
-rtabmap::EnvSensors envSensorsFromROS(const std::vector<rtabmap_msgs::EnvSensor> & msg);
-void envSensorsToROS(const rtabmap::EnvSensors & sensors, std::vector<rtabmap_msgs::EnvSensor> & msg);
+rtabmap::EnvSensor envSensorFromROS(const rtabmap_msgs::msg::EnvSensor & msg);
+void envSensorToROS(const rtabmap::EnvSensor & sensor, rtabmap_msgs::msg::EnvSensor & msg);
+rtabmap::EnvSensors envSensorsFromROS(const std::vector<rtabmap_msgs::msg::EnvSensor> & msg);
+void envSensorsToROS(const rtabmap::EnvSensors & sensors, std::vector<rtabmap_msgs::msg::EnvSensor> & msg);
 
-cv::Point2f point2fFromROS(const rtabmap_msgs::Point2f & msg);
-void point2fToROS(const cv::Point2f & kpt, rtabmap_msgs::Point2f & msg);
+cv::Point2f point2fFromROS(const rtabmap_msgs::msg::Point2f & msg);
+void point2fToROS(const cv::Point2f & kpt, rtabmap_msgs::msg::Point2f & msg);
 
-std::vector<cv::Point2f> points2fFromROS(const std::vector<rtabmap_msgs::Point2f> & msg);
-void points2fToROS(const std::vector<cv::Point2f> & kpts, std::vector<rtabmap_msgs::Point2f> & msg);
+std::vector<cv::Point2f> points2fFromROS(const std::vector<rtabmap_msgs::msg::Point2f> & msg);
+void points2fToROS(const std::vector<cv::Point2f> & kpts, std::vector<rtabmap_msgs::msg::Point2f> & msg);
 
-cv::Point3f point3fFromROS(const rtabmap_msgs::Point3f & msg);
-void point3fToROS(const cv::Point3f & pt, rtabmap_msgs::Point3f & msg);
+cv::Point3f point3fFromROS(const rtabmap_msgs::msg::Point3f & msg);
+void point3fToROS(const cv::Point3f & kpt, rtabmap_msgs::msg::Point3f & msg);
 
-std::vector<cv::Point3f> points3fFromROS(const std::vector<rtabmap_msgs::Point3f> & msg, const rtabmap::Transform & transform = rtabmap::Transform());
-void points3fFromROS(const std::vector<rtabmap_msgs::Point3f> & msg, std::vector<cv::Point3f> & points3, const rtabmap::Transform & transform = rtabmap::Transform());
-void points3fToROS(const std::vector<cv::Point3f> & pts, std::vector<rtabmap_msgs::Point3f> & msg, const rtabmap::Transform & transform = rtabmap::Transform());
+std::vector<cv::Point3f> points3fFromROS(const std::vector<rtabmap_msgs::msg::Point3f> & msg, const rtabmap::Transform & transform = rtabmap::Transform());
+void points3fFromROS(const std::vector<rtabmap_msgs::msg::Point3f> & msg, std::vector<cv::Point3f> & points3, const rtabmap::Transform & transform = rtabmap::Transform());
+void points3fToROS(const std::vector<cv::Point3f> & kpts, std::vector<rtabmap_msgs::msg::Point3f> & msg, const rtabmap::Transform & transform = rtabmap::Transform());
 
 rtabmap::CameraModel cameraModelFromROS(
-		const sensor_msgs::CameraInfo & camInfo,
+		const sensor_msgs::msg::CameraInfo & camInfo,
 		const rtabmap::Transform & localTransform = rtabmap::Transform::getIdentity());
 void cameraModelToROS(
 		const rtabmap::CameraModel & model,
-		sensor_msgs::CameraInfo & camInfo);
+		sensor_msgs::msg::CameraInfo & camInfo);
 
 rtabmap::StereoCameraModel stereoCameraModelFromROS(
-		const sensor_msgs::CameraInfo & leftCamInfo,
-		const sensor_msgs::CameraInfo & rightCamInfo,
+		const sensor_msgs::msg::CameraInfo & leftCamInfo,
+		const sensor_msgs::msg::CameraInfo & rightCamInfo,
 		const rtabmap::Transform & localTransform = rtabmap::Transform::getIdentity(),
 		const rtabmap::Transform & stereoTransform = rtabmap::Transform());
 rtabmap::StereoCameraModel stereoCameraModelFromROS(
-		const sensor_msgs::CameraInfo & leftCamInfo,
-		const sensor_msgs::CameraInfo & rightCamInfo,
+		const sensor_msgs::msg::CameraInfo & leftCamInfo,
+		const sensor_msgs::msg::CameraInfo & rightCamInfo,
 		const std::string & frameId,
-		tf::TransformListener & listener,
+		tf2_ros::Buffer & tfBuffer,
 		double waitForTransform);
 
 void mapDataFromROS(
-		const rtabmap_msgs::MapData & msg,
+		const rtabmap_msgs::msg::MapData & msg,
 		std::map<int, rtabmap::Transform> & poses,
 		std::multimap<int, rtabmap::Link> & links,
 		std::map<int, rtabmap::Signature> & signatures,
@@ -149,10 +159,10 @@ void mapDataToROS(
 		const std::multimap<int, rtabmap::Link> & links,
 		const std::map<int, rtabmap::Signature> & signatures,
 		const rtabmap::Transform & mapToOdom,
-		rtabmap_msgs::MapData & msg);
+		rtabmap_msgs::msg::MapData & msg);
 
 void mapGraphFromROS(
-		const rtabmap_msgs::MapGraph & msg,
+		const rtabmap_msgs::msg::MapGraph & msg,
 		std::map<int, rtabmap::Transform> & poses,
 		std::multimap<int, rtabmap::Link> & links,
 		rtabmap::Transform & mapToOdom);
@@ -160,49 +170,50 @@ void mapGraphToROS(
 		const std::map<int, rtabmap::Transform> & poses,
 		const std::multimap<int, rtabmap::Link> & links,
 		const rtabmap::Transform & mapToOdom,
-		rtabmap_msgs::MapGraph & msg);
+		rtabmap_msgs::msg::MapGraph & msg);
 
-rtabmap::SensorData sensorDataFromROS(const rtabmap_msgs::SensorData & msg);
-void sensorDataToROS(const rtabmap::SensorData & signature, rtabmap_msgs::SensorData & msg, const std::string & frameId = "base_link", bool copyRawData = false);
+rtabmap::SensorData sensorDataFromROS(const rtabmap_msgs::msg::SensorData & msg);
+void sensorDataToROS(const rtabmap::SensorData & signature, rtabmap_msgs::msg::SensorData & msg, const std::string & frameId = "base_link", bool copyRawData = false);
 
-rtabmap::Signature nodeFromROS(const rtabmap_msgs::Node & msg);
-void nodeToROS(const rtabmap::Signature & signature, rtabmap_msgs::Node & msg);
+rtabmap::Signature nodeFromROS(const rtabmap_msgs::msg::Node & msg);
+void nodeToROS(const rtabmap::Signature & signature, rtabmap_msgs::msg::Node & msg);
 
 // DEPRECATED
-rtabmap::Signature nodeDataFromROS(const rtabmap_msgs::Node & msg);
-void nodeDataToROS(const rtabmap::Signature & signature, rtabmap_msgs::Node & msg);
+rtabmap::Signature nodeDataFromROS(const rtabmap_msgs::msg::Node & msg);
+void nodeDataToROS(const rtabmap::Signature & signature, rtabmap_msgs::msg::Node & msg);
 
-rtabmap::Signature nodeInfoFromROS(const rtabmap_msgs::Node & msg);
-void nodeInfoToROS(const rtabmap::Signature & signature, rtabmap_msgs::Node & msg);
+rtabmap::Signature nodeInfoFromROS(const rtabmap_msgs::msg::Node & msg);
+void nodeInfoToROS(const rtabmap::Signature & signature, rtabmap_msgs::msg::Node & msg);
 
 std::map<std::string, float> odomInfoToStatistics(const rtabmap::OdometryInfo & info);
-rtabmap::OdometryInfo odomInfoFromROS(const rtabmap_msgs::OdomInfo & msg, bool ignoreData = false);
-void odomInfoToROS(const rtabmap::OdometryInfo & info, rtabmap_msgs::OdomInfo & msg, bool ignoreData = false);
+rtabmap::OdometryInfo odomInfoFromROS(const rtabmap_msgs::msg::OdomInfo & msg, bool ignoreData = false);
+void odomInfoToROS(const rtabmap::OdometryInfo & info, rtabmap_msgs::msg::OdomInfo & msg, bool ignoreData = false);
 
-cv::Mat userDataFromROS(const rtabmap_msgs::UserData & dataMsg);
-void userDataToROS(const cv::Mat & data, rtabmap_msgs::UserData & dataMsg, bool compress);
+cv::Mat userDataFromROS(const rtabmap_msgs::msg::UserData & dataMsg);
+void userDataToROS(const cv::Mat & data, rtabmap_msgs::msg::UserData & dataMsg, bool compress);
 
-rtabmap::IMU imuFromROS(const sensor_msgs::Imu & msg, const rtabmap::Transform & localTransform = rtabmap::Transform::getIdentity());
-void imuToROS(const rtabmap::IMU & imu, sensor_msgs::Imu & msg);
+rtabmap::IMU imuFromROS(const sensor_msgs::msg::Imu & msg, const rtabmap::Transform & localTransform = rtabmap::Transform::getIdentity());
+void imuToROS(const rtabmap::IMU & imu, sensor_msgs::msg::Imu & msg);
 
 rtabmap::Landmarks landmarksFromROS(
-		const std::map<int, std::pair<geometry_msgs::PoseWithCovarianceStamped, float> > & tags,
+		const std::map<int, std::pair<geometry_msgs::msg::PoseWithCovarianceStamped, float> > & tags,
 		const std::string & frameId,
 		const std::string & odomFrameId,
-		const ros::Time & odomStamp,
-		tf::TransformListener & listener,
+		const rclcpp::Time & odomStamp,
+		tf2_ros::Buffer & tfBuffer,
 		double waitForTransform,
 		double defaultLinVariance,
 		double defaultAngVariance);
 
-inline double timestampFromROS(const ros::Time & stamp) {return double(stamp.sec) + double(stamp.nsec)/1000000000.0;}
+inline double timestampFromROS(const rclcpp::Time & stamp) {return stamp.seconds();}
+inline rclcpp::Time timestampToROS(const double & t) {int32_t sec= (int32_t)floor(t); return rclcpp::Time(sec, (uint32_t)std::round((t-sec) * 1e9));}
 
 // common stuff
 rtabmap::Transform getTransform(
 		const std::string & fromFrameId,
 		const std::string & toFrameId,
-		const ros::Time & stamp,
-		tf::TransformListener & listener,
+		const rclcpp::Time & stamp,
+		tf2_ros::Buffer & tfBuffer,
 		double waitForTransform);
 
 
@@ -211,28 +222,28 @@ rtabmap::Transform getTransform(
 rtabmap::Transform getMovingTransform(
 		const std::string & movingFrame,
 		const std::string & fixedFrame,
-		const ros::Time & stampFrom,
-		const ros::Time & stampTo,
-		tf::TransformListener & listener,
+		const rclcpp::Time & stampFrom,
+		const rclcpp::Time & stampTo,
+		tf2_ros::Buffer & tfBuffer,
 		double waitForTransform);
 
 bool convertRGBDMsgs(
 		const std::vector<cv_bridge::CvImageConstPtr> & imageMsgs,
 		const std::vector<cv_bridge::CvImageConstPtr> & depthMsgs,
-		const std::vector<sensor_msgs::CameraInfo> & cameraInfoMsgs,
-		const std::vector<sensor_msgs::CameraInfo> & depthCameraInfoMsgs,
+		const std::vector<sensor_msgs::msg::CameraInfo> & cameraInfoMsgs,
+		const std::vector<sensor_msgs::msg::CameraInfo> & depthCameraInfoMsgs,
 		const std::string & frameId,
 		const std::string & odomFrameId,
-		const ros::Time & odomStamp,
+		const rclcpp::Time & odomStamp,
 		cv::Mat & rgb,
 		cv::Mat & depth,
 		std::vector<rtabmap::CameraModel> & cameraModels,
 		std::vector<rtabmap::StereoCameraModel> & stereoCameraModels,
-		tf::TransformListener & listener,
+		tf2_ros::Buffer & tfBuffer,
 		double waitForTransform,
 		bool alreadRectifiedImages,
-		const std::vector<std::vector<rtabmap_msgs::KeyPoint> > & localKeyPointsMsgs = std::vector<std::vector<rtabmap_msgs::KeyPoint> >(),
-		const std::vector<std::vector<rtabmap_msgs::Point3f> > & localPoints3dMsgs = std::vector<std::vector<rtabmap_msgs::Point3f> >(),
+		const std::vector<std::vector<rtabmap_msgs::msg::KeyPoint> > & localKeyPointsMsgs = std::vector<std::vector<rtabmap_msgs::msg::KeyPoint> >(),
+		const std::vector<std::vector<rtabmap_msgs::msg::Point3f> > & localPoints3dMsgs = std::vector<std::vector<rtabmap_msgs::msg::Point3f> >(),
 		const std::vector<cv::Mat> & localDescriptorsMsgs = std::vector<cv::Mat>(),
 		std::vector<cv::KeyPoint> * localKeyPoints = 0,
 		std::vector<cv::Point3f> * localPoints3d = 0,
@@ -241,53 +252,118 @@ bool convertRGBDMsgs(
 bool convertStereoMsg(
 		const cv_bridge::CvImageConstPtr& leftImageMsg,
 		const cv_bridge::CvImageConstPtr& rightImageMsg,
-		const sensor_msgs::CameraInfo& leftCamInfoMsg,
-		const sensor_msgs::CameraInfo& rightCamInfoMsg,
+		const sensor_msgs::msg::CameraInfo& leftCamInfoMsg,
+		const sensor_msgs::msg::CameraInfo& rightCamInfoMsg,
 		const std::string & frameId,
 		const std::string & odomFrameId,
-		const ros::Time & odomStamp,
+		const rclcpp::Time & odomStamp,
 		cv::Mat & left,
 		cv::Mat & right,
 		rtabmap::StereoCameraModel & stereoModel,
-		tf::TransformListener & listener,
+		tf2_ros::Buffer & tfBuffer,
 		double waitForTransform,
 		bool alreadyRectified);
 
 bool convertScanMsg(
-		const sensor_msgs::LaserScan & scan2dMsg,
+		const sensor_msgs::msg::LaserScan & scan2dMsg,
 		const std::string & frameId,
 		const std::string & odomFrameId,
-		const ros::Time & odomStamp,
+		const rclcpp::Time & odomStamp,
 		rtabmap::LaserScan & scan,
-		tf::TransformListener & listener,
+		tf2_ros::Buffer & tfBuffer,
 		double waitForTransform,
 		bool outputInFrameId = false);
 
 bool convertScan3dMsg(
-		const sensor_msgs::PointCloud2 & scan3dMsg,
+		const sensor_msgs::msg::PointCloud2 & scan3dMsg,
 		const std::string & frameId,
 		const std::string & odomFrameId,
-		const ros::Time & odomStamp,
+		const rclcpp::Time & odomStamp,
 		rtabmap::LaserScan & scan,
-		tf::TransformListener & listener,
+		tf2_ros::Buffer & tfBuffer,
 		double waitForTransform,
 		int maxPoints = 0,
 		float maxRange = 0.0f,
 		bool is2D = false);
 
 bool deskew(
-		const sensor_msgs::PointCloud2 & input,
-		sensor_msgs::PointCloud2 & output,
+		const sensor_msgs::msg::PointCloud2 & input,
+		sensor_msgs::msg::PointCloud2 & output,
 		const std::string & fixedFrameId,
-		tf::TransformListener & listener,
+		tf2_ros::Buffer & tfBuffer,
 		double waitForTransform,
 		bool slerp = false);
 
 bool deskew(
-		const sensor_msgs::PointCloud2 & input,
-		sensor_msgs::PointCloud2 & output,
+		const sensor_msgs::msg::PointCloud2 & input,
+		sensor_msgs::msg::PointCloud2 & output,
 		double previousStamp,
 		const rtabmap::Transform & velocity);
+
+// Missing function in ros2 (from old pcl_ros)
+void transformPointCloud (
+		const Eigen::Matrix4f &transform,
+		const sensor_msgs::msg::PointCloud2 &in,
+        sensor_msgs::msg::PointCloud2 &out);
+
+/** Return the size of a datatype (which is an enum of sensor_msgs::PointField::) in bytes
+ * @param datatype one of the enums of sensor_msgs::PointField::
+ * Note: Missing function in ros2 (from old pcl_ros)
+ */
+inline int sizeOfPointField(int datatype)
+{
+  if ((datatype == sensor_msgs::msg::PointField::INT8) || (datatype == sensor_msgs::msg::PointField::UINT8))
+    return 1;
+  else if ((datatype == sensor_msgs::msg::PointField::INT16) || (datatype == sensor_msgs::msg::PointField::UINT16))
+    return 2;
+  else if ((datatype == sensor_msgs::msg::PointField::INT32) || (datatype == sensor_msgs::msg::PointField::UINT32) ||
+      (datatype == sensor_msgs::msg::PointField::FLOAT32))
+    return 4;
+  else if (datatype == sensor_msgs::msg::PointField::FLOAT64)
+    return 8;
+  else
+  {
+    std::stringstream err;
+    err << "PointField of type " << datatype << " does not exist";
+    throw std::runtime_error(err.str());
+  }
+  return -1;
+}
+
+template <typename K, typename V>
+typename std::map<K, V>::const_iterator getClosestIterator(
+	const std::map<K, V> & buffer,
+	const K & key)
+{
+	UASSERT(!buffer.empty());
+	typename std::map<K, V>::const_iterator iterB = buffer.lower_bound(key);
+	typename std::map<K, V>::const_iterator iterA = iterB;
+	if(iterA != buffer.begin())
+	{
+		iterA = --iterA;
+	}
+	if(iterB == buffer.end())
+	{
+		iterB = --iterB;
+	}
+	if(iterA == iterB)
+	{
+		return iterA;
+	}
+	if(iterA->first > key)
+	{
+		return iterA;
+	}
+	else if(iterB->first < key)
+	{
+		return iterB;
+	}
+	else if(key - iterA->first < iterB->first - key)
+	{
+		return iterA;
+	}
+	return iterB;
+}
 
 }
 

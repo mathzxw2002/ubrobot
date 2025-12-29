@@ -1,5 +1,5 @@
 
-Header header
+std_msgs/Header header
 
 # scan or scan_cloud is set
 sensor_msgs/LaserScan scan

@@ -1,5 +1,5 @@
 
-Header header
+std_msgs/Header header
 
 # compressed global descriptor
 # use rtabmap::util3d::uncompressData() from "rtabmap/core/util3d.h"

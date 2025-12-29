@@ -1,7 +1,10 @@
-catkin_add_nosetests(directed.py)
+find_package(ament_cmake_gtest REQUIRED)
+find_package(ament_cmake_pytest REQUIRED)
 
-catkin_add_gtest(${PROJECT_NAME}-utest utest.cpp)
-target_link_libraries(${PROJECT_NAME}-utest ${PROJECT_NAME} ${OpenCV_LIBS})
+ament_add_pytest_test(directed.py "directed.py")
 
-catkin_add_gtest(${PROJECT_NAME}-utest-equi utest_equi.cpp)
-target_link_libraries(${PROJECT_NAME}-utest-equi ${PROJECT_NAME} ${OpenCV_LIBS})
+ament_add_gtest(${PROJECT_NAME}-utest utest.cpp)
+target_link_libraries(${PROJECT_NAME}-utest ${PROJECT_NAME})
+
+ament_add_gtest(${PROJECT_NAME}-utest-equi utest_equi.cpp)
+target_link_libraries(${PROJECT_NAME}-utest-equi ${PROJECT_NAME})

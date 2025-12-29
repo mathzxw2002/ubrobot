@@ -196,7 +196,7 @@ bool exportPoses(
 
 bool importPoses(
 		const std::string & filePath,
-		int format, // 0=Raw, 1=RGBD-SLAM motion capture (10=without change of coordinate frame, 11=10+ID), 2=KITTI, 3=TORO, 4=g2o, 5=NewCollege(t,x,y), 6=Malaga Urban GPS, 7=St Lucia INS, 8=Karlsruhe, 9=EuRoC MAV
+		int format, // 0=Raw, 1=RGBD-SLAM motion capture (10=without change of coordinate frame, 11=10+ID), 2=KITTI, 3=TORO, 4=g2o, 5=NewCollege(t,x,y), 6=Malaga Urban GPS, 7=St Lucia INS, 8=Karlsruhe, 9=EuRoC MAV, 12=rgbd_bonn
 		std::map<int, Transform> & poses,
 		std::multimap<int, Link> * constraints, // optional for formats 3 and 4
 		std::map<int, double> * stamps) // optional for format 1 and 9
@@ -440,16 +440,23 @@ bool importPoses(
 					UERROR("Error parsing \"%s\" with NewCollege format (should have 3 values: stamp x y, found %d)", str.c_str(), (int)strList.size());
 				}
 			}
-			else if(format == 1 || format==10 || format==11) // rgbd-slam format
+			else if(format == 1 || format==10 || format==11 || format==12) // rgbd-slam format
 			{
 				std::list<std::string> strList = uSplit(str);
 				if((strList.size() >=  8 && format!=11) || (strList.size() ==  9 && format==11))
 				{
+					if(!uIsNumber(strList.front())) {
+						UWARN("Skipping \"%s\"", str.c_str());
+						continue;
+					}
 					double stamp = uStr2Double(strList.front());
 					strList.pop_front();
-					if(format==11)
+					if(strList.size() == 8 && (format==10 || format==11 || format==12))
 					{
-						id = uStr2Int(strList.back());
+						if(format==11)
+						{
+							id = uStr2Int(strList.back());
+						}
 						strList.pop_back();
 					}
 					str = uJoin(strList, " ");
@@ -476,6 +483,20 @@ bool importPoses(
 										   0, -1, 0, 0,
 										   1, 0, 0, 0);
 							pose = t*pose;
+						}
+						else if(format == 12)
+						{
+							// See https://www.ipb.uni-bonn.de/data/rgbd-dynamic-dataset/index.html
+							Transform T_ros(-1, 0, 0, 0,
+											 0, 0, 1, 0,
+											 0, 1, 0, 0);
+							Transform T_m(
+										1.0157,    0.1828,   -0.2389,    0.0113,
+										0.0009,   -0.8431,   -0.6413,   -0.00980,
+										-0.3009,    0.6147,   -0.8085,    0.0111);
+
+							// we remove the optical rotation
+							pose = T_ros*pose*T_ros*T_m*CameraModel::opticalRotation().inverse();
 						}
 						poses.insert(std::make_pair(id, pose));
 					}
@@ -744,9 +765,8 @@ void calcRelativeErrors (
 		// compute rotational and translational errors
 		Transform pose_delta_gt     = poses_gt[i].inverse()*poses_gt[i+1];
 		Transform pose_delta_result = poses_result[i].inverse()*poses_result[i+1];
-		Transform pose_error        = pose_delta_result.inverse()*pose_delta_gt;
-		float r_err = pose_error.getAngle();
-		float t_err = pose_error.getNorm();
+		float r_err = pose_delta_result.getAngle(pose_delta_gt);
+		float t_err = pose_delta_result.getDistance(pose_delta_gt);
 
 		// write to file
 		err.push_back(errors(i,r_err,t_err,0,0));
@@ -993,15 +1013,21 @@ void computeMaxGraphErrors(
 			if(iter->second.type() != Link::kLandmark ||
 				1.0 / static_cast<double>(iter->second.infMatrix().at<double>(5,5)) < 9999.0)
 			{
-				float opt_roll,opt_pitch,opt_yaw;
-				float link_roll,link_pitch,link_yaw;
-				t.getEulerAngles(opt_roll, opt_pitch, opt_yaw);
-				linkT.getEulerAngles(link_roll, link_pitch, link_yaw);
-				float angularError = uMax3(
-						force3DoF?0:fabs(opt_roll - link_roll),
-						force3DoF?0:fabs(opt_pitch - link_pitch),
-						fabs(opt_yaw - link_yaw));
-				angularError = angularError>M_PI?2*M_PI-angularError:angularError;
+				float angularError = 0.0f;
+				if(force3DoF)
+				{
+					float opt_roll,opt_pitch,opt_yaw;
+					float link_roll,link_pitch,link_yaw;
+					t.getEulerAngles(opt_roll, opt_pitch, opt_yaw);
+					linkT.getEulerAngles(link_roll, link_pitch, link_yaw);
+					angularError = fabs(opt_yaw - link_yaw);
+					angularError = angularError>M_PI?2*M_PI-angularError:angularError;
+				}
+				else
+				{
+					angularError = t.getAngle(linkT);
+				}
+
 				UASSERT(iter->second.rotVariance(false)>0.0);
 				float stddevAngular = sqrt(iter->second.rotVariance(false));
 				float angularErrorRatio = angularError/stddevAngular;

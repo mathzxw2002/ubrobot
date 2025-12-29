@@ -19,4 +19,3 @@ float32 size
 # for convenience if covariance is null.
 geometry_msgs/PoseWithCovariance pose
 
-

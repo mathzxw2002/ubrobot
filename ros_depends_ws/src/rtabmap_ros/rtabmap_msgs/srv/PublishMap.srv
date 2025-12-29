@@ -1,6 +1,6 @@
 #request
-bool global
+bool global_map
 bool optimized
-bool graphOnly
+bool graph_only
 ---
 #response

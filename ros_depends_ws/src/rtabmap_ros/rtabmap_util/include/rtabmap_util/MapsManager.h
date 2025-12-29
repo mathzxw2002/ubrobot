@@ -34,8 +34,17 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 #include <rtabmap/core/LocalGrid.h>
 #include <pcl/point_cloud.h>
 #include <pcl/point_types.h>
-#include <ros/time.h>
-#include <ros/publisher.h>
+#include <rclcpp/rclcpp.hpp>
+#include <sensor_msgs/msg/point_cloud2.hpp>
+#include <nav_msgs/msg/occupancy_grid.hpp>
+
+#if defined(WITH_OCTOMAP_MSGS) and defined(RTABMAP_OCTOMAP)
+#include <octomap_msgs/msg/octomap.hpp>
+#endif
+
+#if defined(WITH_GRID_MAP_ROS) and defined(RTABMAP_GRIDMAP)
+#include <grid_map_msgs/msg/grid_map.hpp>
+#endif
 
 namespace rtabmap {
 class OctoMap;
@@ -52,12 +61,12 @@ class MapsManager {
 public:
 	MapsManager();
 	virtual ~MapsManager();
-	void init(ros::NodeHandle & nh, ros::NodeHandle & pnh, const std::string & name, bool usePublicNamespace);
+	void init(rclcpp::Node & node, const std::string & name, bool usePublicNamespace);
 	void clear();
 	bool hasSubscribers() const;
 	bool isLatching() const {return latching_;}
 	bool isMapUpdated() const;
-	void backwardCompatibilityParameters(ros::NodeHandle & pnh, rtabmap::ParametersMap & parameters) const;
+	void backwardCompatibilityParameters(rclcpp::Node & node, rtabmap::ParametersMap & parameters) const;
 	void setParameters(const rtabmap::ParametersMap & parameters);
 	void set2DMap(const cv::Mat & map, float xMin, float yMin, float cellSize, const std::map<int, rtabmap::Transform> & poses, const rtabmap::Memory * memory = 0);
 
@@ -73,7 +82,7 @@ public:
 
 	void publishMaps(
 			const std::map<int, rtabmap::Transform> & poses,
-			const ros::Time & stamp,
+			const rclcpp::Time & stamp,
 			const std::string & mapFrameId);
 
 	cv::Mat getGridMap(
@@ -86,7 +95,9 @@ public:
 			float & yMin,
 			float & gridCellSize);
 
+#ifdef RTABMAP_OCTOMAP
 	const rtabmap::OctoMap * getOctomap() const {return octomap_;}
+#endif
 	const rtabmap::OccupancyGrid * getOccupancyGrid() const {return occupancyGrid_;}
 	const rtabmap::LocalGridMaker * getLocalMapMaker() const {return localMapMaker_;}
 
@@ -100,23 +111,28 @@ private:
 	bool mapCacheCleanup_;
 	bool alwaysUpdateMap_;
 	bool scanEmptyRayTracing_;
+	bool localMapsCacheLoadedOnInit_;
 
-	ros::Publisher cloudMapPub_;
-	ros::Publisher cloudGroundPub_;
-	ros::Publisher cloudObstaclesPub_;
-	ros::Publisher projMapPub_;
-	ros::Publisher gridMapPub_;
-	ros::Publisher gridProbMapPub_;
-	ros::Publisher scanMapPub_;
-	ros::Publisher octoMapPubBin_;
-	ros::Publisher octoMapPubFull_;
-	ros::Publisher octoMapCloud_;
-	ros::Publisher octoMapFrontierCloud_;
-	ros::Publisher octoMapGroundCloud_;
-	ros::Publisher octoMapObstacleCloud_;
-	ros::Publisher octoMapEmptySpace_;
-	ros::Publisher octoMapProj_;
-	ros::Publisher elevationMapPub_;
+	rclcpp::Publisher<sensor_msgs::msg::PointCloud2>::SharedPtr cloudMapPub_;
+	rclcpp::Publisher<sensor_msgs::msg::PointCloud2>::SharedPtr cloudGroundPub_;
+	rclcpp::Publisher<sensor_msgs::msg::PointCloud2>::SharedPtr cloudObstaclesPub_;
+	rclcpp::Publisher<nav_msgs::msg::OccupancyGrid>::SharedPtr gridMapPub_;
+	rclcpp::Publisher<nav_msgs::msg::OccupancyGrid>::SharedPtr gridProbMapPub_;
+#ifdef RTABMAP_OCTOMAP
+#ifdef WITH_OCTOMAP_MSGS
+	rclcpp::Publisher<octomap_msgs::msg::Octomap>::SharedPtr octoMapPubBin_;
+	rclcpp::Publisher<octomap_msgs::msg::Octomap>::SharedPtr octoMapPubFull_;
+#endif
+	rclcpp::Publisher<sensor_msgs::msg::PointCloud2>::SharedPtr octoMapCloud_;
+	rclcpp::Publisher<sensor_msgs::msg::PointCloud2>::SharedPtr octoMapFrontierCloud_;
+	rclcpp::Publisher<sensor_msgs::msg::PointCloud2>::SharedPtr octoMapGroundCloud_;
+	rclcpp::Publisher<sensor_msgs::msg::PointCloud2>::SharedPtr octoMapObstacleCloud_;
+	rclcpp::Publisher<sensor_msgs::msg::PointCloud2>::SharedPtr octoMapEmptySpace_;
+	rclcpp::Publisher<nav_msgs::msg::OccupancyGrid>::SharedPtr octoMapProj_;
+#endif
+#if defined(WITH_GRID_MAP_ROS) and defined(RTABMAP_GRIDMAP)
+	rclcpp::Publisher<grid_map_msgs::msg::GridMap>::SharedPtr elevationMapPub_;
+#endif
 
 	std::map<int, rtabmap::Transform> assembledGroundPoses_;
 	std::map<int, rtabmap::Transform> assembledObstaclePoses_;
@@ -133,11 +149,15 @@ private:
 	rtabmap::LocalGridMaker * localMapMaker_;
 	bool gridUpdated_;
 
+#ifdef RTABMAP_OCTOMAP
 	rtabmap::OctoMap * octomap_;
+#endif
 	int octomapTreeDepth_;
 	bool octomapUpdated_;
 
+#ifdef RTABMAP_GRIDMAP
 	rtabmap::GridMap * elevationMap_;
+#endif
 	bool elevationMapUpdated_;
 
 	rtabmap::ParametersMap parameters_;
@@ -146,6 +166,6 @@ private:
 	std::map<void*, bool> latched_;
 };
 
-}  // namespace rtabmap_util
+} // namespace rtabmap_util
 
 #endif /* MAPSMANAGER_H_ */

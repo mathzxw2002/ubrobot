@@ -31,51 +31,55 @@ namespace rtabmap_sync {
 
 // RGB + Depth
 void CommonDataSubscriber::depthCallback(
-		const sensor_msgs::ImageConstPtr& imageMsg,
-		const sensor_msgs::ImageConstPtr& depthMsg,
-		const sensor_msgs::CameraInfoConstPtr& cameraInfoMsg)
+		const sensor_msgs::msg::Image::ConstSharedPtr imageMsg,
+		const sensor_msgs::msg::Image::ConstSharedPtr depthMsg,
+		const sensor_msgs::msg::CameraInfo::ConstSharedPtr cameraInfoMsg)
 {
-	rtabmap_msgs::UserDataConstPtr userDataMsg; // Null
-	nav_msgs::OdometryConstPtr odomMsg; // Null
-	sensor_msgs::LaserScan scanMsg; // Null
-	sensor_msgs::PointCloud2 scan3dMsg; // Null
-	rtabmap_msgs::OdomInfoConstPtr odomInfoMsg; // null
+	if(syncDiagnostic_.get()) {syncDiagnostic_->tickInput(imageMsg->header.stamp);}
+	rtabmap_msgs::msg::UserData::ConstSharedPtr userDataMsg; // Null
+	nav_msgs::msg::Odometry::ConstSharedPtr odomMsg; // Null
+	sensor_msgs::msg::LaserScan scanMsg; // Null
+	sensor_msgs::msg::PointCloud2 scan3dMsg; // null
+	rtabmap_msgs::msg::OdomInfo::ConstSharedPtr odomInfoMsg; // null
 	commonSingleCameraCallback(odomMsg, userDataMsg, cv_bridge::toCvShare(imageMsg), cv_bridge::toCvShare(depthMsg), *cameraInfoMsg, *cameraInfoMsg, scanMsg, scan3dMsg, odomInfoMsg);
 }
 void CommonDataSubscriber::depthScan2dCallback(
-		const sensor_msgs::ImageConstPtr& imageMsg,
-		const sensor_msgs::ImageConstPtr& depthMsg,
-		const sensor_msgs::CameraInfoConstPtr& cameraInfoMsg,
-		const sensor_msgs::LaserScanConstPtr& scanMsg)
+		const sensor_msgs::msg::Image::ConstSharedPtr imageMsg,
+		const sensor_msgs::msg::Image::ConstSharedPtr depthMsg,
+		const sensor_msgs::msg::CameraInfo::ConstSharedPtr cameraInfoMsg,
+		const sensor_msgs::msg::LaserScan::ConstSharedPtr scanMsg)
 {
-	rtabmap_msgs::UserDataConstPtr userDataMsg; // Null
-	nav_msgs::OdometryConstPtr odomMsg; // Null
-	sensor_msgs::PointCloud2 scan3dMsg; // Null
-	rtabmap_msgs::OdomInfoConstPtr odomInfoMsg; // null
+	if(syncDiagnostic_.get()) {syncDiagnostic_->tickInput(imageMsg->header.stamp);}
+	rtabmap_msgs::msg::UserData::ConstSharedPtr userDataMsg; // Null
+	nav_msgs::msg::Odometry::ConstSharedPtr odomMsg; // Null
+	sensor_msgs::msg::PointCloud2 scan3dMsg; // null
+	rtabmap_msgs::msg::OdomInfo::ConstSharedPtr odomInfoMsg; // null
 	commonSingleCameraCallback(odomMsg, userDataMsg, cv_bridge::toCvShare(imageMsg), cv_bridge::toCvShare(depthMsg), *cameraInfoMsg, *cameraInfoMsg, *scanMsg, scan3dMsg, odomInfoMsg);
 }
 void CommonDataSubscriber::depthScan3dCallback(
-		const sensor_msgs::ImageConstPtr& imageMsg,
-		const sensor_msgs::ImageConstPtr& depthMsg,
-		const sensor_msgs::CameraInfoConstPtr& cameraInfoMsg,
-		const sensor_msgs::PointCloud2ConstPtr& scanMsg)
+		const sensor_msgs::msg::Image::ConstSharedPtr imageMsg,
+		const sensor_msgs::msg::Image::ConstSharedPtr depthMsg,
+		const sensor_msgs::msg::CameraInfo::ConstSharedPtr cameraInfoMsg,
+		const sensor_msgs::msg::PointCloud2::ConstSharedPtr scanMsg)
 {
-	rtabmap_msgs::UserDataConstPtr userDataMsg; // Null
-	nav_msgs::OdometryConstPtr odomMsg; // Null
-	sensor_msgs::LaserScan scan2dMsg; // Null
-	rtabmap_msgs::OdomInfoConstPtr odomInfoMsg; // null
+	if(syncDiagnostic_.get()) {syncDiagnostic_->tickInput(imageMsg->header.stamp);}
+	rtabmap_msgs::msg::UserData::ConstSharedPtr userDataMsg; // Null
+	nav_msgs::msg::Odometry::ConstSharedPtr odomMsg; // Null
+	sensor_msgs::msg::LaserScan scan2dMsg; // Null
+	rtabmap_msgs::msg::OdomInfo::ConstSharedPtr odomInfoMsg; // null
 	commonSingleCameraCallback(odomMsg, userDataMsg, cv_bridge::toCvShare(imageMsg), cv_bridge::toCvShare(depthMsg), *cameraInfoMsg, *cameraInfoMsg, scan2dMsg, *scanMsg, odomInfoMsg);
 }
 void CommonDataSubscriber::depthScanDescCallback(
-		const sensor_msgs::ImageConstPtr& imageMsg,
-		const sensor_msgs::ImageConstPtr& depthMsg,
-		const sensor_msgs::CameraInfoConstPtr& cameraInfoMsg,
-		const rtabmap_msgs::ScanDescriptorConstPtr& scanMsg)
+		const sensor_msgs::msg::Image::ConstSharedPtr imageMsg,
+		const sensor_msgs::msg::Image::ConstSharedPtr depthMsg,
+		const sensor_msgs::msg::CameraInfo::ConstSharedPtr cameraInfoMsg,
+		const rtabmap_msgs::msg::ScanDescriptor::ConstSharedPtr scanMsg)
 {
-	rtabmap_msgs::UserDataConstPtr userDataMsg; // Null
-	nav_msgs::OdometryConstPtr odomMsg; // Null
-	rtabmap_msgs::OdomInfoConstPtr odomInfoMsg; // null
-	std::vector<rtabmap_msgs::GlobalDescriptor> globalDescriptor;
+	if(syncDiagnostic_.get()) {syncDiagnostic_->tickInput(imageMsg->header.stamp);}
+	rtabmap_msgs::msg::UserData::ConstSharedPtr userDataMsg; // Null
+	nav_msgs::msg::Odometry::ConstSharedPtr odomMsg; // Null
+	rtabmap_msgs::msg::OdomInfo::ConstSharedPtr odomInfoMsg; // null
+	std::vector<rtabmap_msgs::msg::GlobalDescriptor> globalDescriptor;
 	if(!scanMsg->global_descriptor.data.empty())
 	{
 		globalDescriptor.push_back(scanMsg->global_descriptor);
@@ -83,51 +87,55 @@ void CommonDataSubscriber::depthScanDescCallback(
 	commonSingleCameraCallback(odomMsg, userDataMsg, cv_bridge::toCvShare(imageMsg), cv_bridge::toCvShare(depthMsg), *cameraInfoMsg, *cameraInfoMsg, scanMsg->scan, scanMsg->scan_cloud, odomInfoMsg, globalDescriptor);
 }
 void CommonDataSubscriber::depthInfoCallback(
-		const sensor_msgs::ImageConstPtr& imageMsg,
-		const sensor_msgs::ImageConstPtr& depthMsg,
-		const sensor_msgs::CameraInfoConstPtr& cameraInfoMsg,
-		const rtabmap_msgs::OdomInfoConstPtr& odomInfoMsg)
+		const sensor_msgs::msg::Image::ConstSharedPtr imageMsg,
+		const sensor_msgs::msg::Image::ConstSharedPtr depthMsg,
+		const sensor_msgs::msg::CameraInfo::ConstSharedPtr cameraInfoMsg,
+		const rtabmap_msgs::msg::OdomInfo::ConstSharedPtr odomInfoMsg)
 {
-	rtabmap_msgs::UserDataConstPtr userDataMsg; // Null
-	nav_msgs::OdometryConstPtr odomMsg; // Null
-	sensor_msgs::LaserScan scan2dMsg; // Null
-	sensor_msgs::PointCloud2 scan3dMsg; // Null
+	if(syncDiagnostic_.get()) {syncDiagnostic_->tickInput(imageMsg->header.stamp);}
+	rtabmap_msgs::msg::UserData::ConstSharedPtr userDataMsg; // Null
+	nav_msgs::msg::Odometry::ConstSharedPtr odomMsg; // Null
+	sensor_msgs::msg::LaserScan scan2dMsg; // Null
+	sensor_msgs::msg::PointCloud2 scan3dMsg; // null
 	commonSingleCameraCallback(odomMsg, userDataMsg, cv_bridge::toCvShare(imageMsg), cv_bridge::toCvShare(depthMsg), *cameraInfoMsg, *cameraInfoMsg, scan2dMsg, scan3dMsg, odomInfoMsg);
 }
 void CommonDataSubscriber::depthScan2dInfoCallback(
-		const sensor_msgs::ImageConstPtr& imageMsg,
-		const sensor_msgs::ImageConstPtr& depthMsg,
-		const sensor_msgs::CameraInfoConstPtr& cameraInfoMsg,
-		const sensor_msgs::LaserScanConstPtr& scanMsg,
-		const rtabmap_msgs::OdomInfoConstPtr& odomInfoMsg)
+		const sensor_msgs::msg::Image::ConstSharedPtr imageMsg,
+		const sensor_msgs::msg::Image::ConstSharedPtr depthMsg,
+		const sensor_msgs::msg::CameraInfo::ConstSharedPtr cameraInfoMsg,
+		const sensor_msgs::msg::LaserScan::ConstSharedPtr scanMsg,
+		const rtabmap_msgs::msg::OdomInfo::ConstSharedPtr odomInfoMsg)
 {
-	rtabmap_msgs::UserDataConstPtr userDataMsg; // Null
-	nav_msgs::OdometryConstPtr odomMsg; // Null
-	sensor_msgs::PointCloud2 scan3dMsg; // Null
+	if(syncDiagnostic_.get()) {syncDiagnostic_->tickInput(imageMsg->header.stamp);}
+	rtabmap_msgs::msg::UserData::ConstSharedPtr userDataMsg; // Null
+	nav_msgs::msg::Odometry::ConstSharedPtr odomMsg; // Null
+	sensor_msgs::msg::PointCloud2 scan3dMsg; // null
 	commonSingleCameraCallback(odomMsg, userDataMsg, cv_bridge::toCvShare(imageMsg), cv_bridge::toCvShare(depthMsg), *cameraInfoMsg, *cameraInfoMsg, *scanMsg, scan3dMsg, odomInfoMsg);
 }
 void CommonDataSubscriber::depthScan3dInfoCallback(
-		const sensor_msgs::ImageConstPtr& imageMsg,
-		const sensor_msgs::ImageConstPtr& depthMsg,
-		const sensor_msgs::CameraInfoConstPtr& cameraInfoMsg,
-		const sensor_msgs::PointCloud2ConstPtr& scanMsg,
-		const rtabmap_msgs::OdomInfoConstPtr& odomInfoMsg)
+		const sensor_msgs::msg::Image::ConstSharedPtr imageMsg,
+		const sensor_msgs::msg::Image::ConstSharedPtr depthMsg,
+		const sensor_msgs::msg::CameraInfo::ConstSharedPtr cameraInfoMsg,
+		const sensor_msgs::msg::PointCloud2::ConstSharedPtr scanMsg,
+		const rtabmap_msgs::msg::OdomInfo::ConstSharedPtr odomInfoMsg)
 {
-	rtabmap_msgs::UserDataConstPtr userDataMsg; // Null
-	nav_msgs::OdometryConstPtr odomMsg; // Null
-	sensor_msgs::LaserScan scan2dMsg; // Null
+	if(syncDiagnostic_.get()) {syncDiagnostic_->tickInput(imageMsg->header.stamp);}
+	rtabmap_msgs::msg::UserData::ConstSharedPtr userDataMsg; // Null
+	nav_msgs::msg::Odometry::ConstSharedPtr odomMsg; // Null
+	sensor_msgs::msg::LaserScan scan2dMsg; // Null
 	commonSingleCameraCallback(odomMsg, userDataMsg, cv_bridge::toCvShare(imageMsg), cv_bridge::toCvShare(depthMsg), *cameraInfoMsg, *cameraInfoMsg, scan2dMsg, *scanMsg, odomInfoMsg);
 }
 void CommonDataSubscriber::depthScanDescInfoCallback(
-		const sensor_msgs::ImageConstPtr& imageMsg,
-		const sensor_msgs::ImageConstPtr& depthMsg,
-		const sensor_msgs::CameraInfoConstPtr& cameraInfoMsg,
-		const rtabmap_msgs::ScanDescriptorConstPtr& scanMsg,
-		const rtabmap_msgs::OdomInfoConstPtr& odomInfoMsg)
+		const sensor_msgs::msg::Image::ConstSharedPtr imageMsg,
+		const sensor_msgs::msg::Image::ConstSharedPtr depthMsg,
+		const sensor_msgs::msg::CameraInfo::ConstSharedPtr cameraInfoMsg,
+		const rtabmap_msgs::msg::ScanDescriptor::ConstSharedPtr scanMsg,
+		const rtabmap_msgs::msg::OdomInfo::ConstSharedPtr odomInfoMsg)
 {
-	rtabmap_msgs::UserDataConstPtr userDataMsg; // Null
-	nav_msgs::OdometryConstPtr odomMsg; // Null
-	std::vector<rtabmap_msgs::GlobalDescriptor> globalDescriptor;
+	if(syncDiagnostic_.get()) {syncDiagnostic_->tickInput(imageMsg->header.stamp);}
+	rtabmap_msgs::msg::UserData::ConstSharedPtr userDataMsg; // Null
+	nav_msgs::msg::Odometry::ConstSharedPtr odomMsg; // Null
+	std::vector<rtabmap_msgs::msg::GlobalDescriptor> globalDescriptor;
 	if(!scanMsg->global_descriptor.data.empty())
 	{
 		globalDescriptor.push_back(scanMsg->global_descriptor);
@@ -137,51 +145,55 @@ void CommonDataSubscriber::depthScanDescInfoCallback(
 
 // RGB + Depth + Odom
 void CommonDataSubscriber::depthOdomCallback(
-		const nav_msgs::OdometryConstPtr & odomMsg,
-		const sensor_msgs::ImageConstPtr& imageMsg,
-		const sensor_msgs::ImageConstPtr& depthMsg,
-		const sensor_msgs::CameraInfoConstPtr& cameraInfoMsg)
+		const nav_msgs::msg::Odometry::ConstSharedPtr odomMsg,
+		const sensor_msgs::msg::Image::ConstSharedPtr imageMsg,
+		const sensor_msgs::msg::Image::ConstSharedPtr depthMsg,
+		const sensor_msgs::msg::CameraInfo::ConstSharedPtr cameraInfoMsg)
 {
-	rtabmap_msgs::UserDataConstPtr userDataMsg; // Null
-	sensor_msgs::LaserScan scanMsg; // Null
-	sensor_msgs::PointCloud2 scan3dMsg; // null
-	rtabmap_msgs::OdomInfoConstPtr odomInfoMsg; // null
+	if(syncDiagnostic_.get()) {syncDiagnostic_->tickInput(imageMsg->header.stamp);}
+	rtabmap_msgs::msg::UserData::ConstSharedPtr userDataMsg; // Null
+	sensor_msgs::msg::LaserScan scanMsg; // Null
+	sensor_msgs::msg::PointCloud2 scan3dMsg; // null
+	rtabmap_msgs::msg::OdomInfo::ConstSharedPtr odomInfoMsg; // null
 	commonSingleCameraCallback(odomMsg, userDataMsg, cv_bridge::toCvShare(imageMsg), cv_bridge::toCvShare(depthMsg), *cameraInfoMsg, *cameraInfoMsg, scanMsg, scan3dMsg, odomInfoMsg);
 }
 void CommonDataSubscriber::depthOdomScan2dCallback(
-		const nav_msgs::OdometryConstPtr & odomMsg,
-		const sensor_msgs::ImageConstPtr& imageMsg,
-		const sensor_msgs::ImageConstPtr& depthMsg,
-		const sensor_msgs::CameraInfoConstPtr& cameraInfoMsg,
-		const sensor_msgs::LaserScanConstPtr& scanMsg)
+		const nav_msgs::msg::Odometry::ConstSharedPtr odomMsg,
+		const sensor_msgs::msg::Image::ConstSharedPtr imageMsg,
+		const sensor_msgs::msg::Image::ConstSharedPtr depthMsg,
+		const sensor_msgs::msg::CameraInfo::ConstSharedPtr cameraInfoMsg,
+		const sensor_msgs::msg::LaserScan::ConstSharedPtr scanMsg)
 {
-	rtabmap_msgs::UserDataConstPtr userDataMsg; // Null
-	sensor_msgs::PointCloud2 scan3dMsg; // Null
-	rtabmap_msgs::OdomInfoConstPtr odomInfoMsg; // null
+	if(syncDiagnostic_.get()) {syncDiagnostic_->tickInput(imageMsg->header.stamp);}
+	rtabmap_msgs::msg::UserData::ConstSharedPtr userDataMsg; // Null
+	sensor_msgs::msg::PointCloud2 scan3dMsg; // null
+	rtabmap_msgs::msg::OdomInfo::ConstSharedPtr odomInfoMsg; // null
 	commonSingleCameraCallback(odomMsg, userDataMsg, cv_bridge::toCvShare(imageMsg), cv_bridge::toCvShare(depthMsg), *cameraInfoMsg, *cameraInfoMsg, *scanMsg, scan3dMsg, odomInfoMsg);
 }
 void CommonDataSubscriber::depthOdomScan3dCallback(
-		const nav_msgs::OdometryConstPtr & odomMsg,
-		const sensor_msgs::ImageConstPtr& imageMsg,
-		const sensor_msgs::ImageConstPtr& depthMsg,
-		const sensor_msgs::CameraInfoConstPtr& cameraInfoMsg,
-		const sensor_msgs::PointCloud2ConstPtr& scanMsg)
+		const nav_msgs::msg::Odometry::ConstSharedPtr odomMsg,
+		const sensor_msgs::msg::Image::ConstSharedPtr imageMsg,
+		const sensor_msgs::msg::Image::ConstSharedPtr depthMsg,
+		const sensor_msgs::msg::CameraInfo::ConstSharedPtr cameraInfoMsg,
+		const sensor_msgs::msg::PointCloud2::ConstSharedPtr scanMsg)
 {
-	rtabmap_msgs::UserDataConstPtr userDataMsg; // Null
-	sensor_msgs::LaserScan scan2dMsg; // Null
-	rtabmap_msgs::OdomInfoConstPtr odomInfoMsg; // null
+	if(syncDiagnostic_.get()) {syncDiagnostic_->tickInput(imageMsg->header.stamp);}
+	rtabmap_msgs::msg::UserData::ConstSharedPtr userDataMsg; // Null
+	sensor_msgs::msg::LaserScan scan2dMsg; // Null
+	rtabmap_msgs::msg::OdomInfo::ConstSharedPtr odomInfoMsg; // null
 	commonSingleCameraCallback(odomMsg, userDataMsg, cv_bridge::toCvShare(imageMsg), cv_bridge::toCvShare(depthMsg), *cameraInfoMsg, *cameraInfoMsg, scan2dMsg, *scanMsg, odomInfoMsg);
 }
 void CommonDataSubscriber::depthOdomScanDescCallback(
-		const nav_msgs::OdometryConstPtr & odomMsg,
-		const sensor_msgs::ImageConstPtr& imageMsg,
-		const sensor_msgs::ImageConstPtr& depthMsg,
-		const sensor_msgs::CameraInfoConstPtr& cameraInfoMsg,
-		const rtabmap_msgs::ScanDescriptorConstPtr& scanMsg)
+		const nav_msgs::msg::Odometry::ConstSharedPtr odomMsg,
+		const sensor_msgs::msg::Image::ConstSharedPtr imageMsg,
+		const sensor_msgs::msg::Image::ConstSharedPtr depthMsg,
+		const sensor_msgs::msg::CameraInfo::ConstSharedPtr cameraInfoMsg,
+		const rtabmap_msgs::msg::ScanDescriptor::ConstSharedPtr scanMsg)
 {
-	rtabmap_msgs::UserDataConstPtr userDataMsg; // Null
-	rtabmap_msgs::OdomInfoConstPtr odomInfoMsg; // null
-	std::vector<rtabmap_msgs::GlobalDescriptor> globalDescriptor;
+	if(syncDiagnostic_.get()) {syncDiagnostic_->tickInput(imageMsg->header.stamp);}
+	rtabmap_msgs::msg::UserData::ConstSharedPtr userDataMsg; // Null
+	rtabmap_msgs::msg::OdomInfo::ConstSharedPtr odomInfoMsg; // null
+	std::vector<rtabmap_msgs::msg::GlobalDescriptor> globalDescriptor;
 	if(!scanMsg->global_descriptor.data.empty())
 	{
 		globalDescriptor.push_back(scanMsg->global_descriptor);
@@ -189,51 +201,55 @@ void CommonDataSubscriber::depthOdomScanDescCallback(
 	commonSingleCameraCallback(odomMsg, userDataMsg, cv_bridge::toCvShare(imageMsg), cv_bridge::toCvShare(depthMsg), *cameraInfoMsg, *cameraInfoMsg, scanMsg->scan, scanMsg->scan_cloud, odomInfoMsg, globalDescriptor);
 }
 void CommonDataSubscriber::depthOdomInfoCallback(
-		const nav_msgs::OdometryConstPtr & odomMsg,
-		const sensor_msgs::ImageConstPtr& imageMsg,
-		const sensor_msgs::ImageConstPtr& depthMsg,
-		const sensor_msgs::CameraInfoConstPtr& cameraInfoMsg,
-		const rtabmap_msgs::OdomInfoConstPtr& odomInfoMsg)
+		const nav_msgs::msg::Odometry::ConstSharedPtr odomMsg,
+		const sensor_msgs::msg::Image::ConstSharedPtr imageMsg,
+		const sensor_msgs::msg::Image::ConstSharedPtr depthMsg,
+		const sensor_msgs::msg::CameraInfo::ConstSharedPtr cameraInfoMsg,
+		const rtabmap_msgs::msg::OdomInfo::ConstSharedPtr odomInfoMsg)
 {
-	rtabmap_msgs::UserDataConstPtr userDataMsg; // Null
-	sensor_msgs::LaserScan scan2dMsg; // Null
-	sensor_msgs::PointCloud2 scan3dMsg; // Null
+	if(syncDiagnostic_.get()) {syncDiagnostic_->tickInput(imageMsg->header.stamp);}
+	rtabmap_msgs::msg::UserData::ConstSharedPtr userDataMsg; // Null
+	sensor_msgs::msg::LaserScan scan2dMsg; // Null
+	sensor_msgs::msg::PointCloud2 scan3dMsg; // null
 	commonSingleCameraCallback(odomMsg, userDataMsg, cv_bridge::toCvShare(imageMsg), cv_bridge::toCvShare(depthMsg), *cameraInfoMsg, *cameraInfoMsg, scan2dMsg, scan3dMsg, odomInfoMsg);
 }
 void CommonDataSubscriber::depthOdomScan2dInfoCallback(
-		const nav_msgs::OdometryConstPtr & odomMsg,
-		const sensor_msgs::ImageConstPtr& imageMsg,
-		const sensor_msgs::ImageConstPtr& depthMsg,
-		const sensor_msgs::CameraInfoConstPtr& cameraInfoMsg,
-		const sensor_msgs::LaserScanConstPtr& scanMsg,
-		const rtabmap_msgs::OdomInfoConstPtr& odomInfoMsg)
+		const nav_msgs::msg::Odometry::ConstSharedPtr odomMsg,
+		const sensor_msgs::msg::Image::ConstSharedPtr imageMsg,
+		const sensor_msgs::msg::Image::ConstSharedPtr depthMsg,
+		const sensor_msgs::msg::CameraInfo::ConstSharedPtr cameraInfoMsg,
+		const sensor_msgs::msg::LaserScan::ConstSharedPtr scanMsg,
+		const rtabmap_msgs::msg::OdomInfo::ConstSharedPtr odomInfoMsg)
 {
-	rtabmap_msgs::UserDataConstPtr userDataMsg; // Null
-	sensor_msgs::PointCloud2 scan3dMsg; // Null
+	if(syncDiagnostic_.get()) {syncDiagnostic_->tickInput(imageMsg->header.stamp);}
+	rtabmap_msgs::msg::UserData::ConstSharedPtr userDataMsg; // Null
+	sensor_msgs::msg::PointCloud2 scan3dMsg; // null
 	commonSingleCameraCallback(odomMsg, userDataMsg, cv_bridge::toCvShare(imageMsg), cv_bridge::toCvShare(depthMsg), *cameraInfoMsg, *cameraInfoMsg, *scanMsg, scan3dMsg, odomInfoMsg);
 }
 void CommonDataSubscriber::depthOdomScan3dInfoCallback(
-		const nav_msgs::OdometryConstPtr & odomMsg,
-		const sensor_msgs::ImageConstPtr& imageMsg,
-		const sensor_msgs::ImageConstPtr& depthMsg,
-		const sensor_msgs::CameraInfoConstPtr& cameraInfoMsg,
-		const sensor_msgs::PointCloud2ConstPtr& scanMsg,
-		const rtabmap_msgs::OdomInfoConstPtr& odomInfoMsg)
+		const nav_msgs::msg::Odometry::ConstSharedPtr odomMsg,
+		const sensor_msgs::msg::Image::ConstSharedPtr imageMsg,
+		const sensor_msgs::msg::Image::ConstSharedPtr depthMsg,
+		const sensor_msgs::msg::CameraInfo::ConstSharedPtr cameraInfoMsg,
+		const sensor_msgs::msg::PointCloud2::ConstSharedPtr scanMsg,
+		const rtabmap_msgs::msg::OdomInfo::ConstSharedPtr odomInfoMsg)
 {
-	rtabmap_msgs::UserDataConstPtr userDataMsg; // Null
-	sensor_msgs::LaserScan scan2dMsg; // Null
+	if(syncDiagnostic_.get()) {syncDiagnostic_->tickInput(imageMsg->header.stamp);}
+	rtabmap_msgs::msg::UserData::ConstSharedPtr userDataMsg; // Null
+	sensor_msgs::msg::LaserScan scan2dMsg; // Null
 	commonSingleCameraCallback(odomMsg, userDataMsg, cv_bridge::toCvShare(imageMsg), cv_bridge::toCvShare(depthMsg), *cameraInfoMsg, *cameraInfoMsg, scan2dMsg, *scanMsg, odomInfoMsg);
 }
 void CommonDataSubscriber::depthOdomScanDescInfoCallback(
-		const nav_msgs::OdometryConstPtr & odomMsg,
-		const sensor_msgs::ImageConstPtr& imageMsg,
-		const sensor_msgs::ImageConstPtr& depthMsg,
-		const sensor_msgs::CameraInfoConstPtr& cameraInfoMsg,
-		const rtabmap_msgs::ScanDescriptorConstPtr& scanMsg,
-		const rtabmap_msgs::OdomInfoConstPtr& odomInfoMsg)
+		const nav_msgs::msg::Odometry::ConstSharedPtr odomMsg,
+		const sensor_msgs::msg::Image::ConstSharedPtr imageMsg,
+		const sensor_msgs::msg::Image::ConstSharedPtr depthMsg,
+		const sensor_msgs::msg::CameraInfo::ConstSharedPtr cameraInfoMsg,
+		const rtabmap_msgs::msg::ScanDescriptor::ConstSharedPtr scanMsg,
+		const rtabmap_msgs::msg::OdomInfo::ConstSharedPtr odomInfoMsg)
 {
-	rtabmap_msgs::UserDataConstPtr userDataMsg; // Null
-	std::vector<rtabmap_msgs::GlobalDescriptor> globalDescriptor;
+	if(syncDiagnostic_.get()) {syncDiagnostic_->tickInput(imageMsg->header.stamp);}
+	rtabmap_msgs::msg::UserData::ConstSharedPtr userDataMsg; // Null
+	std::vector<rtabmap_msgs::msg::GlobalDescriptor> globalDescriptor;
 	if(!scanMsg->global_descriptor.data.empty())
 	{
 		globalDescriptor.push_back(scanMsg->global_descriptor);
@@ -244,51 +260,55 @@ void CommonDataSubscriber::depthOdomScanDescInfoCallback(
 #ifdef RTABMAP_SYNC_USER_DATA
 // RGB + Depth + User Data
 void CommonDataSubscriber::depthDataCallback(
-		const rtabmap_msgs::UserDataConstPtr & userDataMsg,
-		const sensor_msgs::ImageConstPtr& imageMsg,
-		const sensor_msgs::ImageConstPtr& depthMsg,
-		const sensor_msgs::CameraInfoConstPtr& cameraInfoMsg)
+		const rtabmap_msgs::msg::UserData::ConstSharedPtr userDataMsg,
+		const sensor_msgs::msg::Image::ConstSharedPtr imageMsg,
+		const sensor_msgs::msg::Image::ConstSharedPtr depthMsg,
+		const sensor_msgs::msg::CameraInfo::ConstSharedPtr cameraInfoMsg)
 {
-	nav_msgs::OdometryConstPtr odomMsg; // Null
-	sensor_msgs::LaserScan scanMsg; // Null
-	sensor_msgs::PointCloud2 scan3dMsg; // null
-	rtabmap_msgs::OdomInfoConstPtr odomInfoMsg; // null
+	if(syncDiagnostic_.get()) {syncDiagnostic_->tickInput(imageMsg->header.stamp);}
+	nav_msgs::msg::Odometry::ConstSharedPtr odomMsg; // Null
+	sensor_msgs::msg::LaserScan scanMsg; // Null
+	sensor_msgs::msg::PointCloud2 scan3dMsg; // null
+	rtabmap_msgs::msg::OdomInfo::ConstSharedPtr odomInfoMsg; // null
 	commonSingleCameraCallback(odomMsg, userDataMsg, cv_bridge::toCvShare(imageMsg), cv_bridge::toCvShare(depthMsg), *cameraInfoMsg, *cameraInfoMsg, scanMsg, scan3dMsg, odomInfoMsg);
 }
 void CommonDataSubscriber::depthDataScan2dCallback(
-		const rtabmap_msgs::UserDataConstPtr & userDataMsg,
-		const sensor_msgs::ImageConstPtr& imageMsg,
-		const sensor_msgs::ImageConstPtr& depthMsg,
-		const sensor_msgs::CameraInfoConstPtr& cameraInfoMsg,
-		const sensor_msgs::LaserScanConstPtr& scanMsg)
+		const rtabmap_msgs::msg::UserData::ConstSharedPtr userDataMsg,
+		const sensor_msgs::msg::Image::ConstSharedPtr imageMsg,
+		const sensor_msgs::msg::Image::ConstSharedPtr depthMsg,
+		const sensor_msgs::msg::CameraInfo::ConstSharedPtr cameraInfoMsg,
+		const sensor_msgs::msg::LaserScan::ConstSharedPtr scanMsg)
 {
-	nav_msgs::OdometryConstPtr odomMsg; // null
-	sensor_msgs::PointCloud2 scan3dMsg; // Null
-	rtabmap_msgs::OdomInfoConstPtr odomInfoMsg; // null
+	if(syncDiagnostic_.get()) {syncDiagnostic_->tickInput(imageMsg->header.stamp);}
+	nav_msgs::msg::Odometry::ConstSharedPtr odomMsg; // null
+	sensor_msgs::msg::PointCloud2 scan3dMsg; // null
+	rtabmap_msgs::msg::OdomInfo::ConstSharedPtr odomInfoMsg; // null
 	commonSingleCameraCallback(odomMsg, userDataMsg, cv_bridge::toCvShare(imageMsg), cv_bridge::toCvShare(depthMsg), *cameraInfoMsg, *cameraInfoMsg, *scanMsg, scan3dMsg, odomInfoMsg);
 }
 void CommonDataSubscriber::depthDataScan3dCallback(
-		const rtabmap_msgs::UserDataConstPtr & userDataMsg,
-		const sensor_msgs::ImageConstPtr& imageMsg,
-		const sensor_msgs::ImageConstPtr& depthMsg,
-		const sensor_msgs::CameraInfoConstPtr& cameraInfoMsg,
-		const sensor_msgs::PointCloud2ConstPtr& scanMsg)
+		const rtabmap_msgs::msg::UserData::ConstSharedPtr userDataMsg,
+		const sensor_msgs::msg::Image::ConstSharedPtr imageMsg,
+		const sensor_msgs::msg::Image::ConstSharedPtr depthMsg,
+		const sensor_msgs::msg::CameraInfo::ConstSharedPtr cameraInfoMsg,
+		const sensor_msgs::msg::PointCloud2::ConstSharedPtr scanMsg)
 {
-	nav_msgs::OdometryConstPtr odomMsg; // null
-	sensor_msgs::LaserScan scan2dMsg; // Null
-	rtabmap_msgs::OdomInfoConstPtr odomInfoMsg; // null
+	if(syncDiagnostic_.get()) {syncDiagnostic_->tickInput(imageMsg->header.stamp);}
+	nav_msgs::msg::Odometry::ConstSharedPtr odomMsg; // null
+	sensor_msgs::msg::LaserScan scan2dMsg; // Null
+	rtabmap_msgs::msg::OdomInfo::ConstSharedPtr odomInfoMsg; // null
 	commonSingleCameraCallback(odomMsg, userDataMsg, cv_bridge::toCvShare(imageMsg), cv_bridge::toCvShare(depthMsg), *cameraInfoMsg, *cameraInfoMsg, scan2dMsg, *scanMsg, odomInfoMsg);
 }
 void CommonDataSubscriber::depthDataScanDescCallback(
-		const rtabmap_msgs::UserDataConstPtr & userDataMsg,
-		const sensor_msgs::ImageConstPtr& imageMsg,
-		const sensor_msgs::ImageConstPtr& depthMsg,
-		const sensor_msgs::CameraInfoConstPtr& cameraInfoMsg,
-		const rtabmap_msgs::ScanDescriptorConstPtr& scanMsg)
+		const rtabmap_msgs::msg::UserData::ConstSharedPtr userDataMsg,
+		const sensor_msgs::msg::Image::ConstSharedPtr imageMsg,
+		const sensor_msgs::msg::Image::ConstSharedPtr depthMsg,
+		const sensor_msgs::msg::CameraInfo::ConstSharedPtr cameraInfoMsg,
+		const rtabmap_msgs::msg::ScanDescriptor::ConstSharedPtr scanMsg)
 {
-	nav_msgs::OdometryConstPtr odomMsg; // null
-	rtabmap_msgs::OdomInfoConstPtr odomInfoMsg; // null
-	std::vector<rtabmap_msgs::GlobalDescriptor> globalDescriptor;
+	if(syncDiagnostic_.get()) {syncDiagnostic_->tickInput(imageMsg->header.stamp);}
+	nav_msgs::msg::Odometry::ConstSharedPtr odomMsg; // null
+	rtabmap_msgs::msg::OdomInfo::ConstSharedPtr odomInfoMsg; // null
+	std::vector<rtabmap_msgs::msg::GlobalDescriptor> globalDescriptor;
 	if(!scanMsg->global_descriptor.data.empty())
 	{
 		globalDescriptor.push_back(scanMsg->global_descriptor);
@@ -296,51 +316,55 @@ void CommonDataSubscriber::depthDataScanDescCallback(
 	commonSingleCameraCallback(odomMsg, userDataMsg, cv_bridge::toCvShare(imageMsg), cv_bridge::toCvShare(depthMsg), *cameraInfoMsg, *cameraInfoMsg, scanMsg->scan, scanMsg->scan_cloud, odomInfoMsg, globalDescriptor);
 }
 void CommonDataSubscriber::depthDataInfoCallback(
-		const rtabmap_msgs::UserDataConstPtr & userDataMsg,
-		const sensor_msgs::ImageConstPtr& imageMsg,
-		const sensor_msgs::ImageConstPtr& depthMsg,
-		const sensor_msgs::CameraInfoConstPtr& cameraInfoMsg,
-		const rtabmap_msgs::OdomInfoConstPtr& odomInfoMsg)
+		const rtabmap_msgs::msg::UserData::ConstSharedPtr userDataMsg,
+		const sensor_msgs::msg::Image::ConstSharedPtr imageMsg,
+		const sensor_msgs::msg::Image::ConstSharedPtr depthMsg,
+		const sensor_msgs::msg::CameraInfo::ConstSharedPtr cameraInfoMsg,
+		const rtabmap_msgs::msg::OdomInfo::ConstSharedPtr odomInfoMsg)
 {
-	nav_msgs::OdometryConstPtr odomMsg; // null
-	sensor_msgs::LaserScan scan2dMsg; // Null
-	sensor_msgs::PointCloud2 scan3dMsg; // Null
+	if(syncDiagnostic_.get()) {syncDiagnostic_->tickInput(imageMsg->header.stamp);}
+	nav_msgs::msg::Odometry::ConstSharedPtr odomMsg; // null
+	sensor_msgs::msg::LaserScan scan2dMsg; // Null
+	sensor_msgs::msg::PointCloud2 scan3dMsg; // null
 	commonSingleCameraCallback(odomMsg, userDataMsg, cv_bridge::toCvShare(imageMsg), cv_bridge::toCvShare(depthMsg), *cameraInfoMsg, *cameraInfoMsg, scan2dMsg, scan3dMsg, odomInfoMsg);
 }
 void CommonDataSubscriber::depthDataScan2dInfoCallback(
-		const rtabmap_msgs::UserDataConstPtr & userDataMsg,
-		const sensor_msgs::ImageConstPtr& imageMsg,
-		const sensor_msgs::ImageConstPtr& depthMsg,
-		const sensor_msgs::CameraInfoConstPtr& cameraInfoMsg,
-		const sensor_msgs::LaserScanConstPtr& scanMsg,
-		const rtabmap_msgs::OdomInfoConstPtr& odomInfoMsg)
+		const rtabmap_msgs::msg::UserData::ConstSharedPtr userDataMsg,
+		const sensor_msgs::msg::Image::ConstSharedPtr imageMsg,
+		const sensor_msgs::msg::Image::ConstSharedPtr depthMsg,
+		const sensor_msgs::msg::CameraInfo::ConstSharedPtr cameraInfoMsg,
+		const sensor_msgs::msg::LaserScan::ConstSharedPtr scanMsg,
+		const rtabmap_msgs::msg::OdomInfo::ConstSharedPtr odomInfoMsg)
 {
-	nav_msgs::OdometryConstPtr odomMsg; // null
-	sensor_msgs::PointCloud2 scan3dMsg; // Null
+	if(syncDiagnostic_.get()) {syncDiagnostic_->tickInput(imageMsg->header.stamp);}
+	nav_msgs::msg::Odometry::ConstSharedPtr odomMsg; // null
+	sensor_msgs::msg::PointCloud2 scan3dMsg; // null
 	commonSingleCameraCallback(odomMsg, userDataMsg, cv_bridge::toCvShare(imageMsg), cv_bridge::toCvShare(depthMsg), *cameraInfoMsg, *cameraInfoMsg, *scanMsg, scan3dMsg, odomInfoMsg);
 }
 void CommonDataSubscriber::depthDataScan3dInfoCallback(
-		const rtabmap_msgs::UserDataConstPtr & userDataMsg,
-		const sensor_msgs::ImageConstPtr& imageMsg,
-		const sensor_msgs::ImageConstPtr& depthMsg,
-		const sensor_msgs::CameraInfoConstPtr& cameraInfoMsg,
-		const sensor_msgs::PointCloud2ConstPtr& scanMsg,
-		const rtabmap_msgs::OdomInfoConstPtr& odomInfoMsg)
+		const rtabmap_msgs::msg::UserData::ConstSharedPtr userDataMsg,
+		const sensor_msgs::msg::Image::ConstSharedPtr imageMsg,
+		const sensor_msgs::msg::Image::ConstSharedPtr depthMsg,
+		const sensor_msgs::msg::CameraInfo::ConstSharedPtr cameraInfoMsg,
+		const sensor_msgs::msg::PointCloud2::ConstSharedPtr scanMsg,
+		const rtabmap_msgs::msg::OdomInfo::ConstSharedPtr odomInfoMsg)
 {
-	nav_msgs::OdometryConstPtr odomMsg; // null
-	sensor_msgs::LaserScan scan2dMsg; // Null
+	if(syncDiagnostic_.get()) {syncDiagnostic_->tickInput(imageMsg->header.stamp);}
+	nav_msgs::msg::Odometry::ConstSharedPtr odomMsg; // null
+	sensor_msgs::msg::LaserScan scan2dMsg; // Null
 	commonSingleCameraCallback(odomMsg, userDataMsg, cv_bridge::toCvShare(imageMsg), cv_bridge::toCvShare(depthMsg), *cameraInfoMsg, *cameraInfoMsg, scan2dMsg, *scanMsg, odomInfoMsg);
 }
 void CommonDataSubscriber::depthDataScanDescInfoCallback(
-		const rtabmap_msgs::UserDataConstPtr & userDataMsg,
-		const sensor_msgs::ImageConstPtr& imageMsg,
-		const sensor_msgs::ImageConstPtr& depthMsg,
-		const sensor_msgs::CameraInfoConstPtr& cameraInfoMsg,
-		const rtabmap_msgs::ScanDescriptorConstPtr& scanMsg,
-		const rtabmap_msgs::OdomInfoConstPtr& odomInfoMsg)
+		const rtabmap_msgs::msg::UserData::ConstSharedPtr userDataMsg,
+		const sensor_msgs::msg::Image::ConstSharedPtr imageMsg,
+		const sensor_msgs::msg::Image::ConstSharedPtr depthMsg,
+		const sensor_msgs::msg::CameraInfo::ConstSharedPtr cameraInfoMsg,
+		const rtabmap_msgs::msg::ScanDescriptor::ConstSharedPtr scanMsg,
+		const rtabmap_msgs::msg::OdomInfo::ConstSharedPtr odomInfoMsg)
 {
-	nav_msgs::OdometryConstPtr odomMsg; // null
-	std::vector<rtabmap_msgs::GlobalDescriptor> globalDescriptor;
+	if(syncDiagnostic_.get()) {syncDiagnostic_->tickInput(imageMsg->header.stamp);}
+	nav_msgs::msg::Odometry::ConstSharedPtr odomMsg; // null
+	std::vector<rtabmap_msgs::msg::GlobalDescriptor> globalDescriptor;
 	if(!scanMsg->global_descriptor.data.empty())
 	{
 		globalDescriptor.push_back(scanMsg->global_descriptor);
@@ -350,51 +374,55 @@ void CommonDataSubscriber::depthDataScanDescInfoCallback(
 
 // RGB + Depth + Odom + User Data
 void CommonDataSubscriber::depthOdomDataCallback(
-		const nav_msgs::OdometryConstPtr & odomMsg,
-		const rtabmap_msgs::UserDataConstPtr & userDataMsg,
-		const sensor_msgs::ImageConstPtr& imageMsg,
-		const sensor_msgs::ImageConstPtr& depthMsg,
-		const sensor_msgs::CameraInfoConstPtr& cameraInfoMsg)
+		const nav_msgs::msg::Odometry::ConstSharedPtr odomMsg,
+		const rtabmap_msgs::msg::UserData::ConstSharedPtr userDataMsg,
+		const sensor_msgs::msg::Image::ConstSharedPtr imageMsg,
+		const sensor_msgs::msg::Image::ConstSharedPtr depthMsg,
+		const sensor_msgs::msg::CameraInfo::ConstSharedPtr cameraInfoMsg)
 {
-	sensor_msgs::LaserScan scanMsg; // Null
-	sensor_msgs::PointCloud2 scan3dMsg; // null
-	rtabmap_msgs::OdomInfoConstPtr odomInfoMsg; // null
+	if(syncDiagnostic_.get()) {syncDiagnostic_->tickInput(imageMsg->header.stamp);}
+	sensor_msgs::msg::LaserScan scanMsg; // Null
+	sensor_msgs::msg::PointCloud2 scan3dMsg; // null
+	rtabmap_msgs::msg::OdomInfo::ConstSharedPtr odomInfoMsg; // null
 	commonSingleCameraCallback(odomMsg, userDataMsg, cv_bridge::toCvShare(imageMsg), cv_bridge::toCvShare(depthMsg), *cameraInfoMsg, *cameraInfoMsg, scanMsg, scan3dMsg, odomInfoMsg);
 }
 void CommonDataSubscriber::depthOdomDataScan2dCallback(
-		const nav_msgs::OdometryConstPtr & odomMsg,
-		const rtabmap_msgs::UserDataConstPtr & userDataMsg,
-		const sensor_msgs::ImageConstPtr& imageMsg,
-		const sensor_msgs::ImageConstPtr& depthMsg,
-		const sensor_msgs::CameraInfoConstPtr& cameraInfoMsg,
-		const sensor_msgs::LaserScanConstPtr& scanMsg)
+		const nav_msgs::msg::Odometry::ConstSharedPtr odomMsg,
+		const rtabmap_msgs::msg::UserData::ConstSharedPtr userDataMsg,
+		const sensor_msgs::msg::Image::ConstSharedPtr imageMsg,
+		const sensor_msgs::msg::Image::ConstSharedPtr depthMsg,
+		const sensor_msgs::msg::CameraInfo::ConstSharedPtr cameraInfoMsg,
+		const sensor_msgs::msg::LaserScan::ConstSharedPtr scanMsg)
 {
-	sensor_msgs::PointCloud2 scan3dMsg; // Null
-	rtabmap_msgs::OdomInfoConstPtr odomInfoMsg; // null
+	if(syncDiagnostic_.get()) {syncDiagnostic_->tickInput(imageMsg->header.stamp);}
+	sensor_msgs::msg::PointCloud2 scan3dMsg; // null
+	rtabmap_msgs::msg::OdomInfo::ConstSharedPtr odomInfoMsg; // null
 	commonSingleCameraCallback(odomMsg, userDataMsg, cv_bridge::toCvShare(imageMsg), cv_bridge::toCvShare(depthMsg), *cameraInfoMsg, *cameraInfoMsg, *scanMsg, scan3dMsg, odomInfoMsg);
 }
 void CommonDataSubscriber::depthOdomDataScan3dCallback(
-		const nav_msgs::OdometryConstPtr & odomMsg,
-		const rtabmap_msgs::UserDataConstPtr & userDataMsg,
-		const sensor_msgs::ImageConstPtr& imageMsg,
-		const sensor_msgs::ImageConstPtr& depthMsg,
-		const sensor_msgs::CameraInfoConstPtr& cameraInfoMsg,
-		const sensor_msgs::PointCloud2ConstPtr& scanMsg)
+		const nav_msgs::msg::Odometry::ConstSharedPtr odomMsg,
+		const rtabmap_msgs::msg::UserData::ConstSharedPtr userDataMsg,
+		const sensor_msgs::msg::Image::ConstSharedPtr imageMsg,
+		const sensor_msgs::msg::Image::ConstSharedPtr depthMsg,
+		const sensor_msgs::msg::CameraInfo::ConstSharedPtr cameraInfoMsg,
+		const sensor_msgs::msg::PointCloud2::ConstSharedPtr scanMsg)
 {
-	sensor_msgs::LaserScan scan2dMsg; // Null
-	rtabmap_msgs::OdomInfoConstPtr odomInfoMsg; // null
+	if(syncDiagnostic_.get()) {syncDiagnostic_->tickInput(imageMsg->header.stamp);}
+	sensor_msgs::msg::LaserScan scan2dMsg; // Null
+	rtabmap_msgs::msg::OdomInfo::ConstSharedPtr odomInfoMsg; // null
 	commonSingleCameraCallback(odomMsg, userDataMsg, cv_bridge::toCvShare(imageMsg), cv_bridge::toCvShare(depthMsg), *cameraInfoMsg, *cameraInfoMsg, scan2dMsg, *scanMsg, odomInfoMsg);
 }
 void CommonDataSubscriber::depthOdomDataScanDescCallback(
-		const nav_msgs::OdometryConstPtr & odomMsg,
-		const rtabmap_msgs::UserDataConstPtr & userDataMsg,
-		const sensor_msgs::ImageConstPtr& imageMsg,
-		const sensor_msgs::ImageConstPtr& depthMsg,
-		const sensor_msgs::CameraInfoConstPtr& cameraInfoMsg,
-		const rtabmap_msgs::ScanDescriptorConstPtr& scanMsg)
+		const nav_msgs::msg::Odometry::ConstSharedPtr odomMsg,
+		const rtabmap_msgs::msg::UserData::ConstSharedPtr userDataMsg,
+		const sensor_msgs::msg::Image::ConstSharedPtr imageMsg,
+		const sensor_msgs::msg::Image::ConstSharedPtr depthMsg,
+		const sensor_msgs::msg::CameraInfo::ConstSharedPtr cameraInfoMsg,
+		const rtabmap_msgs::msg::ScanDescriptor::ConstSharedPtr scanMsg)
 {
-	rtabmap_msgs::OdomInfoConstPtr odomInfoMsg; // null
-	std::vector<rtabmap_msgs::GlobalDescriptor> globalDescriptor;
+	if(syncDiagnostic_.get()) {syncDiagnostic_->tickInput(imageMsg->header.stamp);}
+	rtabmap_msgs::msg::OdomInfo::ConstSharedPtr odomInfoMsg; // null
+	std::vector<rtabmap_msgs::msg::GlobalDescriptor> globalDescriptor;
 	if(!scanMsg->global_descriptor.data.empty())
 	{
 		globalDescriptor.push_back(scanMsg->global_descriptor);
@@ -402,51 +430,55 @@ void CommonDataSubscriber::depthOdomDataScanDescCallback(
 	commonSingleCameraCallback(odomMsg, userDataMsg, cv_bridge::toCvShare(imageMsg), cv_bridge::toCvShare(depthMsg), *cameraInfoMsg, *cameraInfoMsg, scanMsg->scan, scanMsg->scan_cloud, odomInfoMsg, globalDescriptor);
 }
 void CommonDataSubscriber::depthOdomDataInfoCallback(
-		const nav_msgs::OdometryConstPtr & odomMsg,
-		const rtabmap_msgs::UserDataConstPtr & userDataMsg,
-		const sensor_msgs::ImageConstPtr& imageMsg,
-		const sensor_msgs::ImageConstPtr& depthMsg,
-		const sensor_msgs::CameraInfoConstPtr& cameraInfoMsg,
-		const rtabmap_msgs::OdomInfoConstPtr& odomInfoMsg)
+		const nav_msgs::msg::Odometry::ConstSharedPtr odomMsg,
+		const rtabmap_msgs::msg::UserData::ConstSharedPtr userDataMsg,
+		const sensor_msgs::msg::Image::ConstSharedPtr imageMsg,
+		const sensor_msgs::msg::Image::ConstSharedPtr depthMsg,
+		const sensor_msgs::msg::CameraInfo::ConstSharedPtr cameraInfoMsg,
+		const rtabmap_msgs::msg::OdomInfo::ConstSharedPtr odomInfoMsg)
 {
-	sensor_msgs::LaserScan scan2dMsg; // Null
-	sensor_msgs::PointCloud2 scan3dMsg; // Null
+	if(syncDiagnostic_.get()) {syncDiagnostic_->tickInput(imageMsg->header.stamp);}
+	sensor_msgs::msg::LaserScan scan2dMsg; // Null
+	sensor_msgs::msg::PointCloud2 scan3dMsg; // null
 	commonSingleCameraCallback(odomMsg, userDataMsg, cv_bridge::toCvShare(imageMsg), cv_bridge::toCvShare(depthMsg), *cameraInfoMsg, *cameraInfoMsg, scan2dMsg, scan3dMsg, odomInfoMsg);
 }
 void CommonDataSubscriber::depthOdomDataScan2dInfoCallback(
-		const nav_msgs::OdometryConstPtr & odomMsg,
-		const rtabmap_msgs::UserDataConstPtr & userDataMsg,
-		const sensor_msgs::ImageConstPtr& imageMsg,
-		const sensor_msgs::ImageConstPtr& depthMsg,
-		const sensor_msgs::CameraInfoConstPtr& cameraInfoMsg,
-		const sensor_msgs::LaserScanConstPtr& scanMsg,
-		const rtabmap_msgs::OdomInfoConstPtr& odomInfoMsg)
+		const nav_msgs::msg::Odometry::ConstSharedPtr odomMsg,
+		const rtabmap_msgs::msg::UserData::ConstSharedPtr userDataMsg,
+		const sensor_msgs::msg::Image::ConstSharedPtr imageMsg,
+		const sensor_msgs::msg::Image::ConstSharedPtr depthMsg,
+		const sensor_msgs::msg::CameraInfo::ConstSharedPtr cameraInfoMsg,
+		const sensor_msgs::msg::LaserScan::ConstSharedPtr scanMsg,
+		const rtabmap_msgs::msg::OdomInfo::ConstSharedPtr odomInfoMsg)
 {
-	sensor_msgs::PointCloud2 scan3dMsg; // Null
+	if(syncDiagnostic_.get()) {syncDiagnostic_->tickInput(imageMsg->header.stamp);}
+	sensor_msgs::msg::PointCloud2 scan3dMsg; // null
 	commonSingleCameraCallback(odomMsg, userDataMsg, cv_bridge::toCvShare(imageMsg), cv_bridge::toCvShare(depthMsg), *cameraInfoMsg, *cameraInfoMsg, *scanMsg, scan3dMsg, odomInfoMsg);
 }
 void CommonDataSubscriber::depthOdomDataScan3dInfoCallback(
-		const nav_msgs::OdometryConstPtr & odomMsg,
-		const rtabmap_msgs::UserDataConstPtr & userDataMsg,
-		const sensor_msgs::ImageConstPtr& imageMsg,
-		const sensor_msgs::ImageConstPtr& depthMsg,
-		const sensor_msgs::CameraInfoConstPtr& cameraInfoMsg,
-		const sensor_msgs::PointCloud2ConstPtr& scanMsg,
-		const rtabmap_msgs::OdomInfoConstPtr& odomInfoMsg)
+		const nav_msgs::msg::Odometry::ConstSharedPtr odomMsg,
+		const rtabmap_msgs::msg::UserData::ConstSharedPtr userDataMsg,
+		const sensor_msgs::msg::Image::ConstSharedPtr imageMsg,
+		const sensor_msgs::msg::Image::ConstSharedPtr depthMsg,
+		const sensor_msgs::msg::CameraInfo::ConstSharedPtr cameraInfoMsg,
+		const sensor_msgs::msg::PointCloud2::ConstSharedPtr scanMsg,
+		const rtabmap_msgs::msg::OdomInfo::ConstSharedPtr odomInfoMsg)
 {
-	sensor_msgs::LaserScan scan2dMsg; // Null
+	if(syncDiagnostic_.get()) {syncDiagnostic_->tickInput(imageMsg->header.stamp);}
+	sensor_msgs::msg::LaserScan scan2dMsg; // Null
 	commonSingleCameraCallback(odomMsg, userDataMsg, cv_bridge::toCvShare(imageMsg), cv_bridge::toCvShare(depthMsg), *cameraInfoMsg, *cameraInfoMsg, scan2dMsg, *scanMsg, odomInfoMsg);
 }
 void CommonDataSubscriber::depthOdomDataScanDescInfoCallback(
-		const nav_msgs::OdometryConstPtr & odomMsg,
-		const rtabmap_msgs::UserDataConstPtr & userDataMsg,
-		const sensor_msgs::ImageConstPtr& imageMsg,
-		const sensor_msgs::ImageConstPtr& depthMsg,
-		const sensor_msgs::CameraInfoConstPtr& cameraInfoMsg,
-		const rtabmap_msgs::ScanDescriptorConstPtr& scanMsg,
-		const rtabmap_msgs::OdomInfoConstPtr& odomInfoMsg)
+		const nav_msgs::msg::Odometry::ConstSharedPtr odomMsg,
+		const rtabmap_msgs::msg::UserData::ConstSharedPtr userDataMsg,
+		const sensor_msgs::msg::Image::ConstSharedPtr imageMsg,
+		const sensor_msgs::msg::Image::ConstSharedPtr depthMsg,
+		const sensor_msgs::msg::CameraInfo::ConstSharedPtr cameraInfoMsg,
+		const rtabmap_msgs::msg::ScanDescriptor::ConstSharedPtr scanMsg,
+		const rtabmap_msgs::msg::OdomInfo::ConstSharedPtr odomInfoMsg)
 {
-	std::vector<rtabmap_msgs::GlobalDescriptor> globalDescriptor;
+	if(syncDiagnostic_.get()) {syncDiagnostic_->tickInput(imageMsg->header.stamp);}
+	std::vector<rtabmap_msgs::msg::GlobalDescriptor> globalDescriptor;
 	if(!scanMsg->global_descriptor.data.empty())
 	{
 		globalDescriptor.push_back(scanMsg->global_descriptor);
@@ -456,46 +488,43 @@ void CommonDataSubscriber::depthOdomDataScanDescInfoCallback(
 #endif
 
 void CommonDataSubscriber::setupDepthCallbacks(
-		ros::NodeHandle & nh,
-		ros::NodeHandle & pnh,
+		rclcpp::Node& node,
+		const rclcpp::SubscriptionOptions & options,
 		bool subscribeOdom,
+#ifdef RTABMAP_SYNC_USER_DATA
 		bool subscribeUserData,
+#else
+		bool,
+#endif
 		bool subscribeScan2d,
 		bool subscribeScan3d,
 		bool subscribeScanDesc,
 		bool subscribeOdomInfo)
 {
-	ROS_INFO("Setup depth callback");
+	RCLCPP_INFO(node.get_logger(), "Setup depth callback");
 
-	std::string rgbPrefix = "rgb";
-	std::string depthPrefix = "depth";
-	ros::NodeHandle rgb_nh(nh, rgbPrefix);
-	ros::NodeHandle depth_nh(nh, depthPrefix);
-	ros::NodeHandle rgb_pnh(pnh, rgbPrefix);
-	ros::NodeHandle depth_pnh(pnh, depthPrefix);
-	image_transport::ImageTransport rgb_it(rgb_nh);
-	image_transport::ImageTransport depth_it(depth_nh);
-	image_transport::TransportHints hintsRgb("raw", ros::TransportHints(), rgb_pnh);
-	image_transport::TransportHints hintsDepth("raw", ros::TransportHints(), depth_pnh);
-
-	imageSub_.subscribe(rgb_it, rgb_nh.resolveName("image"), topicQueueSize_, hintsRgb);
-	imageDepthSub_.subscribe(depth_it, depth_nh.resolveName("image"), topicQueueSize_, hintsDepth);
-	cameraInfoSub_.subscribe(rgb_nh, "camera_info", topicQueueSize_);
+	image_transport::TransportHints rgbHints(&node); // using "image_transport" parameter
+	image_transport::TransportHints depthHints(&node, "raw", "depth_transport");
+	std::string rgbTopic = node.get_node_topics_interface()->resolve_topic_name("rgb/image"); // Humble/Jazzy don't resolve base topic, fixed by https://github.com/ros-perception/image_common/commit/ea7589ae8c1f7ecb83d6aab7b4c890c2d630d27a
+	std::string depthTopic = node.get_node_topics_interface()->resolve_topic_name("depth/image"); // Humble/Jazzy don't resolve base topic, fixed by https://github.com/ros-perception/image_common/commit/ea7589ae8c1f7ecb83d6aab7b4c890c2d630d27a
+	imageSub_.subscribe(&node, rgbTopic, rgbHints.getTransport(), rclcpp::QoS(topicQueueSize_).reliability(qosImage_).get_rmw_qos_profile(), options);
+	imageDepthSub_.subscribe(&node, depthTopic, depthHints.getTransport(), rclcpp::QoS(topicQueueSize_).reliability(qosImage_).get_rmw_qos_profile(), options);
+	cameraInfoSub_.subscribe(&node, "rgb/camera_info", RCLCPP_QOS(topicQueueSize_, qosCameraInfo_), options);
 
 #ifdef RTABMAP_SYNC_USER_DATA
 	if(subscribeOdom && subscribeUserData)
 	{
-		odomSub_.subscribe(nh, "odom", topicQueueSize_);
-		userDataSub_.subscribe(nh, "user_data", topicQueueSize_);
+		odomSub_.subscribe(&node, "odom", RCLCPP_QOS(topicQueueSize_, qosOdom_), options);
+		userDataSub_.subscribe(&node, "user_data", RCLCPP_QOS(topicQueueSize_, qosUserData_), options);
 
 		if(subscribeScanDesc)
 		{
 			subscribedToScanDescriptor_ = true;
-			scanDescSub_.subscribe(nh, "scan_descriptor", topicQueueSize_);
+			scanDescSub_.subscribe(&node, "scan_descriptor", RCLCPP_QOS(topicQueueSize_, qosScan_), options);
 			if(subscribeOdomInfo)
 			{
 				subscribedToOdomInfo_ = true;
-				odomInfoSub_.subscribe(nh, "odom_info", topicQueueSize_);
+				odomInfoSub_.subscribe(&node, "odom_info", RCLCPP_QOS(topicQueueSize_, qosOdom_), options);
 				SYNC_DECL7(CommonDataSubscriber, depthOdomDataScanDescInfo, approxSync_, syncQueueSize_, odomSub_, userDataSub_, imageSub_, imageDepthSub_, cameraInfoSub_, scanDescSub_, odomInfoSub_);
 			}
 			else
@@ -506,11 +535,11 @@ void CommonDataSubscriber::setupDepthCallbacks(
 		else if(subscribeScan2d)
 		{
 			subscribedToScan2d_ = true;
-			scanSub_.subscribe(nh, "scan", topicQueueSize_);
+			scanSub_.subscribe(&node, "scan", RCLCPP_QOS(topicQueueSize_, qosScan_), options);
 			if(subscribeOdomInfo)
 			{
 				subscribedToOdomInfo_ = true;
-				odomInfoSub_.subscribe(nh, "odom_info", topicQueueSize_);
+				odomInfoSub_.subscribe(&node, "odom_info", RCLCPP_QOS(topicQueueSize_, qosOdom_), options);
 				SYNC_DECL7(CommonDataSubscriber, depthOdomDataScan2dInfo, approxSync_, syncQueueSize_, odomSub_, userDataSub_, imageSub_, imageDepthSub_, cameraInfoSub_, scanSub_, odomInfoSub_);
 			}
 			else
@@ -521,11 +550,11 @@ void CommonDataSubscriber::setupDepthCallbacks(
 		else if(subscribeScan3d)
 		{
 			subscribedToScan3d_ = true;
-			scan3dSub_.subscribe(nh, "scan_cloud", topicQueueSize_);
+			scan3dSub_.subscribe(&node, "scan_cloud", RCLCPP_QOS(topicQueueSize_, qosScan_), options);
 			if(subscribeOdomInfo)
 			{
 				subscribedToOdomInfo_ = true;
-				odomInfoSub_.subscribe(nh, "odom_info", topicQueueSize_);
+				odomInfoSub_.subscribe(&node, "odom_info", RCLCPP_QOS(topicQueueSize_, qosOdom_), options);
 				SYNC_DECL7(CommonDataSubscriber, depthOdomDataScan3dInfo, approxSync_, syncQueueSize_, odomSub_, userDataSub_, imageSub_, imageDepthSub_, cameraInfoSub_, scan3dSub_, odomInfoSub_);
 			}
 			else
@@ -536,7 +565,7 @@ void CommonDataSubscriber::setupDepthCallbacks(
 		else if(subscribeOdomInfo)
 		{
 			subscribedToOdomInfo_ = true;
-			odomInfoSub_.subscribe(nh, "odom_info", topicQueueSize_);
+			odomInfoSub_.subscribe(&node, "odom_info", RCLCPP_QOS(topicQueueSize_, qosOdom_), options);
 			SYNC_DECL6(CommonDataSubscriber, depthOdomDataInfo, approxSync_, syncQueueSize_, odomSub_, userDataSub_, imageSub_, imageDepthSub_, cameraInfoSub_, odomInfoSub_);
 		}
 		else
@@ -548,16 +577,16 @@ void CommonDataSubscriber::setupDepthCallbacks(
 #endif
 	if(subscribeOdom)
 	{
-		odomSub_.subscribe(nh, "odom", topicQueueSize_);
+		odomSub_.subscribe(&node, "odom", RCLCPP_QOS(topicQueueSize_, qosOdom_), options);
 
 		if(subscribeScanDesc)
 		{
 			subscribedToScanDescriptor_ = true;
-			scanDescSub_.subscribe(nh, "scan_descriptor", topicQueueSize_);
+			scanDescSub_.subscribe(&node, "scan_descriptor", RCLCPP_QOS(topicQueueSize_, qosScan_), options);
 			if(subscribeOdomInfo)
 			{
 				subscribedToOdomInfo_ = true;
-				odomInfoSub_.subscribe(nh, "odom_info", topicQueueSize_);
+				odomInfoSub_.subscribe(&node, "odom_info", RCLCPP_QOS(topicQueueSize_, qosOdom_), options);
 				SYNC_DECL6(CommonDataSubscriber, depthOdomScanDescInfo, approxSync_, syncQueueSize_, odomSub_, imageSub_, imageDepthSub_, cameraInfoSub_, scanDescSub_, odomInfoSub_);
 			}
 			else
@@ -568,11 +597,11 @@ void CommonDataSubscriber::setupDepthCallbacks(
 		else if(subscribeScan2d)
 		{
 			subscribedToScan2d_ = true;
-			scanSub_.subscribe(nh, "scan", topicQueueSize_);
+			scanSub_.subscribe(&node, "scan", RCLCPP_QOS(topicQueueSize_, qosScan_), options);
 			if(subscribeOdomInfo)
 			{
 				subscribedToOdomInfo_ = true;
-				odomInfoSub_.subscribe(nh, "odom_info", topicQueueSize_);
+				odomInfoSub_.subscribe(&node, "odom_info", RCLCPP_QOS(topicQueueSize_, qosOdom_), options);
 				SYNC_DECL6(CommonDataSubscriber, depthOdomScan2dInfo, approxSync_, syncQueueSize_, odomSub_, imageSub_, imageDepthSub_, cameraInfoSub_, scanSub_, odomInfoSub_);
 			}
 			else
@@ -583,11 +612,11 @@ void CommonDataSubscriber::setupDepthCallbacks(
 		else if(subscribeScan3d)
 		{
 			subscribedToScan3d_ = true;
-			scan3dSub_.subscribe(nh, "scan_cloud", topicQueueSize_);
+			scan3dSub_.subscribe(&node, "scan_cloud", RCLCPP_QOS(topicQueueSize_, qosScan_), options);
 			if(subscribeOdomInfo)
 			{
 				subscribedToOdomInfo_ = true;
-				odomInfoSub_.subscribe(nh, "odom_info", topicQueueSize_);
+				odomInfoSub_.subscribe(&node, "odom_info", RCLCPP_QOS(topicQueueSize_, qosOdom_), options);
 				SYNC_DECL6(CommonDataSubscriber, depthOdomScan3dInfo, approxSync_, syncQueueSize_, odomSub_, imageSub_, imageDepthSub_, cameraInfoSub_, scan3dSub_, odomInfoSub_);
 			}
 			else
@@ -598,7 +627,7 @@ void CommonDataSubscriber::setupDepthCallbacks(
 		else if(subscribeOdomInfo)
 		{
 			subscribedToOdomInfo_ = true;
-			odomInfoSub_.subscribe(nh, "odom_info", topicQueueSize_);
+			odomInfoSub_.subscribe(&node, "odom_info", RCLCPP_QOS(topicQueueSize_, qosOdom_), options);
 			SYNC_DECL5(CommonDataSubscriber, depthOdomInfo, approxSync_, syncQueueSize_, odomSub_, imageSub_, imageDepthSub_, cameraInfoSub_, odomInfoSub_);
 		}
 		else
@@ -609,17 +638,17 @@ void CommonDataSubscriber::setupDepthCallbacks(
 #ifdef RTABMAP_SYNC_USER_DATA
 	else if(subscribeUserData)
 	{
-		userDataSub_.subscribe(nh, "user_data", topicQueueSize_);
+		userDataSub_.subscribe(&node, "user_data", RCLCPP_QOS(topicQueueSize_, qosUserData_), options);
 
 		if(subscribeScanDesc)
 		{
 			subscribedToScanDescriptor_ = true;
-			scanDescSub_.subscribe(nh, "scan_descriptor", topicQueueSize_);
+			scanDescSub_.subscribe(&node, "scan_descriptor", RCLCPP_QOS(topicQueueSize_, qosScan_), options);
 
 			if(subscribeOdomInfo)
 			{
 				subscribedToOdomInfo_ = true;
-				odomInfoSub_.subscribe(nh, "odom_info", topicQueueSize_);
+				odomInfoSub_.subscribe(&node, "odom_info", RCLCPP_QOS(topicQueueSize_, qosOdom_), options);
 				SYNC_DECL6(CommonDataSubscriber, depthDataScanDescInfo, approxSync_, syncQueueSize_, userDataSub_, imageSub_, imageDepthSub_, cameraInfoSub_, scanDescSub_, odomInfoSub_);
 			}
 			else
@@ -630,12 +659,12 @@ void CommonDataSubscriber::setupDepthCallbacks(
 		else if(subscribeScan2d)
 		{
 			subscribedToScan2d_ = true;
-			scanSub_.subscribe(nh, "scan", topicQueueSize_);
+			scanSub_.subscribe(&node, "scan", RCLCPP_QOS(topicQueueSize_, qosScan_), options);
 
 			if(subscribeOdomInfo)
 			{
 				subscribedToOdomInfo_ = true;
-				odomInfoSub_.subscribe(nh, "odom_info", topicQueueSize_);
+				odomInfoSub_.subscribe(&node, "odom_info", RCLCPP_QOS(topicQueueSize_, qosOdom_), options);
 				SYNC_DECL6(CommonDataSubscriber, depthDataScan2dInfo, approxSync_, syncQueueSize_, userDataSub_, imageSub_, imageDepthSub_, cameraInfoSub_, scanSub_, odomInfoSub_);
 			}
 			else
@@ -646,11 +675,11 @@ void CommonDataSubscriber::setupDepthCallbacks(
 		else if(subscribeScan3d)
 		{
 			subscribedToScan3d_ = true;
-			scan3dSub_.subscribe(nh, "scan_cloud", topicQueueSize_);
+			scan3dSub_.subscribe(&node, "scan_cloud", RCLCPP_QOS(topicQueueSize_, qosScan_), options);
 			if(subscribeOdomInfo)
 			{
 				subscribedToOdomInfo_ = true;
-				odomInfoSub_.subscribe(nh, "odom_info", topicQueueSize_);
+				odomInfoSub_.subscribe(&node, "odom_info", RCLCPP_QOS(topicQueueSize_, qosOdom_), options);
 				SYNC_DECL6(CommonDataSubscriber, depthDataScan3dInfo, approxSync_, syncQueueSize_, userDataSub_, imageSub_, imageDepthSub_, cameraInfoSub_, scan3dSub_, odomInfoSub_);
 			}
 			else
@@ -661,7 +690,7 @@ void CommonDataSubscriber::setupDepthCallbacks(
 		else if(subscribeOdomInfo)
 		{
 			subscribedToOdomInfo_ = true;
-			odomInfoSub_.subscribe(nh, "odom_info", topicQueueSize_);
+			odomInfoSub_.subscribe(&node, "odom_info", RCLCPP_QOS(topicQueueSize_, qosOdom_), options);
 			SYNC_DECL5(CommonDataSubscriber, depthDataInfo, approxSync_, syncQueueSize_, userDataSub_, imageSub_, imageDepthSub_, cameraInfoSub_, odomInfoSub_);
 		}
 		else
@@ -675,11 +704,11 @@ void CommonDataSubscriber::setupDepthCallbacks(
 		if(subscribeScanDesc)
 		{
 			subscribedToScanDescriptor_ = true;
-			scanDescSub_.subscribe(nh, "scan_descriptor", topicQueueSize_);
+			scanDescSub_.subscribe(&node, "scan_descriptor", RCLCPP_QOS(topicQueueSize_,qosScan_), options);
 			if(subscribeOdomInfo)
 			{
 				subscribedToOdomInfo_ = true;
-				odomInfoSub_.subscribe(nh, "odom_info", topicQueueSize_);
+				odomInfoSub_.subscribe(&node, "odom_info", RCLCPP_QOS(topicQueueSize_, qosOdom_), options);
 				SYNC_DECL5(CommonDataSubscriber, depthScanDescInfo, approxSync_, syncQueueSize_, imageSub_, imageDepthSub_, cameraInfoSub_, scanDescSub_, odomInfoSub_);
 			}
 			else
@@ -690,11 +719,11 @@ void CommonDataSubscriber::setupDepthCallbacks(
 		else if(subscribeScan2d)
 		{
 			subscribedToScan2d_ = true;
-			scanSub_.subscribe(nh, "scan", topicQueueSize_);
+			scanSub_.subscribe(&node, "scan", RCLCPP_QOS(topicQueueSize_, qosScan_), options);
 			if(subscribeOdomInfo)
 			{
 				subscribedToOdomInfo_ = true;
-				odomInfoSub_.subscribe(nh, "odom_info", topicQueueSize_);
+				odomInfoSub_.subscribe(&node, "odom_info", RCLCPP_QOS(topicQueueSize_, qosOdom_), options);
 				SYNC_DECL5(CommonDataSubscriber, depthScan2dInfo, approxSync_, syncQueueSize_, imageSub_, imageDepthSub_, cameraInfoSub_, scanSub_, odomInfoSub_);
 			}
 			else
@@ -705,11 +734,11 @@ void CommonDataSubscriber::setupDepthCallbacks(
 		else if(subscribeScan3d)
 		{
 			subscribedToScan3d_ = true;
-			scan3dSub_.subscribe(nh, "scan_cloud", topicQueueSize_);
+			scan3dSub_.subscribe(&node, "scan_cloud", RCLCPP_QOS(topicQueueSize_, qosScan_), options);
 			if(subscribeOdomInfo)
 			{
 				subscribedToOdomInfo_ = true;
-				odomInfoSub_.subscribe(nh, "odom_info", topicQueueSize_);
+				odomInfoSub_.subscribe(&node, "odom_info", RCLCPP_QOS(topicQueueSize_, qosOdom_), options);
 				SYNC_DECL5(CommonDataSubscriber, depthScan3dInfo, approxSync_, syncQueueSize_, imageSub_, imageDepthSub_, cameraInfoSub_, scan3dSub_, odomInfoSub_);
 			}
 			else
@@ -720,7 +749,7 @@ void CommonDataSubscriber::setupDepthCallbacks(
 		else if(subscribeOdomInfo)
 		{
 			subscribedToOdomInfo_ = true;
-			odomInfoSub_.subscribe(nh, "odom_info", topicQueueSize_);
+			odomInfoSub_.subscribe(&node, "odom_info", RCLCPP_QOS(topicQueueSize_, qosOdom_), options);
 			SYNC_DECL4(CommonDataSubscriber, depthInfo, approxSync_, syncQueueSize_, imageSub_, imageDepthSub_, cameraInfoSub_, odomInfoSub_);
 		}
 		else

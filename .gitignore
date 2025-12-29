@@ -137,3 +137,5 @@ ros_depends_ws/build_isolated/
 ros_depends_ws/devel_isolated/
 ros_depends_ws/.catkin_workspace
 ros_depends_ws/src/CMakeLists.txt
+ros_depends_ws/install/
+ros_depends_ws/log/

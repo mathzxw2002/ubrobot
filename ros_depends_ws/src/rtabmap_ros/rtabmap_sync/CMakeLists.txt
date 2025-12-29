@@ -1,10 +1,30 @@
 cmake_minimum_required(VERSION 3.5)
 project(rtabmap_sync)
 
-find_package(catkin REQUIRED COMPONENTS
-            cv_bridge roscpp sensor_msgs nav_msgs image_transport
-            nodelet message_filters rtabmap_msgs rtabmap_conversions diagnostic_updater
-)
+if(CMAKE_SYSTEM_PROCESSOR STREQUAL "aarch64")
+  # issues #1285 #1288
+  find_library(
+    builtin_interfaces__rosidl_generator_c_LIB NAMES builtin_interfaces__rosidl_generator_c
+    PATHS "/opt/ros/$ENV{ROS_DISTRO}/lib"
+    NO_DEFAULT_PATH NO_CMAKE_FIND_ROOT_PATH REQUIRED
+  )
+  find_library(
+    crypto_LIB NAMES crypto
+    PATHS "/usr/lib/${CMAKE_SYSTEM_PROCESSOR}-linux-gnu"
+    NO_DEFAULT_PATH NO_CMAKE_FIND_ROOT_PATH REQUIRED
+  )
+endif()
+
+find_package(cv_bridge REQUIRED)
+find_package(image_transport REQUIRED)
+find_package(message_filters REQUIRED)
+find_package(nav_msgs REQUIRED)
+find_package(rclcpp REQUIRED)
+find_package(rclcpp_components REQUIRED)
+find_package(rtabmap_conversions REQUIRED)
+find_package(rtabmap_msgs REQUIRED)
+find_package(sensor_msgs REQUIRED)
+find_package(diagnostic_updater REQUIRED)
 
 option(RTABMAP_SYNC_MULTI_RGBD "Build with multi RGBD camera synchronization support"  OFF)
 option(RTABMAP_SYNC_USER_DATA "Build with input user data support"  OFF)
@@ -29,23 +49,28 @@ ENDIF(WIN32)
 
 configure_file(cmake/extra_configs.cmake.in cmake/extra_configs.cmake IMMEDIATE @ONLY)
 
-catkin_package(
-  INCLUDE_DIRS include
-  LIBRARIES rtabmap_sync rtabmap_sync_plugins
-  CATKIN_DEPENDS cv_bridge roscpp sensor_msgs nav_msgs image_transport
-                 nodelet message_filters rtabmap_msgs rtabmap_conversions diagnostic_updater
-  CFG_EXTRAS extra_configs.cmake
+include_directories(
+  ${CMAKE_CURRENT_SOURCE_DIR}/include
+)
+
+# libraries
+SET(Libraries
+   cv_bridge
+   image_transport
+   message_filters
+   nav_msgs
+   rclcpp
+   rclcpp_components
+   rtabmap_conversions
+   rtabmap_msgs
+   sensor_msgs
+   diagnostic_updater
 )
 
 ###########
 ## Build ##
 ###########
 
-include_directories(
-  ${CMAKE_CURRENT_SOURCE_DIR}/include
-  ${catkin_INCLUDE_DIRS}
-)
- 
 SET(rtabmap_sync_lib_src
    src/CommonDataSubscriber.cpp
    src/impl/CommonDataSubscriberDepth.cpp
@@ -70,69 +95,85 @@ ENDIF(RTABMAP_SYNC_MULTI_RGBD)
   
 SET(rtabmap_sync_plugins_lib_src
    src/nodelets/rgbdx_sync.cpp
+   src/nodelets/rgbd_sync.cpp
+   src/nodelets/stereo_sync.cpp
+   src/nodelets/rgb_sync.cpp
 )
 
-IF(${cv_bridge_VERSION_MAJOR} GREATER 1 OR ${cv_bridge_VERSION_MINOR} GREATER 10)
-   SET(rtabmap_sync_plugins_lib_src ${rtabmap_sync_plugins_lib_src} src/nodelets/rgbd_sync.cpp src/nodelets/stereo_sync.cpp src/nodelets/rgb_sync.cpp)
-ELSE()
-   ADD_DEFINITIONS("-DCV_BRIDGE_HYDRO")
-ENDIF()   
 
 ############################
 ## Declare a cpp library
 ############################
-add_library(rtabmap_sync
+add_library(rtabmap_sync SHARED
    ${rtabmap_sync_lib_src}
 )
-add_library(rtabmap_sync_plugins
+add_library(rtabmap_sync_plugins SHARED
    ${rtabmap_sync_plugins_lib_src}
 )
 
-target_link_libraries(rtabmap_sync
-  ${catkin_LIBRARIES}
-)
-target_link_libraries(rtabmap_sync_plugins
-  ${catkin_LIBRARIES}
+target_include_directories(rtabmap_sync
+  PUBLIC
+    $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
+    $<INSTALL_INTERFACE:include>
 )
 
+ament_target_dependencies(rtabmap_sync ${Libraries})
+ament_target_dependencies(rtabmap_sync_plugins ${Libraries})
+
+rclcpp_components_register_nodes(rtabmap_sync_plugins "rtabmap_sync::RGBDSync")
+rclcpp_components_register_nodes(rtabmap_sync_plugins "rtabmap_sync::StereoSync")
+rclcpp_components_register_nodes(rtabmap_sync_plugins "rtabmap_sync::RGBSync")
+rclcpp_components_register_nodes(rtabmap_sync_plugins "rtabmap_sync::RGBDXSync")
+
 add_executable(rtabmap_rgbd_sync src/RGBDSyncNode.cpp)
-target_link_libraries(rtabmap_rgbd_sync ${catkin_LIBRARIES})
+ament_target_dependencies(rtabmap_rgbd_sync ${Libraries})
+target_link_libraries(rtabmap_rgbd_sync rtabmap_sync_plugins)
 set_target_properties(rtabmap_rgbd_sync PROPERTIES OUTPUT_NAME "rgbd_sync")
 
 add_executable(rtabmap_rgbdx_sync src/RGBDXSyncNode.cpp)
-target_link_libraries(rtabmap_rgbdx_sync ${catkin_LIBRARIES})
+ament_target_dependencies(rtabmap_rgbdx_sync ${Libraries})
+target_link_libraries(rtabmap_rgbdx_sync rtabmap_sync_plugins)
 set_target_properties(rtabmap_rgbdx_sync PROPERTIES OUTPUT_NAME "rgbdx_sync")
 
 add_executable(rtabmap_stereo_sync src/StereoSyncNode.cpp)
-target_link_libraries(rtabmap_stereo_sync ${catkin_LIBRARIES})
+ament_target_dependencies(rtabmap_stereo_sync ${Libraries})
+target_link_libraries(rtabmap_stereo_sync rtabmap_sync_plugins)
 set_target_properties(rtabmap_stereo_sync PROPERTIES OUTPUT_NAME "stereo_sync")
 
 add_executable(rtabmap_rgb_sync src/RGBSyncNode.cpp)
-target_link_libraries(rtabmap_rgb_sync ${catkin_LIBRARIES})
+ament_target_dependencies(rtabmap_rgb_sync ${Libraries})
+target_link_libraries(rtabmap_rgb_sync rtabmap_sync_plugins)
 set_target_properties(rtabmap_rgb_sync PROPERTIES OUTPUT_NAME "rgb_sync")
 
 #############
 ## Install ##
 #############
 
+ament_export_dependencies(${Libraries})
+ament_export_include_directories(include)
+ament_export_targets(${PROJECT_NAME})          # To include downstream with targets
+ament_export_libraries(rtabmap_sync rtabmap_sync_plugins) # To include downstream without targets
+
 install(TARGETS 
    rtabmap_sync
    rtabmap_sync_plugins 
+   EXPORT ${PROJECT_NAME}
+   ARCHIVE DESTINATION lib
+   LIBRARY DESTINATION lib
+   RUNTIME DESTINATION bin
+)
+
+install(TARGETS 
    rtabmap_rgbd_sync
    rtabmap_rgbdx_sync
    rtabmap_stereo_sync
    rtabmap_rgb_sync
-   ARCHIVE DESTINATION ${CATKIN_PACKAGE_LIB_DESTINATION}
-   LIBRARY DESTINATION ${CATKIN_PACKAGE_LIB_DESTINATION}
-   RUNTIME DESTINATION ${CATKIN_PACKAGE_BIN_DESTINATION}
+   DESTINATION lib/${PROJECT_NAME}
 )
 
-install(DIRECTORY include/${PROJECT_NAME}/
-   DESTINATION ${CATKIN_PACKAGE_INCLUDE_DESTINATION}
+install(DIRECTORY include/
+   DESTINATION include
    FILES_MATCHING PATTERN "*.h"
 )
 
-install(FILES
-   nodelet_plugins.xml
-   DESTINATION ${CATKIN_PACKAGE_SHARE_DESTINATION}
-)
+ament_package(CONFIG_EXTRAS ${CMAKE_CURRENT_BINARY_DIR}/cmake/extra_configs.cmake)

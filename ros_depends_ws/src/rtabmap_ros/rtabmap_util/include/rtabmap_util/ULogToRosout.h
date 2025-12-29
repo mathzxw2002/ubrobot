@@ -24,7 +24,7 @@ ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
 SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 */
 
-#include <ros/ros.h>
+#include <rclcpp/rclcpp.hpp>
 #include <rtabmap/utilite/UEventsHandler.h>
 
 namespace rtabmap_util {
@@ -32,7 +32,8 @@ namespace rtabmap_util {
 class ULogToRosout : public UEventsHandler
 {
 public:
-	ULogToRosout()
+	ULogToRosout(const rclcpp::Node * node) :
+		node_(node)
 	{
 		registerToEventsManager();
 	}
@@ -48,28 +49,31 @@ protected:
 			ULogEvent * logEvent = (ULogEvent *)event;
 			if(logEvent->getCode() == ULogger::kDebug)
 			{
-				ROS_DEBUG("%s", logEvent->getMsg().c_str());
+				RCLCPP_DEBUG(node_->get_logger(), "%s", logEvent->getMsg().c_str());
 			}
 			else if(logEvent->getCode() == ULogger::kInfo)
 			{
-				ROS_INFO("%s", logEvent->getMsg().c_str());
+				RCLCPP_INFO(node_->get_logger(), "%s", logEvent->getMsg().c_str());
 			}
 			else if(logEvent->getCode() == ULogger::kWarning)
 			{
-				ROS_WARN("%s", logEvent->getMsg().c_str());
+				RCLCPP_WARN(node_->get_logger(), "%s", logEvent->getMsg().c_str());
 			}
 			else if(logEvent->getCode() == ULogger::kError)
 			{
-				ROS_ERROR("%s", logEvent->getMsg().c_str());
+				RCLCPP_ERROR(node_->get_logger(), "%s", logEvent->getMsg().c_str());
 			}
 			else if(logEvent->getCode() == ULogger::kFatal)
 			{
-				ROS_FATAL("%s", logEvent->getMsg().c_str());
+				RCLCPP_FATAL(node_->get_logger(), "%s", logEvent->getMsg().c_str());
 			}
 			return true;
 		}
 		return false;
 	}
+
+private:
+	const rclcpp::Node * node_;
 };
 
 }

@@ -2,28 +2,81 @@
 Changelog for package opencv_tests
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
-1.16.2 (2022-10-03)
--------------------
+4.1.0 (2024-04-19)
+------------------
 
-1.16.1 (2022-09-06)
--------------------
+4.0.0 (2024-04-13)
+------------------
 
-1.16.0 (2021-11-23)
--------------------
+3.4.0 (2022-10-03)
+------------------
 
-1.15.0 (2020-05-19)
--------------------
+3.3.1 (2022-09-21)
+------------------
 
-1.14.0 (2020-04-06)
--------------------
-* Noetic release (`#323 <https://github.com/ros-perception/vision_opencv/issues/323>`_)
-* Contributors: Alejandro Hernández Cordero
+3.3.0 (2022-09-14)
+------------------
+* Reorganize author tag (`#460 <https://github.com/ros-perception/vision_opencv/issues/460>`_)
+* Update maintainers (`#451 <https://github.com/ros-perception/vision_opencv/issues/451>`_)
+* Contributors: Kenji Brameld
 
-1.13.0 (2018-04-30)
--------------------
+3.0.3 (2022-04-01)
+------------------
 
-1.12.8 (2018-04-17)
+3.0.2 (2022-01-27)
+------------------
+* Minor cleanups to the ROS 2 branch (`#418 <https://github.com/ros-perception/vision_opencv/issues/418>`_)
+* Contributors: Chris Lalancette
+
+3.0.1 (2022-01-25)
+------------------
+
+3.0.0 (2022-01-19)
+------------------
+* Rename opencv_tests install folder to deconflict (`#357 <https://github.com/ros-perception/vision_opencv/issues/357>`_)
+* delete __init_\_ for launch directory (`#352 <https://github.com/ros-perception/vision_opencv/issues/352>`_)
+* Contributors: Dirk Thomas, Michael Carroll
+
+2.2.1 (2020-07-16)
+------------------
+
+2.2.0 (2020-05-27)
+------------------
+
+2.1.3 (2019-10-23)
+------------------
+
+2.1.2 (2019-05-30)
+------------------
+
+2.1.1 (2019-04-26)
+------------------
+
+2.1.0 (2018-11-26)
+------------------
+
+2.0.5 (2018-08-17)
+------------------
+
+2.0.4 (2018-08-14)
+------------------
+
+2.0.3 (2018-08-07)
+------------------
+* set zip_safe to avoid warning during installation
+* migrate launch to launch.legacy
+* fix exception of running launch after sourcing opencv_tests
+* Contributors: Ethan Gao
+
+2.0.2 (2018-06-29)
+------------------
+
+2.0.1 (2018-06-28)
+------------------
+
+2.0.0 (2018-04-25)
 -------------------
+* port opencv_tests to ros2
 
 1.12.7 (2017-11-12)
 -------------------

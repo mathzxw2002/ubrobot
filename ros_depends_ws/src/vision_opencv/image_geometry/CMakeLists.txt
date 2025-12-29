@@ -1,37 +1,55 @@
-cmake_minimum_required(VERSION 3.0.2)
+cmake_minimum_required(VERSION 3.5)
 project(image_geometry)
 
-find_package(catkin REQUIRED sensor_msgs)
-find_package(OpenCV REQUIRED)
+find_package(ament_cmake_python REQUIRED)
+find_package(ament_cmake_ros REQUIRED)
 
-catkin_package(CATKIN_DEPENDS sensor_msgs
-               DEPENDS OpenCV
-               INCLUDE_DIRS include ${OpenCV_INCLUDE_DIRS}
-               LIBRARIES ${PROJECT_NAME}
+ament_python_install_package(${PROJECT_NAME})
+
+# Default to C++17
+if(NOT CMAKE_CXX_STANDARD)
+  set(CMAKE_CXX_STANDARD 17)
+endif()
+
+if(CMAKE_COMPILER_IS_GNUCXX OR CMAKE_CXX_COMPILER_ID MATCHES "Clang")
+  add_compile_options(-Wall -Wextra)
+endif()
+
+find_package(OpenCV REQUIRED COMPONENTS calib3d core highgui imgproc)
+find_package(sensor_msgs REQUIRED)
+
+add_library(${PROJECT_NAME}
+  src/pinhole_camera_model.cpp
+  src/stereo_camera_model.cpp
+)
+target_include_directories(${PROJECT_NAME} PUBLIC
+  "$<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>"
+  "$<INSTALL_INTERFACE:include/${PROJECT_NAME}>")
+target_link_libraries(${PROJECT_NAME} PUBLIC
+  opencv_calib3d
+  opencv_core
+  opencv_highgui
+  opencv_imgproc
+  ${sensor_msgs_TARGETS})
+
+install(DIRECTORY include/ DESTINATION include/${PROJECT_NAME})
+
+# Causes the visibility macros to use dllexport rather than dllimport,
+# which is appropriate when building the dll but not consuming it.
+target_compile_definitions(${PROJECT_NAME} PRIVATE "IMAGE_GEOMETRY_BUILDING_DLL")
+
+install(TARGETS ${PROJECT_NAME} EXPORT export_${PROJECT_NAME}
+        RUNTIME DESTINATION bin
+        ARCHIVE DESTINATION lib
+        LIBRARY DESTINATION lib
 )
 
-catkin_python_setup()
-
-include_directories(include)
-include_directories(${catkin_INCLUDE_DIRS} ${OpenCV_INCLUDE_DIRS})
-
-# add a library
-add_library(${PROJECT_NAME} src/pinhole_camera_model.cpp src/stereo_camera_model.cpp)
-target_link_libraries(${PROJECT_NAME} ${OpenCV_LIBRARIES})
-add_dependencies(${PROJECT_NAME} ${catkin_EXPORTED_TARGETS})
-
-install(DIRECTORY include/${PROJECT_NAME}/
-        DESTINATION ${CATKIN_PACKAGE_INCLUDE_DESTINATION}/
-)
-
-# install library
-install(TARGETS ${PROJECT_NAME}
-        ARCHIVE DESTINATION ${CATKIN_PACKAGE_LIB_DESTINATION}
-        LIBRARY DESTINATION ${CATKIN_PACKAGE_LIB_DESTINATION}
-        RUNTIME DESTINATION ${CATKIN_GLOBAL_BIN_DESTINATION}
-)
-
-# add tests
-if(CATKIN_ENABLE_TESTING)
+if(BUILD_TESTING)
   add_subdirectory(test)
 endif()
+
+ament_export_targets(export_${PROJECT_NAME})
+ament_export_dependencies(OpenCV)
+ament_export_dependencies(sensor_msgs)
+
+ament_package()

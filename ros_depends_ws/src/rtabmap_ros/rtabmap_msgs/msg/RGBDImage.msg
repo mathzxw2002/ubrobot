@@ -1,5 +1,5 @@
 
-Header header
+std_msgs/Header header
 
 # For stereo, rgb corresponds to left camera, and depth the right camera.
 

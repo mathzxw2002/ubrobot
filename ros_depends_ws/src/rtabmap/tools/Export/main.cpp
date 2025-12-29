@@ -32,8 +32,13 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 #include <rtabmap/core/util3d_transforms.h>
 #include <rtabmap/core/util3d_surface.h>
 #include <rtabmap/core/util2d.h>
+#include <rtabmap/core/util3d_mapping.h>
 #include <rtabmap/core/optimizer/OptimizerG2O.h>
 #include <rtabmap/core/Graph.h>
+#include <rtabmap/core/global_map/OccupancyGrid.h>
+#ifdef RTABMAP_OCTOMAP
+#include <rtabmap/core/global_map/OctoMap.h>
+#endif
 #include <rtabmap/utilite/UMath.h>
 #include <rtabmap/utilite/UTimer.h>
 #include <rtabmap/utilite/UFile.h>
@@ -44,6 +49,7 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 #include <pcl/common/common.h>
 #include <pcl/surface/poisson.h>
 #include <stdio.h>
+#include <fstream>
 
 #ifdef RTABMAP_PDAL
 #include <rtabmap/core/PDALWriter.h>
@@ -97,7 +103,7 @@ void showUsage()
 			"                              considered blurred. 0 means disabled. 50 can be good default.\n"
 			"    --cam_projection      Camera projection on assembled cloud and export node ID on each point (in PointSourceId field).\n"
 			"    --cam_projection_keep_all  Keep not colored points from cameras (node ID will be 0 and color will be red).\n"
-			"    --cam_projection_decimation  Decimate images before projecting the points.\n"
+			"    --cam_projection_decimation # Decimate images before projecting the points.\n"
 			"    --cam_projection_mask \"\"  File path for a mask. Format should be 8-bits grayscale. The mask should\n"
 			"                                    cover all cameras in case multi-camera is used and have the same resolution.\n"
 			"    --opt #               Optimization approach:\n"
@@ -106,9 +112,10 @@ void showUsage()
 			"                              2=Use optimized poses already computed in the database instead\n"
 			"                                of re-computing them (fallback to default if optimized poses don't exist).\n"
 			"                              3=No optimization, use odometry poses directly.\n"
-			"    --poses               Export optimized poses of the robot frame (e.g., base_link).\n"
+			"    --poses               Export optimized poses of the robot frame (e.g., base_link), including landmarks.\n"
 			"    --poses_camera        Export optimized poses of the camera frame (e.g., optical frame).\n"
 			"    --poses_scan          Export optimized poses of the scan frame.\n"
+			"    --poses_landmark      Export optimized poses of landmarks.\n"
 			"    --poses_gt            Export ground truth poses of the robot frame (e.g., base_link).\n"
 			"    --poses_gps           Export GPS poses of the GPS frame in local coordinates.\n"
 			"    --poses_format #      Format used for exported poses (default is 11):\n"
@@ -124,6 +131,9 @@ void showUsage()
 			"                              1=KML (Google Earth)\n"
 			"    --images              Export images with stamp as file name.\n"
 			"    --images_id           Export images with node id as file name.\n"
+			"    --map                 Export 2D occupancy grid. Note that with \"--opt 2\", the already optimized \n"
+			"                              map saved in database (if exists) is exported.\n"
+			"    --octomap             Export 3D OctoMap.\n"
 			"    --ba                  Do global bundle adjustment before assembling the clouds.\n"
 			"    --gain          #     Gain compensation value (default 1, set 0 to disable).\n"
 			"    --gain_gray           Do gain estimation compensation on gray channel only (default RGB channels).\n"
@@ -152,6 +162,8 @@ void showUsage()
 			"    --min_range     #     Minimum range of the created clouds (default 0 m).\n"
 			"    --max_range     #     Maximum range of the created clouds (default 4 m, 0 m with --scan).\n"
 			"    --decimation    #     Depth image decimation before creating the clouds (default 4, 1 with --scan).\n"
+			"    --edge_bleeding_error #  Depth's edge bleeding filtering error (default 0 m).\n"
+			"    --depth_confidence    #  Depth confidence threshold (should be in [0,100]) (default 0=Low).\n"
 			"    --voxel         #     Voxel size of the created clouds (default 0.01 m, 0 m with --scan).\n"
 			"    --ground_normals_up  #  Flip ground normals up if close to -z axis (default 0, 0=disabled, value should be >0 and <1, typical 0.9).\n"
 			"    --noise_radius  #     Noise filtering search radius (default 0, 0=disabled).\n"
@@ -159,9 +171,9 @@ void showUsage()
 			"    --prop_radius_factor #  Proportional radius filter factor (default 0, 0=disabled). Start tuning from 0.01.\n"
 			"    --prop_radius_scale  #  Proportional radius filter neighbor scale (default 2).\n"
 			"    --random_samples #    Number of output samples using a random filter (default 0, 0=disabled).\n"
-			"    --color_radius  #     Radius used to colorize polygons (default 0.05 m, 0 m with --scan). Set 0 for nearest color.\n"
+			"    --color_radius  #     Radius used to colorize polygons (default 0.05 m, 0 m with --scan). Set 0 for nearest color, -1 to disable.\n"
 			"    --scan                Use laser scan for the point cloud.\n"
-			"    --save_in_db          Save resulting assembled point cloud or mesh in the database.\n"
+			"    --save_in_db          Save resulting optimized poses, assembled point cloud, mesh or 2D occupancy grid in the database.\n"
 			"    --xmin #              Minimum range on X axis to keep nodes to export.\n"
 			"    --xmax #              Maximum range on X axis to keep nodes to export.\n"
 			"    --ymin #              Minimum range on Y axis to keep nodes to export.\n"
@@ -188,6 +200,37 @@ class ConsoleProgessState : public ProgressState
 	}
 };
 
+void saveMap(
+	const std::string & outputDirectory,
+	const std::string & baseName,
+	const cv::Mat & map,
+	float xMin,
+	float yMin,
+	float cellSize,
+	const ParametersMap & parameters)
+{
+	cv::Mat map8U = rtabmap::util3d::convertMap2Image8U(map, true);
+	std::string path=outputDirectory+"/"+baseName+".pgm";
+
+	cv::imwrite(path, map8U);
+
+	std::string yaml = outputDirectory+"/"+baseName+".yaml";
+
+	float occupancyThr = Parameters::defaultGridGlobalOccupancyThr();
+	Parameters::parse(parameters, Parameters::kGridGlobalOccupancyThr(), occupancyThr);
+
+	std::ofstream file;
+	file.open (yaml);
+	file << "image: " << baseName << ".pgm" << std::endl;
+	file << "resolution: " << cellSize << std::endl;
+	file << "origin: [" << xMin << ", " << yMin << ", 0.0]" << std::endl;
+	file << "negate: 0" << std::endl;
+	file << "occupied_thresh: " << occupancyThr << std::endl;
+	file << "free_thresh: 0.196" << std::endl;
+	file << std::endl;
+	file.close();
+}
+
 int main(int argc, char * argv[])
 {
 	ULogger::setType(ULogger::kTypeConsole);
@@ -213,6 +256,8 @@ int main(int argc, char * argv[])
 	float poissonSize = 0.03;
 	int maxPolygons = 300000;
 	int decimation = -1;
+	float depthEdgeBleedingFilterError = 0.0f;
+	unsigned char depthConfidenceThr = 0;
 	float minRange = 0.0f;
 	float maxRange = -1.0f;
 	float voxelSize = -1.0f;
@@ -239,7 +284,7 @@ int main(int argc, char * argv[])
 	double multibandBestScoreThr = 0.1;
 	double multibandAngleHardthr = 90;
 	bool multibandForceVisible = false;
-	float colorRadius = -1.0f;
+	float colorRadius = -100.0f;
 	int textureVertexColorPolicy = 0;
 	bool cloudFromScan = false;
 	bool saveInDb = false;
@@ -252,12 +297,15 @@ int main(int argc, char * argv[])
 	bool exportPoses = false;
 	bool exportPosesCamera = false;
 	bool exportPosesScan = false;
+	bool exportPosesLandmarks = false;
 	bool exportPosesGt = false;
 	bool exportPosesGps = false;
 	int exportPosesFormat = 11;
 	int exportGps = -1;
 	bool exportImages = false;
 	bool exportImagesId = false;
+	bool export2DMap = false;
+	bool exportOctomap = false;
 	int optimizationApproach = 0;
 	std::string outputName;
 	std::string outputDir;
@@ -498,6 +546,10 @@ int main(int argc, char * argv[])
 		{
 			exportPosesScan = true;
 		}
+		else if(std::strcmp(argv[i], "--poses_landmark") == 0)
+		{
+			exportPosesLandmarks = true;
+		}
 		else if(std::strcmp(argv[i], "--poses_gt") == 0)
 		{
 			exportPosesGt = true;
@@ -560,6 +612,18 @@ int main(int argc, char * argv[])
 		{
 			exportImages = true;
 			exportImagesId = true;
+		}
+		else if(std::strcmp(argv[i], "--map") == 0)
+		{
+			export2DMap = true;
+		}
+		else if(std::strcmp(argv[i], "--octomap") == 0)
+		{
+#ifdef RTABMAP_OCTOMAP
+			exportOctomap = true;
+#else
+			printf("Option --octomap cannot be used, rtabmap is not built with OctoMap support.\n");
+#endif
 		}
 		else if(std::strcmp(argv[i], "--ba") == 0)
 		{
@@ -761,6 +825,30 @@ int main(int argc, char * argv[])
 			if(i<argc-1)
 			{
 				decimation = uStr2Int(argv[i]);
+			}
+			else
+			{
+				showUsage();
+			}
+		}
+		else if(std::strcmp(argv[i], "--edge_bleeding_error") == 0)
+		{
+			++i;
+			if(i<argc-1)
+			{
+				depthEdgeBleedingFilterError = uStr2Float(argv[i]);
+			}
+			else
+			{
+				showUsage();
+			}
+		}
+		else if(std::strcmp(argv[i], "--depth_confidence") == 0)
+		{
+			++i;
+			if(i<argc-1)
+			{
+				depthConfidenceThr = (unsigned char)uStr2Int(argv[i]);
 			}
 			else
 			{
@@ -1054,7 +1142,7 @@ int main(int argc, char * argv[])
 	{
 		voxelSize = cloudFromScan?0:0.01f;
 	}
-	if(colorRadius < 0.0f)
+	if(colorRadius < -1.0f)
 	{
 		colorRadius = cloudFromScan?0:0.05f;
 	}
@@ -1079,10 +1167,13 @@ int main(int argc, char * argv[])
 		 exportPoses ||
 		 exportPosesScan ||
 		 exportPosesCamera ||
+		 exportPosesLandmarks ||
 		 exportPosesGt ||
 		 exportPosesGps ||
 		 exportGps>=0 ||
-		 texture))
+		 texture ||
+		 export2DMap ||
+		 exportOctomap))
 	{
 		printf("Launching the tool without any required option(s) is deprecated. We will add --cloud to keep compatibilty with old behavior.\n");
 		exportCloud = true;
@@ -1137,12 +1228,19 @@ int main(int argc, char * argv[])
 	}
 	printf("Opening database \"%s\"... done (%fs).\n", dbPath.c_str(), timer.ticks());
 
+	std::string outputDirectory = outputDir.empty()?UDirectory::getDir(dbPath):outputDir;
+	if(!UDirectory::exists(outputDirectory))
+	{
+		UDirectory::makeDir(outputDirectory);
+	}
+	std::string baseName = outputName.empty()?uSplit(UFile::getName(dbPath), '.').front():outputName;
+
 	std::map<int, Transform> optimizedPoses;
 	std::map<int, Transform> odomPoses;
 	std::multimap<int, Link> links;
 	dbDriver->getAllOdomPoses(odomPoses, true);
 	dbDriver->getAllLinks(links, true, true);
-	if(optimizationApproach == 3 || !(exportCloud || exportMesh || exportPoses || exportPosesCamera || exportPosesScan))
+	if(optimizationApproach == 3 || !(exportCloud || exportMesh || exportPoses || exportPosesCamera || exportPosesScan || exportPosesLandmarks || export2DMap || exportOctomap))
 	{
 		// Just use odometry poses when exporting only images
 		optimizedPoses = odomPoses;
@@ -1165,6 +1263,22 @@ int main(int argc, char * argv[])
 			else
 			{
 				printf("Loading optimized poses from database... done (%d optimized poses loaded).\n", (int)optimizedPoses.size());
+				if(export2DMap)
+				{
+					printf("Loading optimized 2D occupancy grid from database...\n");
+					float xMin, yMin, cellSize;
+					cv::Mat map = dbDriver->load2DMap(xMin, yMin, cellSize);
+					if(map.empty()) {
+						printf("Optimized 2D occupancy grid in the database is empty, it will be regenerated.\n");
+					}
+					else{
+						saveMap(outputDirectory, baseName, map, xMin, yMin, cellSize, parameters);
+						printf("Loading optimized 2D occupancy grid from database... done! Saved to \"%s\" and \"%s\"\n",
+							(baseName+".pgm").c_str(), (baseName+".yaml").c_str());
+
+						export2DMap = false;
+					}
+				}
 			}
 		}
 		if(optimizationApproach <= 1)
@@ -1326,13 +1440,6 @@ int main(int argc, char * argv[])
 		}
 	}
 
-	std::string outputDirectory = outputDir.empty()?UDirectory::getDir(dbPath):outputDir;
-	if(!UDirectory::exists(outputDirectory))
-	{
-		UDirectory::makeDir(outputDirectory);
-	}
-	std::string baseName = outputName.empty()?uSplit(UFile::getName(dbPath), '.').front():outputName;
-
 	// Construct the cloud
 	if(exportCloud || exportMesh)
 	{
@@ -1342,23 +1449,39 @@ int main(int argc, char * argv[])
 	{
 		printf("Export images...\n");
 	}
+	else if(export2DMap || exportOctomap)
+	{
+		printf("Assemble global occupancy grid...\n");
+	}
+	
 	pcl::PointCloud<pcl::PointXYZRGB>::Ptr assembledCloud(new pcl::PointCloud<pcl::PointXYZRGB>);
 	pcl::PointCloud<pcl::PointXYZI>::Ptr assembledCloudI(new pcl::PointCloud<pcl::PointXYZI>);
 	std::map<int, rtabmap::Transform> robotPoses;
 	std::vector<std::map<int, rtabmap::Transform> > cameraPoses;
+	std::vector<std::map<int, double> > cameraStamps;
 	std::map<int, rtabmap::Transform> scanPoses;
+	std::map<int, double> scanStamps;
+	std::map<int, rtabmap::Transform> landmarkPoses;
+	std::map<int, double> landmarkStamps;
 	std::map<int, rtabmap::Transform> gtPoses;
+	std::map<int, double> gtStamps;
 	std::map<int, rtabmap::Transform> gpsPoses;
 	std::map<int, double> gpsStamps;
 	GPS gpsOrigin;
 	std::map<int, rtabmap::GPS> gpsValues;
-	std::map<int, double> cameraStamps;
+	std::map<int, double> robotStamps;
 	std::map<int, std::vector<rtabmap::CameraModel> > cameraModels;
 	std::map<int, cv::Mat> cameraDepths;
 	int imagesExported = 0;
 	std::vector<int> rawViewpointIndices;
 	std::map<int, Transform> rawViewpoints;
 	std::map<int, Transform> densityPoses;
+	LocalGridCache localGridCache;
+	OccupancyGrid grid(&localGridCache, parameters);
+#ifdef RTABMAP_OCTOMAP
+	OctoMap octomap(&localGridCache, parameters);
+#endif
+	std::map<int, Transform> addedPosesToMap;
 	if(densityRadius && (exportCloud || exportMesh))
 	{
 		densityPoses = graph::radiusPosesFiltering(optimizedPoses, densityRadius, densityAngle*CV_PI/180.0f);
@@ -1376,7 +1499,10 @@ int main(int argc, char * argv[])
 		{
 			// landmark, just add to list of poses
 			robotPoses.insert(*iter);
-			cameraStamps.insert(std::make_pair(iter->first, 0));
+			robotStamps.insert(std::make_pair(iter->first, 0));
+
+			landmarkPoses.insert(*iter);
+			landmarkStamps.insert(std::make_pair(iter->first, 0));
 			continue;
 		}
 		
@@ -1393,7 +1519,7 @@ int main(int argc, char * argv[])
 		SensorData data;
 		bool loadImages = ((exportCloud || exportMesh) && (!cloudFromScan || texture || camProjection)) || exportImages;
 		bool loadScan = ((exportCloud || exportMesh) && cloudFromScan) || exportPosesScan;
-		if(loadImages || loadScan)
+		if(loadImages || loadScan || export2DMap || exportOctomap)
 		{
 			dbDriver->getNodeData(
 				iter->first, 
@@ -1401,7 +1527,7 @@ int main(int argc, char * argv[])
 				loadImages, 
 				loadScan,
 				false,
-				false);
+				export2DMap || exportOctomap);
 		}
 
 		// uncompress data
@@ -1417,6 +1543,7 @@ int main(int argc, char * argv[])
 			bool densityFiltered = !densityPoses.empty() && densityPoses.find(iter->first) == densityPoses.end();
 			cv::Mat rgb;
 			cv::Mat depth;
+			cv::Mat confidence;
 			pcl::IndicesPtr indices(new std::vector<int>);
 			pcl::PointCloud<pcl::PointXYZRGB>::Ptr cloud;
 			pcl::PointCloud<pcl::PointXYZI>::Ptr cloudI;
@@ -1425,7 +1552,7 @@ int main(int argc, char * argv[])
 				if(!densityFiltered && cloudFromScan && (exportCloud || exportMesh))
 				{
 					LaserScan scan;
-					data.uncompressData(exportImages?&rgb:0, (texture||exportImages)&&!data.depthOrRightCompressed().empty()?&depth:0, &scan);
+					data.uncompressData(exportImages?&rgb:0, (texture||exportImages)&&!data.depthOrRightCompressed().empty()?&depth:0, &scan, 0, 0, 0, 0, exportImages?&confidence:0);
 					if(scan.empty())
 					{
 						printf("Node %d doesn't have scan data, empty cloud is created.\n", iter->first);
@@ -1453,7 +1580,7 @@ int main(int argc, char * argv[])
 				}
 				else
 				{
-					data.uncompressData(&rgb, &depth);
+					data.uncompressData(&rgb, &depth, 0, 0, 0, 0, 0, &confidence);
 					if(!densityFiltered && (exportCloud || exportMesh))
 					{
 						if(depth.empty())
@@ -1461,12 +1588,20 @@ int main(int argc, char * argv[])
 							printf("Node %d doesn't have depth or stereo data, empty cloud is "
 									"created (if you want to create point cloud from scan, use --scan option).\n", iter->first);
 						}
+						else if(!data.depthRaw().empty() && depthEdgeBleedingFilterError>0.0f)
+						{
+							util2d::depthBleedingFiltering(depth, depthEdgeBleedingFilterError);
+							data.setRGBDImage(data.imageRaw(), depth, data.depthConfidenceRaw(), data.cameraModels());
+						}
 						cloud = util3d::cloudRGBFromSensorData(
 								data,
 								decimation,      // image decimation before creating the clouds
 								maxRange,        // maximum depth of the cloud
 								minRange,
-								indices.get());
+								indices.get(),
+								ParametersMap(),
+								std::vector<float>(),
+								depthConfidenceThr);
 						if(noiseRadius>0.0f && noiseMinNeighbors>0)
 						{
 							indices = util3d::radiusFiltering(cloud, indices, noiseRadius, noiseMinNeighbors);
@@ -1509,6 +1644,16 @@ int main(int argc, char * argv[])
 
 					outputPath=dir+"/"+(exportImagesId?uNumber2Str(iter->first):uFormat("%f", stamp))+ext;
 					cv::imwrite(outputPath, depthExported);
+				}
+				if(!confidence.empty())
+				{
+					dir = outputDirectory+"/"+baseName+"_confidence";
+					if(!UDirectory::exists(dir)) {
+						UDirectory::makeDir(dir);
+					}
+
+					outputPath=dir+"/"+(exportImagesId?uNumber2Str(iter->first):uFormat("%f", stamp))+".png";
+					cv::imwrite(outputPath, confidence);
 				}
 
 				// save calibration per image (calibration can change over time, e.g. camera has auto focus)
@@ -1628,7 +1773,7 @@ int main(int argc, char * argv[])
 		}
 
 		robotPoses.insert(std::make_pair(iter->first, iter->second));
-		cameraStamps.insert(std::make_pair(iter->first, stamp));
+		robotStamps.insert(std::make_pair(iter->first, stamp));
 		if(models.empty() && weight == -1 && !cameraModels.empty())
 		{
 			// For intermediate nodes, use latest models
@@ -1645,17 +1790,20 @@ int main(int argc, char * argv[])
 				if(cameraPoses.empty())
 				{
 					cameraPoses.resize(models.size());
+					cameraStamps.resize(models.size());
 				}
 				UASSERT_MSG(models.size() == cameraPoses.size(), "Not all nodes have same number of cameras to export camera poses.");
 				for(size_t i=0; i<models.size(); ++i)
 				{
 					cameraPoses[i].insert(std::make_pair(iter->first, iter->second*models[i].localTransform()));
+					cameraStamps[i].insert(std::make_pair(iter->first, stamp));
 				}
 			}
 		}
 		if(exportPosesScan && !data.laserScanCompressed().empty())
 		{
 			scanPoses.insert(std::make_pair(iter->first, iter->second*data.laserScanCompressed().localTransform()));
+			scanStamps.insert(std::make_pair(iter->first, stamp));
 		}
 
 		if(exportPosesGps || exportGps>=0)
@@ -1688,6 +1836,30 @@ int main(int argc, char * argv[])
 		if(exportPosesGt && !gt.isNull())
 		{
 			gtPoses.insert(std::make_pair(iter->first, gt));
+			gtStamps.insert(std::make_pair(iter->first, stamp));
+		}
+
+		if(weight != -1 && (export2DMap || exportOctomap)) {
+			cv::Mat ground;
+			cv::Mat obstacles;
+			cv::Mat empty;
+			data.uncompressDataConst(0, 0, 0, 0, &ground, &obstacles, &empty);
+			if(ground.empty() && obstacles.empty() && empty.empty()) {
+				printf("Node %d doesn't have local occupancy grid, ignored!\n", iter->first);
+			}
+			else {
+				addedPosesToMap.insert(*iter);
+				localGridCache.add(iter->first, ground, obstacles, empty, data.gridCellSize(), data.gridViewPoint());
+				if(export2DMap && !grid.update(addedPosesToMap)) {
+					printf("Failed to assemble local grid %d to global occupancy grid!\n", iter->first);
+				}
+#ifdef RTABMAP_OCTOMAP
+				if(exportOctomap && !octomap.update(addedPosesToMap)) {
+					printf("Failed to assemble local grid %d to OctoMap!\n", iter->first);
+				}
+#endif
+				localGridCache.clear();
+			}
 		}
 
 		if(optimizedPoses.size() >= 500)
@@ -1708,15 +1880,54 @@ int main(int argc, char * argv[])
 	{
 		printf("Create and assemble the clouds... done (%fs, %d points).\n", timer.ticks(), !assembledCloud->empty()?(int)assembledCloud->size():(int)assembledCloudI->size());
 	}
+	else if(export2DMap || exportOctomap)
+	{
+		printf("Assemble global occupancy grid... done (%fs).\n", timer.ticks());
+	}
 
 	if(exportImages || exportImagesId)
 	{
 		printf("%d images exported!\n", imagesExported);
-		if(!(exportCloud || exportMesh || exportPoses || exportPosesCamera || exportPosesScan)) {
+		if(!(exportCloud || exportMesh || exportPoses || exportPosesCamera || exportPosesScan || export2DMap || exportOctomap)) {
 			//images exported, early exit.
 			return 0;
 		}
 	}
+
+	if(export2DMap)
+	{
+		if(grid.addedNodes().empty())
+		{
+			printf( "Option --map and/or --prob_map is enabled, but no local occupancy grids have been "
+					"assembled to the 2D occupancy grid. Use rtabmap-databaseViewer to regenerate them.\n");
+		}
+		else {
+			printf("Saving 2D occupancy grid...\n");
+			float xMin, yMin;
+			cv::Mat map = grid.getMap(xMin, yMin);
+			saveMap(outputDirectory, baseName, map, xMin, yMin, grid.getCellSize(), parameters);
+			printf("Saving 2D occupancy grid... done (%fs)! Saved to \"%s\" and \"%s\"\n", timer.ticks(),
+				(baseName+".pgm").c_str(), (baseName+".yaml").c_str());
+		}
+	}
+#ifdef RTABMAP_OCTOMAP
+	if(exportOctomap)
+	{
+		if(octomap.addedNodes().empty())
+		{
+			printf( "Option --octomap is enabled, but no local occupancy grids have been "
+					"assembled in the Octomap. Use rtabmap-databaseViewer to regenerate them.\n");
+		}
+		else {
+			pcl::PointCloud<pcl::PointXYZRGB>::Ptr cloud = octomap.createCloud();
+			pcl::io::savePLYFile(outputDirectory+"/"+baseName+"_octomap.ply",*cloud);
+			printf("Saving 3D OctoMap...\n");
+			octomap.writeBinary(outputDirectory+"/"+baseName+"_octomap.bt");
+			printf("Saving 3D OctoMap... done (%fs)! Saved to \"%s\".\n", timer.ticks(),
+				(baseName+"_octomap.bt").c_str());
+		}
+	}
+#endif
 
 	ConsoleProgessState progressState;
 
@@ -1727,7 +1938,15 @@ int main(int argc, char * argv[])
 		Transform lastlocalizationPose;
 		driver->loadOptimizedPoses(&lastlocalizationPose);
 		//optimized poses have changed, reset 2d map
-		driver->save2DMap(cv::Mat(), 0, 0, 0);
+		if(export2DMap && grid.addedNodes().size() != 0) {
+			printf("Saved optimized 2D occupancy grid back to database!\n");
+			float xMin, yMin;
+			cv::Mat map = grid.getMap(xMin, yMin);
+			driver->save2DMap(map, xMin, yMin, grid.getCellSize());
+		}
+		else {
+			driver->save2DMap(cv::Mat(), 0, 0, 0);
+		}
 		driver->saveOptimizedPoses(robotPoses, lastlocalizationPose);
 		cv::Vec3f vmin, vmax;
 		graph::computeMinMax(robotPoses, vmin, vmax);
@@ -1750,11 +1969,11 @@ int main(int argc, char * argv[])
 					exportPosesFormat,
 					std::map<int, Transform>(robotPoses.lower_bound(1), robotPoses.end()),
 					links,
-					std::map<int, double>(cameraStamps.lower_bound(1), cameraStamps.end()));
+					std::map<int, double>(robotStamps.lower_bound(1), robotStamps.end()));
 			}
 			else
 			{
-				rtabmap::graph::exportPoses(outputPath, exportPosesFormat, robotPoses, links, cameraStamps);
+				rtabmap::graph::exportPoses(outputPath, exportPosesFormat, robotPoses, links, robotStamps);
 			}
 			cv::Vec3f vmin, vmax;
 			graph::computeMinMax(robotPoses, vmin, vmax);
@@ -1773,7 +1992,7 @@ int main(int argc, char * argv[])
 					outputPath = outputDirectory+"/"+baseName+"_camera_poses." + posesExt;
 				else
 					outputPath = outputDirectory+"/"+baseName+"_camera_poses_"+uNumber2Str((int)i)+"." + posesExt;
-				rtabmap::graph::exportPoses(outputPath, exportPosesFormat, cameraPoses[i], std::multimap<int, Link>(), cameraStamps);
+				rtabmap::graph::exportPoses(outputPath, exportPosesFormat, cameraPoses[i], std::multimap<int, Link>(), cameraStamps[i]);
 				cv::Vec3f vmin, vmax;
 				graph::computeMinMax(cameraPoses[i], vmin, vmax);
 				printf("%d camera poses exported to \"%s\". (min=[%f,%f,%f] max=[%f,%f,%f])\n",
@@ -1786,11 +2005,35 @@ int main(int argc, char * argv[])
 		if(exportPosesScan)
 		{
 			std::string outputPath=outputDirectory+"/"+baseName+"_scan_poses." + posesExt;
-			rtabmap::graph::exportPoses(outputPath, exportPosesFormat, scanPoses, std::multimap<int, Link>(), cameraStamps);
+			rtabmap::graph::exportPoses(outputPath, exportPosesFormat, scanPoses, std::multimap<int, Link>(), scanStamps);
 			cv::Vec3f min, max;
 			graph::computeMinMax(scanPoses, min, max);
 			printf("%d scan poses exported to \"%s\". (min=[%f,%f,%f] max=[%f,%f,%f])\n",
 					(int)scanPoses.size(),
+					outputPath.c_str(),
+					min[0], min[1], min[2],
+					max[0], max[1], max[2]);
+		}
+		if(exportPosesScan)
+		{
+			std::string outputPath=outputDirectory+"/"+baseName+"_scan_poses." + posesExt;
+			rtabmap::graph::exportPoses(outputPath, exportPosesFormat, scanPoses, std::multimap<int, Link>(), scanStamps);
+			cv::Vec3f min, max;
+			graph::computeMinMax(scanPoses, min, max);
+			printf("%d scan poses exported to \"%s\". (min=[%f,%f,%f] max=[%f,%f,%f])\n",
+					(int)scanPoses.size(),
+					outputPath.c_str(),
+					min[0], min[1], min[2],
+					max[0], max[1], max[2]);
+		}
+		if(exportPosesLandmarks)
+		{
+			std::string outputPath=outputDirectory+"/"+baseName+"_landmark_poses." + posesExt;
+			rtabmap::graph::exportPoses(outputPath, exportPosesFormat, landmarkPoses, std::multimap<int, Link>(), landmarkStamps);
+			cv::Vec3f min, max;
+			graph::computeMinMax(landmarkPoses, min, max);
+			printf("%d landmark poses exported to \"%s\". (min=[%f,%f,%f] max=[%f,%f,%f])\n",
+					(int)landmarkPoses.size(),
 					outputPath.c_str(),
 					min[0], min[1], min[2],
 					max[0], max[1], max[2]);
@@ -1806,7 +2049,7 @@ int main(int argc, char * argv[])
 		if(exportPosesGt)
 		{
 			std::string outputPath=outputDirectory+"/"+baseName+"_gt_poses." + posesExt;
-			rtabmap::graph::exportPoses(outputPath, exportPosesFormat, gtPoses, std::multimap<int, Link>(), cameraStamps);
+			rtabmap::graph::exportPoses(outputPath, exportPosesFormat, gtPoses, std::multimap<int, Link>(), gtStamps);
 			printf("%d scan poses exported to \"%s\".\n",
 					(int)gtPoses.size(),
 					outputPath.c_str());
@@ -1999,7 +2242,7 @@ int main(int argc, char * argv[])
 					}
 
 					depth = rtabmap::util2d::cvtDepthFromFloat(depth);
-					std::string outputPath=dir+"/"+(exportImagesId?uNumber2Str(iter->first):uFormat("%f",cameraStamps.at(iter->first)))+".png";
+					std::string outputPath=dir+"/"+(exportImagesId?uNumber2Str(iter->first):uFormat("%f",robotStamps.at(iter->first)))+".png";
 					cv::imwrite(outputPath, depth);
 				}
 			}
@@ -2027,6 +2270,7 @@ int main(int argc, char * argv[])
 						cameraModelsProj,
 						textureRange,
 						textureAngle,
+						textureDepthError,
 						textureRoiRatios,
 						projMask,
 						distanceToCamPolicy,
@@ -2040,6 +2284,7 @@ int main(int argc, char * argv[])
 						cameraModelsProj,
 						textureRange,
 						textureAngle,
+						textureDepthError,
 						textureRoiRatios,
 						projMask,
 						distanceToCamPolicy,

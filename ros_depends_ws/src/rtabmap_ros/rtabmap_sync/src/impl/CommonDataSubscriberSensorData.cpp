@@ -29,57 +29,60 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 #include <rtabmap/utilite/UConversion.h>
 #include <rtabmap/core/Compression.h>
 #include <rtabmap_conversions/MsgConversion.h>
-#include <cv_bridge/cv_bridge.h>
 
 namespace rtabmap_sync {
 
 // SensorData
 void CommonDataSubscriber::sensorDataCallback(
-		const rtabmap_msgs::SensorDataConstPtr& imagesMsg)
+		const rtabmap_msgs::msg::SensorData::ConstSharedPtr sensorDataMsg)
 {
-	nav_msgs::OdometryConstPtr odomMsg; // Null
-	rtabmap_msgs::OdomInfoConstPtr odomInfoMsg; // null
-	commonSensorDataCallback(imagesMsg, odomMsg, odomInfoMsg);
+	if(syncDiagnostic_.get()) {syncDiagnostic_->tickInput(sensorDataMsg->header.stamp);}
+	nav_msgs::msg::Odometry::ConstSharedPtr odomMsg; // Null
+	rtabmap_msgs::msg::OdomInfo::ConstSharedPtr odomInfoMsg; // null
+	commonSensorDataCallback(sensorDataMsg, odomMsg, odomInfoMsg);
 }
 void CommonDataSubscriber::sensorDataInfoCallback(
-		const rtabmap_msgs::SensorDataConstPtr& imagesMsg,
-		const rtabmap_msgs::OdomInfoConstPtr& odomInfoMsg)
+		const rtabmap_msgs::msg::SensorData::ConstSharedPtr sensorDataMsg,
+		const rtabmap_msgs::msg::OdomInfo::ConstSharedPtr odomInfoMsg)
 {
-	nav_msgs::OdometryConstPtr odomMsg; // Null
-	commonSensorDataCallback(imagesMsg, odomMsg, odomInfoMsg);
+	if(syncDiagnostic_.get()) {syncDiagnostic_->tickInput(sensorDataMsg->header.stamp);}
+	nav_msgs::msg::Odometry::ConstSharedPtr odomMsg; // Null
+	commonSensorDataCallback(sensorDataMsg, odomMsg, odomInfoMsg);
 }
 // SensorData + Odom
 void CommonDataSubscriber::sensorDataOdomCallback(
-		const nav_msgs::OdometryConstPtr & odomMsg,
-		const rtabmap_msgs::SensorDataConstPtr& imagesMsg)
+		const nav_msgs::msg::Odometry::ConstSharedPtr odomMsg,
+		const rtabmap_msgs::msg::SensorData::ConstSharedPtr sensorDataMsg)
 {
-	rtabmap_msgs::OdomInfoConstPtr odomInfoMsg; // null
-	commonSensorDataCallback(imagesMsg, odomMsg, odomInfoMsg);
+	if(syncDiagnostic_.get()) {syncDiagnostic_->tickInput(sensorDataMsg->header.stamp);}
+	rtabmap_msgs::msg::OdomInfo::ConstSharedPtr odomInfoMsg; // null
+	commonSensorDataCallback(sensorDataMsg, odomMsg, odomInfoMsg);
 }
 void CommonDataSubscriber::sensorDataOdomInfoCallback(
-		const nav_msgs::OdometryConstPtr & odomMsg,
-		const rtabmap_msgs::SensorDataConstPtr& imagesMsg,
-		const rtabmap_msgs::OdomInfoConstPtr& odomInfoMsg)
+		const nav_msgs::msg::Odometry::ConstSharedPtr odomMsg,
+		const rtabmap_msgs::msg::SensorData::ConstSharedPtr sensorDataMsg,
+		const rtabmap_msgs::msg::OdomInfo::ConstSharedPtr odomInfoMsg)
 {
-	commonSensorDataCallback(imagesMsg, odomMsg, odomInfoMsg);
+	if(syncDiagnostic_.get()) {syncDiagnostic_->tickInput(sensorDataMsg->header.stamp);}
+	commonSensorDataCallback(sensorDataMsg, odomMsg, odomInfoMsg);
 }
 
 void CommonDataSubscriber::setupSensorDataCallbacks(
-		ros::NodeHandle & nh,
-		ros::NodeHandle & pnh,
+		rclcpp::Node& node,
+		const rclcpp::SubscriptionOptions & options,
 		bool subscribeOdom,
 		bool subscribeOdomInfo)
 {
-	ROS_INFO("Setup SensorData callback");
+	RCLCPP_INFO(node.get_logger(), "Setup SensorData callback");
 
-	sensorDataSub_.subscribe(nh, "sensor_data", topicQueueSize_);
+	sensorDataSub_.subscribe(&node, "sensor_data", RCLCPP_QOS(topicQueueSize_, qosSensorData_), options);
 	if(subscribeOdom)
 	{
-		odomSub_.subscribe(nh, "odom", topicQueueSize_);
+		odomSub_.subscribe(&node, "odom", RCLCPP_QOS(topicQueueSize_, qosOdom_), options);
 		if(subscribeOdomInfo)
 		{
 			subscribedToOdomInfo_ = true;
-			odomInfoSub_.subscribe(nh, "odom_info", topicQueueSize_);
+			odomInfoSub_.subscribe(&node, "odom_info", RCLCPP_QOS(topicQueueSize_, qosOdom_), options);
 			SYNC_DECL3(CommonDataSubscriber, sensorDataOdomInfo, approxSync_, syncQueueSize_, odomSub_, sensorDataSub_, odomInfoSub_);
 		}
 		else
@@ -92,18 +95,19 @@ void CommonDataSubscriber::setupSensorDataCallbacks(
 		if(subscribeOdomInfo)
 		{
 			subscribedToOdomInfo_ = true;
-			odomInfoSub_.subscribe(nh, "odom_info", topicQueueSize_);
+			odomInfoSub_.subscribe(&node, "odom_info", RCLCPP_QOS(topicQueueSize_, qosOdom_), options);
 			SYNC_DECL2(CommonDataSubscriber, sensorDataInfo, approxSync_, syncQueueSize_, sensorDataSub_, odomInfoSub_);
 		}
 		else
 		{
 			sensorDataSub_.unsubscribe();
-			sensorDataSubOnly_ = nh.subscribe("sensor_data", syncQueueSize_, &CommonDataSubscriber::sensorDataCallback, this);
+			sensorDataSubOnly_ = node.create_subscription<rtabmap_msgs::msg::SensorData>("sensor_data", rclcpp::QoS(topicQueueSize_).reliability(qosSensorData_), std::bind(&CommonDataSubscriber::sensorDataCallback, this, std::placeholders::_1));
 
 			subscribedTopicsMsg_ =
 					uFormat("\n%s subscribed to:\n   %s",
-					ros::this_node::getName().c_str(),
-					sensorDataSubOnly_.getTopic().c_str());
+					node.get_name(),
+					sensorDataSubOnly_->get_topic_name());
+
 		}
 	}
 }

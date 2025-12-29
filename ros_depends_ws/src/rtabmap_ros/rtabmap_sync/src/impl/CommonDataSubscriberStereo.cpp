@@ -31,90 +31,88 @@ namespace rtabmap_sync {
 
 // Stereo
 void CommonDataSubscriber::stereoCallback(
-		const sensor_msgs::ImageConstPtr& leftImageMsg,
-		const sensor_msgs::ImageConstPtr& rightImageMsg,
-		const sensor_msgs::CameraInfoConstPtr& leftCamInfoMsg,
-		const sensor_msgs::CameraInfoConstPtr& rightCamInfoMsg)
+		const sensor_msgs::msg::Image::ConstSharedPtr leftImageMsg,
+		const sensor_msgs::msg::Image::ConstSharedPtr rightImageMsg,
+		const sensor_msgs::msg::CameraInfo::ConstSharedPtr leftCamInfoMsg,
+		const sensor_msgs::msg::CameraInfo::ConstSharedPtr rightCamInfoMsg)
 {
-	nav_msgs::OdometryConstPtr odomMsg; // Null
-	rtabmap_msgs::UserDataConstPtr userDataMsg; // Null
-	sensor_msgs::LaserScan scanMsg; // null
-	sensor_msgs::PointCloud2 scan3dMsg; // null
-	rtabmap_msgs::OdomInfoConstPtr odomInfoMsg; // null
+	if(syncDiagnostic_.get()) {syncDiagnostic_->tickInput(leftImageMsg->header.stamp);}
+	nav_msgs::msg::Odometry::SharedPtr odomMsg; // Null
+	rtabmap_msgs::msg::UserData::SharedPtr userDataMsg; // Null
+	sensor_msgs::msg::LaserScan scanMsg; // null
+	sensor_msgs::msg::PointCloud2 scan3dMsg; // Null
+	rtabmap_msgs::msg::OdomInfo::SharedPtr odomInfoMsg; // null
 	commonSingleCameraCallback(odomMsg, userDataMsg, cv_bridge::toCvShare(leftImageMsg), cv_bridge::toCvShare(rightImageMsg), *leftCamInfoMsg, *rightCamInfoMsg, scanMsg, scan3dMsg, odomInfoMsg);
 }
 void CommonDataSubscriber::stereoInfoCallback(
-		const sensor_msgs::ImageConstPtr& leftImageMsg,
-		const sensor_msgs::ImageConstPtr& rightImageMsg,
-		const sensor_msgs::CameraInfoConstPtr& leftCamInfoMsg,
-		const sensor_msgs::CameraInfoConstPtr& rightCamInfoMsg,
-		const rtabmap_msgs::OdomInfoConstPtr& odomInfoMsg)
+		const sensor_msgs::msg::Image::ConstSharedPtr leftImageMsg,
+		const sensor_msgs::msg::Image::ConstSharedPtr rightImageMsg,
+		const sensor_msgs::msg::CameraInfo::ConstSharedPtr leftCamInfoMsg,
+		const sensor_msgs::msg::CameraInfo::ConstSharedPtr rightCamInfoMsg,
+		const rtabmap_msgs::msg::OdomInfo::ConstSharedPtr odomInfoMsg)
 {
-	nav_msgs::OdometryConstPtr odomMsg; // Null
-	rtabmap_msgs::UserDataConstPtr userDataMsg; // Null
-	sensor_msgs::LaserScan scan2dMsg; // null
-	sensor_msgs::PointCloud2 scan3dMsg; // null
+	if(syncDiagnostic_.get()) {syncDiagnostic_->tickInput(leftImageMsg->header.stamp);}
+	nav_msgs::msg::Odometry::SharedPtr odomMsg; // Null
+	rtabmap_msgs::msg::UserData::SharedPtr userDataMsg; // Null
+	sensor_msgs::msg::LaserScan scan2dMsg; // Null
+	sensor_msgs::msg::PointCloud2 scan3dMsg; // Null
 	commonSingleCameraCallback(odomMsg, userDataMsg, cv_bridge::toCvShare(leftImageMsg), cv_bridge::toCvShare(rightImageMsg), *leftCamInfoMsg, *rightCamInfoMsg, scan2dMsg, scan3dMsg, odomInfoMsg);
 }
 
 // Stereo + Odom
 void CommonDataSubscriber::stereoOdomCallback(
-		const nav_msgs::OdometryConstPtr & odomMsg,
-		const sensor_msgs::ImageConstPtr& leftImageMsg,
-		const sensor_msgs::ImageConstPtr& rightImageMsg,
-		const sensor_msgs::CameraInfoConstPtr& leftCamInfoMsg,
-		const sensor_msgs::CameraInfoConstPtr& rightCamInfoMsg)
+		const nav_msgs::msg::Odometry::ConstSharedPtr odomMsg,
+		const sensor_msgs::msg::Image::ConstSharedPtr leftImageMsg,
+		const sensor_msgs::msg::Image::ConstSharedPtr rightImageMsg,
+		const sensor_msgs::msg::CameraInfo::ConstSharedPtr leftCamInfoMsg,
+		const sensor_msgs::msg::CameraInfo::ConstSharedPtr rightCamInfoMsg)
 {
-	rtabmap_msgs::UserDataConstPtr userDataMsg; // Null
-	sensor_msgs::LaserScan scanMsg; // Null
-	sensor_msgs::PointCloud2 scan3dMsg; // null
-	rtabmap_msgs::OdomInfoConstPtr odomInfoMsg; // null
+	if(syncDiagnostic_.get()) {syncDiagnostic_->tickInput(leftImageMsg->header.stamp);}
+	rtabmap_msgs::msg::UserData::SharedPtr userDataMsg; // Null
+	sensor_msgs::msg::LaserScan scanMsg; // null
+	sensor_msgs::msg::PointCloud2 scan3dMsg; // Null
+	rtabmap_msgs::msg::OdomInfo::SharedPtr odomInfoMsg; // null
 	commonSingleCameraCallback(odomMsg, userDataMsg, cv_bridge::toCvShare(leftImageMsg), cv_bridge::toCvShare(rightImageMsg), *leftCamInfoMsg, *rightCamInfoMsg, scanMsg, scan3dMsg, odomInfoMsg);
 }
 void CommonDataSubscriber::stereoOdomInfoCallback(
-		const nav_msgs::OdometryConstPtr & odomMsg,
-		const sensor_msgs::ImageConstPtr& leftImageMsg,
-		const sensor_msgs::ImageConstPtr& rightImageMsg,
-		const sensor_msgs::CameraInfoConstPtr& leftCamInfoMsg,
-		const sensor_msgs::CameraInfoConstPtr& rightCamInfoMsg,
-		const rtabmap_msgs::OdomInfoConstPtr & odomInfoMsg)
+		const nav_msgs::msg::Odometry::ConstSharedPtr odomMsg,
+		const sensor_msgs::msg::Image::ConstSharedPtr leftImageMsg,
+		const sensor_msgs::msg::Image::ConstSharedPtr rightImageMsg,
+		const sensor_msgs::msg::CameraInfo::ConstSharedPtr leftCamInfoMsg,
+		const sensor_msgs::msg::CameraInfo::ConstSharedPtr rightCamInfoMsg,
+		const rtabmap_msgs::msg::OdomInfo::ConstSharedPtr odomInfoMsg)
 {
-	rtabmap_msgs::UserDataConstPtr userDataMsg; // Null
-	sensor_msgs::LaserScan scan2dMsg; // Null
-	sensor_msgs::PointCloud2 scan3dMsg; // Null
+	if(syncDiagnostic_.get()) {syncDiagnostic_->tickInput(leftImageMsg->header.stamp);}
+	rtabmap_msgs::msg::UserData::SharedPtr userDataMsg; // Null
+	sensor_msgs::msg::LaserScan scan2dMsg; // Null
+	sensor_msgs::msg::PointCloud2 scan3dMsg; // Null
 	commonSingleCameraCallback(odomMsg, userDataMsg, cv_bridge::toCvShare(leftImageMsg), cv_bridge::toCvShare(rightImageMsg), *leftCamInfoMsg, *rightCamInfoMsg, scan2dMsg, scan3dMsg, odomInfoMsg);
 }
 
 void CommonDataSubscriber::setupStereoCallbacks(
-		ros::NodeHandle & nh,
-		ros::NodeHandle & pnh,
+		rclcpp::Node& node,
+		const rclcpp::SubscriptionOptions & options,
 		bool subscribeOdom,
 		bool subscribeOdomInfo)
 {
-	ROS_INFO("Setup stereo callback");
+	RCLCPP_INFO(node.get_logger(), "Setup stereo callback");
 
-	ros::NodeHandle left_nh(nh, "left");
-	ros::NodeHandle right_nh(nh, "right");
-	ros::NodeHandle left_pnh(pnh, "left");
-	ros::NodeHandle right_pnh(pnh, "right");
-	image_transport::ImageTransport left_it(left_nh);
-	image_transport::ImageTransport right_it(right_nh);
-	image_transport::TransportHints hintsLeft("raw", ros::TransportHints(), left_pnh);
-	image_transport::TransportHints hintsRight("raw", ros::TransportHints(), right_pnh);
-
-	imageRectLeft_.subscribe(left_it, left_nh.resolveName("image_rect"), syncQueueSize_, hintsLeft);
-	imageRectRight_.subscribe(right_it, right_nh.resolveName("image_rect"), syncQueueSize_, hintsRight);
-	cameraInfoLeft_.subscribe(left_nh, "camera_info", topicQueueSize_);
-	cameraInfoRight_.subscribe(right_nh, "camera_info", topicQueueSize_);
+	image_transport::TransportHints hints(&node); // using "image_transport" parameter
+	std::string leftTopic = node.get_node_topics_interface()->resolve_topic_name("left/image_rect"); // Humble/Jazzy don't resolve base topic, fixed by https://github.com/ros-perception/image_common/commit/ea7589ae8c1f7ecb83d6aab7b4c890c2d630d27a
+	std::string rightTopic = node.get_node_topics_interface()->resolve_topic_name("right/image_rect"); // Humble/Jazzy don't resolve base topic, fixed by https://github.com/ros-perception/image_common/commit/ea7589ae8c1f7ecb83d6aab7b4c890c2d630d27a
+	imageRectLeft_.subscribe(&node, leftTopic, hints.getTransport(), rclcpp::QoS(topicQueueSize_).reliability(qosImage_).get_rmw_qos_profile(), options);
+	imageRectRight_.subscribe(&node, rightTopic, hints.getTransport(), rclcpp::QoS(topicQueueSize_).reliability(qosImage_).get_rmw_qos_profile(), options);
+	cameraInfoLeft_.subscribe(&node, "left/camera_info", RCLCPP_QOS(topicQueueSize_, qosCameraInfo_), options);
+	cameraInfoRight_.subscribe(&node, "right/camera_info", RCLCPP_QOS(topicQueueSize_, qosCameraInfo_), options);
 
 	if(subscribeOdom)
 	{
-		odomSub_.subscribe(nh, "odom", topicQueueSize_);
+		odomSub_.subscribe(&node, "odom", RCLCPP_QOS(topicQueueSize_, qosOdom_), options);
 
 		if(subscribeOdomInfo)
 		{
 			subscribedToOdomInfo_ = true;
-			odomInfoSub_.subscribe(nh, "odom_info", topicQueueSize_);
+			odomInfoSub_.subscribe(&node, "odom_info", RCLCPP_QOS(topicQueueSize_, qosOdom_), options);
 			SYNC_DECL6(CommonDataSubscriber, stereoOdomInfo, approxSync_, syncQueueSize_, odomSub_, imageRectLeft_, imageRectRight_, cameraInfoLeft_, cameraInfoRight_, odomInfoSub_);
 		}
 		else
@@ -127,7 +125,7 @@ void CommonDataSubscriber::setupStereoCallbacks(
 		if(subscribeOdomInfo)
 		{
 			subscribedToOdomInfo_ = true;
-			odomInfoSub_.subscribe(nh, "odom_info", topicQueueSize_);
+			odomInfoSub_.subscribe(&node, "odom_info", RCLCPP_QOS(topicQueueSize_, qosOdom_), options);
 			SYNC_DECL5(CommonDataSubscriber, stereoInfo, approxSync_, syncQueueSize_, imageRectLeft_, imageRectRight_, cameraInfoLeft_, cameraInfoRight_, odomInfoSub_);
 		}
 		else

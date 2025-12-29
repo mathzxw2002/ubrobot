@@ -1,11 +1,7 @@
 rtabmap_ros
-=======
+===========
 
-RTAB-Map's ROS package.
-
-For more information, demos and tutorials about this package, visit [rtabmap_ros](http://wiki.ros.org/rtabmap_ros) page on ROS wiki.
-
-For the RTAB-Map libraries and standalone application, visit [RTAB-Map's home page](http://introlab.github.io/rtabmap) or [RTAB-Map's wiki](https://github.com/introlab/rtabmap/wiki).
+RTAB-Map's ROS2 package (branch `ros2`). **ROS2 Humble minimum required**: currently most nodes are ported to ROS2. The interface is the same than on ROS1 (parameters and topic names should still match ROS1 documentation on [rtabmap_ros](http://wiki.ros.org/rtabmap_ros)). 
 
 #### CI Latest
 
@@ -39,16 +35,12 @@ For the RTAB-Map libraries and standalone application, visit [RTAB-Map's home pa
             <td><a href="http://build.ros2.org/job/Hbin_uJ64__rtabmap_ros__ubuntu_jammy_amd64__binary/"><img src="http://build.ros2.org/buildStatus/icon?job=Hbin_uJ64__rtabmap_ros__ubuntu_jammy_amd64__binary" alt="Build Status"/></td>
         </tr>
         <tr>
-            <td>Iron</td>
-            <td><a href="http://build.ros2.org/job/Ibin_uJ64__rtabmap_ros__ubuntu_jammy_amd64__binary/"><img src="http://build.ros2.org/buildStatus/icon?job=Ibin_uJ64__rtabmap_ros__ubuntu_jammy_amd64__binary" alt="Build Status"/></td>
-        </tr>
-        <tr>
             <td>Jazzy</td>
             <td><a href="http://build.ros2.org/job/Jbin_uN64__rtabmap_ros__ubuntu_noble_amd64__binary/"><img src="http://build.ros2.org/buildStatus/icon?job=Jbin_uN64__rtabmap_ros__ubuntu_noble_amd64__binary" alt="Build Status"/></td>
         </tr>
         <tr>
             <td>Rolling</td>
-            <td><a href="http://build.ros2.org/job/Rbin_uJ64__rtabmap_ros__ubuntu_jammy_amd64__binary/"><img src="http://build.ros2.org/buildStatus/icon?job=Rbin_uJ64__rtabmap_ros__ubuntu_jammy_amd64__binary" alt="Build Status"/></td>
+            <td><a href="http://build.ros2.org/job/Rbin_uN64__rtabmap_ros__ubuntu_noble_amd64__binary/"><img src="http://build.ros2.org/buildStatus/icon?job=Rbin_uN64__rtabmap_ros__ubuntu_noble_amd64__binary" alt="Build Status"/></td>
         </tr>
         <tr>
            <td>Docker</td>
@@ -60,105 +52,54 @@ For the RTAB-Map libraries and standalone application, visit [RTAB-Map's home pa
     </tbody>
 </table>
 
+# Usage
+
+* For sensor integration examples (stereo and RGB-D cameras, 3D LiDAR), see [rtabmap_examples](https://github.com/introlab/rtabmap_ros/tree/ros2/rtabmap_examples/launch) sub-folder.
+
+* For robot integration examples (turtlebot3 and turtlebot4, nav2 integration), see [rtabmap_demos](https://github.com/introlab/rtabmap_ros/tree/ros2/rtabmap_demos) sub-folder.
+
+## Logging
+To make RTAB-Map's logs appear ordered with RCLCPP's logs, set the following environment variables in your `.bashrc` (see official "[About Logging](https://docs.ros.org/en/humble/Concepts/Intermediate/About-Logging.html)" documentation for more info):
+```bash
+export RCUTILS_LOGGING_USE_STDOUT=1
+export RCUTILS_LOGGING_BUFFERED_STREAM=1
+# Optional, but if you like colored logs:
+export RCUTILS_COLORIZED_OUTPUT=1
+```
+
+## Recommended DDS
+If RTAB-Map's GUI or topic frequency feel laggy (even if processing time looks fast enough), it may be caused by the DDS. I recommend to use [Cyclone DDS](https://docs.ros.org/en/foxy/Installation/DDS-Implementations/Working-with-Eclipse-CycloneDDS.html), you can try it by adding this before launching any nodes/launch files (or add to your `.bashrc`):
+```bash
+export RMW_IMPLEMENTATION=rmw_cyclonedds_cpp
+# Cyclone prefers multicast by default, if your router got too much spammed, 
+# disable multicast with (https://github.com/ros2/rmw_cyclonedds/issues/489):
+export CYCLONEDDS_URI="<Disc><DefaultMulticastAddress>0.0.0.0</></>"
+```
+
 # Installation 
 
-## ROS2 distribution
-See [ros2 branch](https://github.com/introlab/rtabmap_ros/tree/ros2#rtabmap_ros).
-
-## ROS1 distribution 
-RTAB-Map is released as binaries in the ROS distribution.
-
+### Binaries
 ```bash
 sudo apt install ros-$ROS_DISTRO-rtabmap-ros
 ```
 
-When launching `rtabmap_ros`'s nodes, if you have the error `error while loading shared libraries...`, try `ldconfig` or add the next line at the end of your `~/.bashrc` to fix it:
-    
-```bash
-export LD_LIBRARY_PATH=$LD_LIBRARY_PATH:/opt/ros/noetic/lib/x86_64-linux-gnu
-```
-
-### Docker
-
-* Go to [docker](https://github.com/introlab/rtabmap_ros/tree/master/docker) directory for an example.
-
-
-## Build from source
-This section shows how to install RTAB-Map ros-pkg on **ROS Noetic** (Catkin build).
-
-* The next instructions assume that you have set up your ROS workspace using this [tutorial](http://wiki.ros.org/catkin/Tutorials/create_a_workspace). The workspace path is `~/catkin_ws` and your `~/.bashrc` contains:
- 
+### From Source
+* Make sure to uninstall any rtabmap binaries:
+    ```
+    sudo apt remove ros-$ROS_DISTRO-rtabmap*
+    ```
+* RTAB-Map ROS2 package:
     ```bash
-    $ source /opt/ros/$ROS_DISTRO/setup.bash
-    $ source ~/catkin_ws/devel/setup.bash
+    cd ~/ros2_ws
+    git clone https://github.com/introlab/rtabmap.git src/rtabmap
+    git clone --branch ros2 https://github.com/introlab/rtabmap_ros.git src/rtabmap_ros
+    rosdep update && rosdep install --from-paths src --ignore-src -r -y
+    export MAKEFLAGS="-j6" # Can be ignored if you have a lot of RAM (>16GB)
+    colcon build --symlink-install --cmake-args -DCMAKE_BUILD_TYPE=Release
     ```
 
- 0. Required dependencies
-     * The easiest way to get all them (Qt, PCL, VTK, OpenCV, g2o, gtsam ...) is to install/uninstall rtabmap binaries:
-          ```bash
-          sudo apt install ros-$ROS_DISTRO-rtabmap*
-          sudo apt remove ros-$ROS_DISTRO-rtabmap*
-          ```
- 
- 1. Optional dependencies
-     * If you want SURF/SIFT on Noetic, you have to build [OpenCV]([OpenCV](http://opencv.org/)) from source to have access to *xfeatures2d* and *nonfree* modules. Install it in `/usr/local` (default) and rtabmap library should link with it instead of the one installed in ROS. 
-         * On Noetic, build from source with *xfeatures2d* module (and *nonfree* module if needed) the same OpenCV version already installed on the system. You will then avoid breaking `cv_bridge` with `rtabmap_ros`. If you want to install a more recent OpenCV version, I recommend to uninstall `libopencv*` libraries (with all ros packages depending on it) and rebuild all those ros packages in your catkin workspace (to make sure `cv_bridge` is linked on the OpenCV version you just compiled).
-  
-    * [g2o](https://github.com/RainerKuemmerle/g2o): Should be already installed by `ros-$ROS_DISTRO-libg2o`.
-
-    * [GTSAM](https://gtsam.org/get_started/): Should be already installed by `ros-$ROS_DISTRO-gtsam`.
-    
-    * [libpointmatcher](https://github.com/ethz-asl/libpointmatcher): **Recommended** if you are going to use lidars. Should be alread installed by `ros-$ROS_DISTRO-libpointmatcher` (Official [install instructions](https://github.com/ethz-asl/libpointmatcher#quick-start)).
-
-2. Install RTAB-Map standalone libraries. **Do not clone in your Catkin workspace**.
+* To build with `rgbd_cameras>1` support and/or `subscribe_user_data` support:
     ```bash
-    cd ~
-    git clone https://github.com/introlab/rtabmap.git rtabmap
-    cd rtabmap/build
-    cmake ..  [<---double dots included]
-    make -j6
-    sudo make install
+    colcon build --symlink-install --cmake-args -DRTABMAP_SYNC_MULTI_RGBD=ON -DRTABMAP_SYNC_USER_DATA=ON -DCMAKE_BUILD_TYPE=Release
     ```
-
-3. Install RTAB-Map ros-pkg in your src folder of your Catkin workspace.
- 
-    ```bash
-    cd ~/catkin_ws
-    git clone https://github.com/introlab/rtabmap_ros.git src/rtabmap_ros
-    catkin_make -DCMAKE_BUILD_TYPE=Release -j4
-    ```
-    * Use `catkin_make -j1` if compilation requires more RAM than you have (e.g., some files require up to ~2 GB to build depending on gcc version).
-    * Options:
-        * Add `-DRTABMAP_SYNC_MULTI_RGBD=ON` to `catkin_make` if you plan to use multiple cameras.
-        * Add `-DRTABMAP_SYNC_USER_DATA=ON` to `catkin_make` if you plan to use user data synchronized topics.
-
-## Build from source for Nvidia Jetson
- * For latest jetpack, see this [post](https://github.com/introlab/rtabmap_ros/issues/943) to use docker (you will save a lot of time using the already built docker images).
- * For **Jetpack 4** (Ubuntu 18.04 with ROS Melodic), see this [post](https://github.com/introlab/rtabmap/issues/427#issuecomment-608052821).
- * For **Jetpack 3** (Ubuntu 16.04 with ROS Kinetic), see this [post](https://github.com/introlab/rtabmap_ros/issues/655).
-
-
-### Update to new version 
-
-```bash
-###########
-# rtabmap
-###########
-cd rtabmap
-git pull origin master
-cd build
-make
-make install
-# Do "sudo make install" if you installed rtabmap in "/usr/local"
-
-###########
-# rtabmap_ros
-###########
-roscd rtabmap_ros
-git pull origin master
-roscd
-cd ..
-catkin_make -j1 -DCMAKE_BUILD_TYPE=Release --pkg rtabmap_ros
-```
-
 

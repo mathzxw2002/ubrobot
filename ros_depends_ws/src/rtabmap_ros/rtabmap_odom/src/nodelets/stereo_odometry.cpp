@@ -25,26 +25,18 @@ ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
 SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 */
 
-#include "rtabmap_odom/OdometryROS.h"
-#include "pluginlib/class_list_macros.hpp"
-#include "nodelet/nodelet.h"
+#include <rtabmap_odom/stereo_odometry.hpp>
 
-#include <message_filters/subscriber.h>
-#include <message_filters/time_synchronizer.h>
-#include <message_filters/sync_policies/approximate_time.h>
+#include <sensor_msgs/image_encodings.hpp>
 
-#include <image_transport/image_transport.h>
-#include <image_transport/subscriber_filter.h>
-
-#include <sensor_msgs/Image.h>
-#include <sensor_msgs/image_encodings.h>
-
+#ifdef PRE_ROS_IRON
 #include <image_geometry/stereo_camera_model.h>
-
-#include <cv_bridge/cv_bridge.h>
+#else
+#include <image_geometry/stereo_camera_model.hpp>
+#endif
 
 #include "rtabmap_conversions/MsgConversion.h"
-#include <rtabmap_msgs/RGBDImages.h>
+#include <rtabmap_msgs/msg/rgbd_images.hpp>
 
 #include <rtabmap/utilite/ULogger.h>
 #include <rtabmap/utilite/UTimer.h>
@@ -57,11 +49,8 @@ using namespace rtabmap;
 namespace rtabmap_odom
 {
 
-class StereoOdometry : public OdometryROS
-{
-public:
-	StereoOdometry() :
-		OdometryROS(true, true, false),
+StereoOdometry::StereoOdometry(const rclcpp::NodeOptions & options) :
+		rtabmap_odom::OdometryROS("stereo_odometry", options),
 		approxSync_(0),
 		exactSync_(0),
 		approxSync2_(0),
@@ -74,1010 +63,982 @@ public:
 		exactSync5_(0),
 		approxSync6_(0),
 		exactSync6_(0),
-		topicQueueSize_(1),
+		topicQueueSize_(10),
 		syncQueueSize_(5),
-		keepColor_(false)
+		keepColor_(false),
+		approxSyncMaxInterval_(0.0)
+{
+	OdometryROS::init(true, true, false);
+}
+
+StereoOdometry::~StereoOdometry()
+{
+	delete approxSync_;
+	delete exactSync_;
+	delete approxSync2_;
+	delete exactSync2_;
+	delete approxSync3_;
+	delete exactSync3_;
+	delete approxSync4_;
+	delete exactSync4_;
+	delete approxSync5_;
+	delete exactSync5_;
+	delete approxSync6_;
+	delete exactSync6_;
+}
+
+void StereoOdometry::onOdomInit()
+{
+	bool approxSync = false;
+	bool subscribeRGBD = false;
+	int rgbdCameras = 1;
+	approxSync = this->declare_parameter("approx_sync", approxSync);
+	approxSyncMaxInterval_ = this->declare_parameter("approx_sync_max_interval", approxSyncMaxInterval_);
+	topicQueueSize_ = this->declare_parameter("topic_queue_size", topicQueueSize_);
+	int queueSize = this->declare_parameter("queue_size", -1);
+	if(queueSize != -1)
 	{
+		syncQueueSize_ = queueSize;
+		RCLCPP_WARN(this->get_logger(), "Parameter \"queue_size\" has been renamed "
+				 "to \"sync_queue_size\" and will be removed "
+				 "in future versions! The value (%d) is copied to "
+				 "\"sync_queue_size\".", syncQueueSize_);
 	}
+	syncQueueSize_ = this->declare_parameter("sync_queue_size", syncQueueSize_);
+	int qosCamInfo = this->declare_parameter("qos_camera_info", (int)qos());
+	subscribeRGBD = this->declare_parameter("subscribe_rgbd", subscribeRGBD);
+	rgbdCameras = this->declare_parameter("rgbd_cameras", rgbdCameras);
+	keepColor_ = this->declare_parameter("keep_color", keepColor_);
+	std::string imageTransport = this->declare_parameter("image_transport", std::string("raw"));
 
-	virtual ~StereoOdometry()
+	RCLCPP_INFO(this->get_logger(), "StereoOdometry: approx_sync = %s", approxSync?"true":"false");
+	if(approxSync)
+		RCLCPP_INFO(this->get_logger(), "StereoOdometry: approx_sync_max_interval = %f", approxSyncMaxInterval_);
+	RCLCPP_INFO(this->get_logger(), "StereoOdometry: topic_queue_size  = %d", topicQueueSize_);
+	RCLCPP_INFO(this->get_logger(), "StereoOdometry: sync_queue_size   = %d", syncQueueSize_);
+	RCLCPP_INFO(this->get_logger(), "StereoOdometry: qos             = %d", (int)qos());
+	RCLCPP_INFO(this->get_logger(), "StereoOdometry: qos_camera_info = %d", qosCamInfo);
+	RCLCPP_INFO(this->get_logger(), "StereoOdometry: subscribe_rgbd = %s", subscribeRGBD?"true":"false");
+	RCLCPP_INFO(this->get_logger(), "StereoOdometry: keep_color     = %s", keepColor_?"true":"false");
+	RCLCPP_INFO(this->get_logger(), "StereoOdometry: image_transport = %s", imageTransport.c_str());
+
+	rclcpp::SubscriptionOptions options;
+	options.callback_group = dataCallbackGroup_;
+
+	std::string subscribedTopic;
+	std::string subscribedTopicsMsg;
+	if(subscribeRGBD)
 	{
-		rgbdSub_.shutdown();
-		rgbdxSub_.shutdown();
-		delete approxSync_;
-		delete exactSync_;
-		delete approxSync2_;
-		delete exactSync2_;
-		delete approxSync3_;
-		delete exactSync3_;
-		delete approxSync4_;
-		delete exactSync4_;
-		delete approxSync5_;
-		delete exactSync5_;
-		delete approxSync6_;
-		delete exactSync6_;
-	}
-
-private:
-	virtual void onOdomInit()
-	{
-		ros::NodeHandle & nh = getNodeHandle();
-		ros::NodeHandle & pnh = getPrivateNodeHandle();
-
-		bool approxSync = false;
-		bool subscribeRGBD = false;
-		double approxSyncMaxInterval = 0.0;
-		int rgbdCameras = 1;
-		pnh.param("approx_sync", approxSync, approxSync);
-		pnh.param("approx_sync_max_interval", approxSyncMaxInterval, approxSyncMaxInterval);
-		pnh.param("topic_queue_size", topicQueueSize_, topicQueueSize_);
-		if(pnh.hasParam("queue_size") && !pnh.hasParam("sync_queue_size"))
+		if(rgbdCameras >= 2)
 		{
-			pnh.param("queue_size", syncQueueSize_, syncQueueSize_);
-			ROS_WARN("Parameter \"queue_size\" has been renamed "
-					"to \"sync_queue_size\" and will be removed "
-					"in future versions! The value (%d) is still copied to "
-					"\"sync_queue_size\".", syncQueueSize_);
-		}
-		else
-		{
-			pnh.param("sync_queue_size", syncQueueSize_, syncQueueSize_);
-		}
-		pnh.param("subscribe_rgbd", subscribeRGBD, subscribeRGBD);
-		pnh.param("rgbd_cameras", rgbdCameras, rgbdCameras);
-		pnh.param("keep_color", keepColor_, keepColor_);
-
-		NODELET_INFO("StereoOdometry: approx_sync = %s", approxSync?"true":"false");
-		if(approxSync)
-			NODELET_INFO("StereoOdometry: approx_sync_max_interval = %f", approxSyncMaxInterval);
-		NODELET_INFO("StereoOdometry: topic_queue_size = %d", topicQueueSize_);
-		NODELET_INFO("StereoOdometry: sync_queue_size = %d", syncQueueSize_);
-		NODELET_INFO("StereoOdometry: subscribe_rgbd = %s", subscribeRGBD?"true":"false");
-		NODELET_INFO("StereoOdometry: keep_color = %s", keepColor_?"true":"false");
-
-		std::string subscribedTopic;
-		std::string subscribedTopicsMsg;
-		if(subscribeRGBD)
-		{
-			if(rgbdCameras >= 2)
+			rgbd_image1_sub_.subscribe(this, "rgbd_image0", RCLCPP_QOS(topicQueueSize_, qos()), options);
+			rgbd_image2_sub_.subscribe(this, "rgbd_image1", RCLCPP_QOS(topicQueueSize_, qos()), options);
+			if(rgbdCameras >= 3)
 			{
-				rgbd_image1_sub_.subscribe(nh, "rgbd_image0", topicQueueSize_);
-				rgbd_image2_sub_.subscribe(nh, "rgbd_image1", topicQueueSize_);
-				if(rgbdCameras >= 3)
-				{
-					rgbd_image3_sub_.subscribe(nh, "rgbd_image2", topicQueueSize_);
-				}
-				if(rgbdCameras >= 4)
-				{
-					rgbd_image4_sub_.subscribe(nh, "rgbd_image3", topicQueueSize_);
-				}
-				if(rgbdCameras >= 5)
-				{
-					rgbd_image5_sub_.subscribe(nh, "rgbd_image4", topicQueueSize_);
-				}
-				if(rgbdCameras >= 6)
-				{
-					rgbd_image6_sub_.subscribe(nh, "rgbd_image5", topicQueueSize_);
-				}
+				rgbd_image3_sub_.subscribe(this, "rgbd_image2", RCLCPP_QOS(topicQueueSize_, qos()), options);
+			}
+			if(rgbdCameras >= 4)
+			{
+				rgbd_image4_sub_.subscribe(this, "rgbd_image3", RCLCPP_QOS(topicQueueSize_, qos()), options);
+			}
+			if(rgbdCameras >= 5)
+			{
+				rgbd_image5_sub_.subscribe(this, "rgbd_image4", RCLCPP_QOS(topicQueueSize_, qos()), options);
+			}
+			if(rgbdCameras >= 6)
+			{
+				rgbd_image6_sub_.subscribe(this, "rgbd_image5", RCLCPP_QOS(topicQueueSize_, qos()), options);
+			}
 
-				if(rgbdCameras == 2)
+			if(rgbdCameras == 2)
+			{
+				if(approxSync)
 				{
-					if(approxSync)
-					{
-						approxSync2_ = new message_filters::Synchronizer<MyApproxSync2Policy>(
-								MyApproxSync2Policy(syncQueueSize_),
-								rgbd_image1_sub_,
-								rgbd_image2_sub_);
-						if(approxSyncMaxInterval > 0.0)
-							approxSync2_->setMaxIntervalDuration(ros::Duration(approxSyncMaxInterval));
-						approxSync2_->registerCallback(boost::bind(&StereoOdometry::callbackRGBD2, this, boost::placeholders::_1, boost::placeholders::_2));
-					}
-					else
-					{
-						exactSync2_ = new message_filters::Synchronizer<MyExactSync2Policy>(
-								MyExactSync2Policy(syncQueueSize_),
-								rgbd_image1_sub_,
-								rgbd_image2_sub_);
-						exactSync2_->registerCallback(boost::bind(&StereoOdometry::callbackRGBD2, this, boost::placeholders::_1, boost::placeholders::_2));
-					}
-					subscribedTopicsMsg = uFormat("\n%s subscribed to (%s sync%s):\n   %s \\\n   %s",
-							getName().c_str(),
-							approxSync?"approx":"exact",
-							approxSync&&approxSyncMaxInterval!=0.0?uFormat(", max interval=%fs", approxSyncMaxInterval).c_str():"",
-							rgbd_image1_sub_.getTopic().c_str(),
-							rgbd_image2_sub_.getTopic().c_str());
-				}
-				else if(rgbdCameras == 3)
-				{
-					if(approxSync)
-					{
-						approxSync3_ = new message_filters::Synchronizer<MyApproxSync3Policy>(
-								MyApproxSync3Policy(syncQueueSize_),
-								rgbd_image1_sub_,
-								rgbd_image2_sub_,
-								rgbd_image3_sub_);
-						if(approxSyncMaxInterval > 0.0)
-							approxSync3_->setMaxIntervalDuration(ros::Duration(approxSyncMaxInterval));
-						approxSync3_->registerCallback(boost::bind(&StereoOdometry::callbackRGBD3, this, boost::placeholders::_1, boost::placeholders::_2, boost::placeholders::_3));
-					}
-					else
-					{
-						exactSync3_ = new message_filters::Synchronizer<MyExactSync3Policy>(
-								MyExactSync3Policy(syncQueueSize_),
-								rgbd_image1_sub_,
-								rgbd_image2_sub_,
-								rgbd_image3_sub_);
-						exactSync3_->registerCallback(boost::bind(&StereoOdometry::callbackRGBD3, this, boost::placeholders::_1, boost::placeholders::_2, boost::placeholders::_3));
-					}
-					subscribedTopicsMsg = uFormat("\n%s subscribed to (%s sync%s):\n   %s \\\n   %s \\\n   %s",
-							getName().c_str(),
-							approxSync?"approx":"exact",
-							approxSync&&approxSyncMaxInterval!=0.0?uFormat(", max interval=%fs", approxSyncMaxInterval).c_str():"",
-							rgbd_image1_sub_.getTopic().c_str(),
-							rgbd_image2_sub_.getTopic().c_str(),
-							rgbd_image3_sub_.getTopic().c_str());
-				}
-				else if(rgbdCameras == 4)
-				{
-					if(approxSync)
-					{
-						approxSync4_ = new message_filters::Synchronizer<MyApproxSync4Policy>(
-								MyApproxSync4Policy(syncQueueSize_),
-								rgbd_image1_sub_,
-								rgbd_image2_sub_,
-								rgbd_image3_sub_,
-								rgbd_image4_sub_);
-						if(approxSyncMaxInterval > 0.0)
-							approxSync4_->setMaxIntervalDuration(ros::Duration(approxSyncMaxInterval));
-						approxSync4_->registerCallback(boost::bind(&StereoOdometry::callbackRGBD4, this, boost::placeholders::_1, boost::placeholders::_2, boost::placeholders::_3, boost::placeholders::_4));
-					}
-					else
-					{
-						exactSync4_ = new message_filters::Synchronizer<MyExactSync4Policy>(
-								MyExactSync4Policy(syncQueueSize_),
-								rgbd_image1_sub_,
-								rgbd_image2_sub_,
-								rgbd_image3_sub_,
-								rgbd_image4_sub_);
-						exactSync4_->registerCallback(boost::bind(&StereoOdometry::callbackRGBD4, this, boost::placeholders::_1, boost::placeholders::_2, boost::placeholders::_3, boost::placeholders::_4));
-					}
-					subscribedTopicsMsg = uFormat("\n%s subscribed to (%s sync%s):\n   %s \\\n   %s \\\n   %s \\\n   %s",
-							getName().c_str(),
-							approxSync?"approx":"exact",
-							approxSync&&approxSyncMaxInterval!=0.0?uFormat(", max interval=%fs", approxSyncMaxInterval).c_str():"",
-							rgbd_image1_sub_.getTopic().c_str(),
-							rgbd_image2_sub_.getTopic().c_str(),
-							rgbd_image3_sub_.getTopic().c_str(),
-							rgbd_image4_sub_.getTopic().c_str());
-				}
-				else if(rgbdCameras == 5)
-				{
-					if(approxSync)
-					{
-						approxSync5_ = new message_filters::Synchronizer<MyApproxSync5Policy>(
-								MyApproxSync5Policy(syncQueueSize_),
-								rgbd_image1_sub_,
-								rgbd_image2_sub_,
-								rgbd_image3_sub_,
-								rgbd_image4_sub_,
-								rgbd_image5_sub_);
-						if(approxSyncMaxInterval > 0.0)
-							approxSync5_->setMaxIntervalDuration(ros::Duration(approxSyncMaxInterval));
-						approxSync5_->registerCallback(boost::bind(&StereoOdometry::callbackRGBD5, this, boost::placeholders::_1, boost::placeholders::_2, boost::placeholders::_3, boost::placeholders::_4, boost::placeholders::_5));
-					}
-					else
-					{
-						exactSync5_ = new message_filters::Synchronizer<MyExactSync5Policy>(
-								MyExactSync5Policy(syncQueueSize_),
-								rgbd_image1_sub_,
-								rgbd_image2_sub_,
-								rgbd_image3_sub_,
-								rgbd_image4_sub_,
-								rgbd_image5_sub_);
-						exactSync5_->registerCallback(boost::bind(&StereoOdometry::callbackRGBD5, this, boost::placeholders::_1, boost::placeholders::_2, boost::placeholders::_3, boost::placeholders::_4, boost::placeholders::_5));
-					}
-					subscribedTopicsMsg = uFormat("\n%s subscribed to (%s sync%s):\n   %s \\\n   %s \\\n   %s \\\n   %s \\\n   %s",
-							getName().c_str(),
-							approxSync?"approx":"exact",
-							approxSync&&approxSyncMaxInterval!=0.0?uFormat(", max interval=%fs", approxSyncMaxInterval).c_str():"",
-							rgbd_image1_sub_.getTopic().c_str(),
-							rgbd_image2_sub_.getTopic().c_str(),
-							rgbd_image3_sub_.getTopic().c_str(),
-							rgbd_image4_sub_.getTopic().c_str(),
-							rgbd_image5_sub_.getTopic().c_str());
-				}
-				else if(rgbdCameras == 6)
-				{
-					if(approxSync)
-					{
-						approxSync6_ = new message_filters::Synchronizer<MyApproxSync6Policy>(
-								MyApproxSync6Policy(syncQueueSize_),
-								rgbd_image1_sub_,
-								rgbd_image2_sub_,
-								rgbd_image3_sub_,
-								rgbd_image4_sub_,
-								rgbd_image5_sub_,
-								rgbd_image6_sub_);
-						if(approxSyncMaxInterval > 0.0)
-							approxSync6_->setMaxIntervalDuration(ros::Duration(approxSyncMaxInterval));
-						approxSync6_->registerCallback(boost::bind(&StereoOdometry::callbackRGBD6, this, boost::placeholders::_1, boost::placeholders::_2, boost::placeholders::_3, boost::placeholders::_4, boost::placeholders::_5, boost::placeholders::_6));
-					}
-					else
-					{
-						exactSync6_ = new message_filters::Synchronizer<MyExactSync6Policy>(
-								MyExactSync6Policy(syncQueueSize_),
-								rgbd_image1_sub_,
-								rgbd_image2_sub_,
-								rgbd_image3_sub_,
-								rgbd_image4_sub_,
-								rgbd_image5_sub_,
-								rgbd_image6_sub_);
-						exactSync6_->registerCallback(boost::bind(&StereoOdometry::callbackRGBD6, this, boost::placeholders::_1, boost::placeholders::_2, boost::placeholders::_3, boost::placeholders::_4, boost::placeholders::_5, boost::placeholders::_6));
-					}
-					subscribedTopicsMsg = uFormat("\n%s subscribed to (%s sync%s):\n   %s \\\n   %s \\\n   %s \\\n   %s \\\n   %s \\\n   %s",
-							getName().c_str(),
-							approxSync?"approx":"exact",
-							approxSync&&approxSyncMaxInterval!=0.0?uFormat(", max interval=%fs", approxSyncMaxInterval).c_str():"",
-							rgbd_image1_sub_.getTopic().c_str(),
-							rgbd_image2_sub_.getTopic().c_str(),
-							rgbd_image3_sub_.getTopic().c_str(),
-							rgbd_image4_sub_.getTopic().c_str(),
-							rgbd_image5_sub_.getTopic().c_str(),
-							rgbd_image6_sub_.getTopic().c_str());
+					approxSync2_ = new message_filters::Synchronizer<MyApproxSync2Policy>(
+							MyApproxSync2Policy(syncQueueSize_),
+							rgbd_image1_sub_,
+							rgbd_image2_sub_);
+					if(approxSyncMaxInterval_ > 0.0)
+						approxSync2_->setMaxIntervalDuration(rclcpp::Duration::from_seconds(approxSyncMaxInterval_));
+					approxSync2_->registerCallback(std::bind(&StereoOdometry::callbackRGBD2, this, std::placeholders::_1, std::placeholders::_2));
 				}
 				else
 				{
-					NODELET_FATAL("%s doesn't support more than 6 cameras (rgbd_cameras=%d) with "
-								  "internal synchronization interface, set rgbd_cameras=0 and use "
-								  "rgbd_images input topic instead for more cameras (for which "
-								  "rgbdx_sync node can sync up to 8 cameras).",
-								  getName().c_str(), rgbdCameras);
+					exactSync2_ = new message_filters::Synchronizer<MyExactSync2Policy>(
+							MyExactSync2Policy(syncQueueSize_),
+							rgbd_image1_sub_,
+							rgbd_image2_sub_);
+					exactSync2_->registerCallback(std::bind(&StereoOdometry::callbackRGBD2, this, std::placeholders::_1, std::placeholders::_2));
 				}
-
+				subscribedTopicsMsg = uFormat("\n%s subscribed to (%s sync%s):\n   %s \\\n   %s",
+						get_name(),
+						approxSync?"approx":"exact",
+						approxSync&&approxSyncMaxInterval_!=0.0?uFormat(", max interval=%fs", approxSyncMaxInterval_).c_str():"",
+						rgbd_image1_sub_.getTopic().c_str(),
+						rgbd_image2_sub_.getTopic().c_str());
 			}
-			else if(rgbdCameras == 0)
+			else if(rgbdCameras == 3)
 			{
-				rgbdxSub_ = nh.subscribe("rgbd_images", topicQueueSize_, &StereoOdometry::callbackRGBDX, this);
-
-				subscribedTopicsMsg =
-						uFormat("\n%s subscribed to:\n   %s",
-						getName().c_str(),
-						rgbdxSub_.getTopic().c_str());
+				if(approxSync)
+				{
+					approxSync3_ = new message_filters::Synchronizer<MyApproxSync3Policy>(
+							MyApproxSync3Policy(syncQueueSize_),
+							rgbd_image1_sub_,
+							rgbd_image2_sub_,
+							rgbd_image3_sub_);
+					if(approxSyncMaxInterval_ > 0.0)
+						approxSync3_->setMaxIntervalDuration(rclcpp::Duration::from_seconds(approxSyncMaxInterval_));
+					approxSync3_->registerCallback(std::bind(&StereoOdometry::callbackRGBD3, this, std::placeholders::_1, std::placeholders::_2, std::placeholders::_3));
+				}
+				else
+				{
+					exactSync3_ = new message_filters::Synchronizer<MyExactSync3Policy>(
+							MyExactSync3Policy(syncQueueSize_),
+							rgbd_image1_sub_,
+							rgbd_image2_sub_,
+							rgbd_image3_sub_);
+					exactSync3_->registerCallback(std::bind(&StereoOdometry::callbackRGBD3, this, std::placeholders::_1, std::placeholders::_2, std::placeholders::_3));
+				}
+				subscribedTopicsMsg = uFormat("\n%s subscribed to (%s sync%s):\n   %s \\\n   %s \\\n   %s",
+						get_name(),
+						approxSync?"approx":"exact",
+						approxSync&&approxSyncMaxInterval_!=0.0?uFormat(", max interval=%fs", approxSyncMaxInterval_).c_str():"",
+						rgbd_image1_sub_.getTopic().c_str(),
+						rgbd_image2_sub_.getTopic().c_str(),
+						rgbd_image3_sub_.getTopic().c_str());
+			}
+			else if(rgbdCameras == 4)
+			{
+				if(approxSync)
+				{
+					approxSync4_ = new message_filters::Synchronizer<MyApproxSync4Policy>(
+							MyApproxSync4Policy(syncQueueSize_),
+							rgbd_image1_sub_,
+							rgbd_image2_sub_,
+							rgbd_image3_sub_,
+							rgbd_image4_sub_);
+					if(approxSyncMaxInterval_ > 0.0)
+						approxSync4_->setMaxIntervalDuration(rclcpp::Duration::from_seconds(approxSyncMaxInterval_));
+					approxSync4_->registerCallback(std::bind(&StereoOdometry::callbackRGBD4, this, std::placeholders::_1, std::placeholders::_2, std::placeholders::_3, std::placeholders::_4));
+				}
+				else
+				{
+					exactSync4_ = new message_filters::Synchronizer<MyExactSync4Policy>(
+							MyExactSync4Policy(syncQueueSize_),
+							rgbd_image1_sub_,
+							rgbd_image2_sub_,
+							rgbd_image3_sub_,
+							rgbd_image4_sub_);
+					exactSync4_->registerCallback(std::bind(&StereoOdometry::callbackRGBD4, this, std::placeholders::_1, std::placeholders::_2, std::placeholders::_3, std::placeholders::_4));
+				}
+				subscribedTopicsMsg = uFormat("\n%s subscribed to (%s sync%s):\n   %s \\\n   %s \\\n   %s \\\n   %s",
+						get_name(),
+						approxSync?"approx":"exact",
+						approxSync&&approxSyncMaxInterval_!=0.0?uFormat(", max interval=%fs", approxSyncMaxInterval_).c_str():"",
+						rgbd_image1_sub_.getTopic().c_str(),
+						rgbd_image2_sub_.getTopic().c_str(),
+						rgbd_image3_sub_.getTopic().c_str(),
+						rgbd_image4_sub_.getTopic().c_str());
+			}
+			else if(rgbdCameras == 5)
+			{
+				if(approxSync)
+				{
+					approxSync5_ = new message_filters::Synchronizer<MyApproxSync5Policy>(
+							MyApproxSync5Policy(syncQueueSize_),
+							rgbd_image1_sub_,
+							rgbd_image2_sub_,
+							rgbd_image3_sub_,
+							rgbd_image4_sub_,
+							rgbd_image5_sub_);
+					if(approxSyncMaxInterval_ > 0.0)
+						approxSync5_->setMaxIntervalDuration(rclcpp::Duration::from_seconds(approxSyncMaxInterval_));
+					approxSync5_->registerCallback(std::bind(&StereoOdometry::callbackRGBD5, this, std::placeholders::_1, std::placeholders::_2, std::placeholders::_3, std::placeholders::_4, std::placeholders::_5));
+				}
+				else
+				{
+					exactSync5_ = new message_filters::Synchronizer<MyExactSync5Policy>(
+							MyExactSync5Policy(syncQueueSize_),
+							rgbd_image1_sub_,
+							rgbd_image2_sub_,
+							rgbd_image3_sub_,
+							rgbd_image4_sub_,
+							rgbd_image5_sub_);
+					exactSync5_->registerCallback(std::bind(&StereoOdometry::callbackRGBD5, this, std::placeholders::_1, std::placeholders::_2, std::placeholders::_3, std::placeholders::_4, std::placeholders::_5));
+				}
+				subscribedTopicsMsg = uFormat("\n%s subscribed to (%s sync%s):\n   %s \\\n   %s \\\n   %s \\\n   %s \\\n   %s",
+						get_name(),
+						approxSync?"approx":"exact",
+						approxSync&&approxSyncMaxInterval_!=0.0?uFormat(", max interval=%fs", approxSyncMaxInterval_).c_str():"",
+						rgbd_image1_sub_.getTopic().c_str(),
+						rgbd_image2_sub_.getTopic().c_str(),
+						rgbd_image3_sub_.getTopic().c_str(),
+						rgbd_image4_sub_.getTopic().c_str(),
+						rgbd_image5_sub_.getTopic().c_str());
+			}
+			else if(rgbdCameras == 6)
+			{
+				if(approxSync)
+				{
+					approxSync6_ = new message_filters::Synchronizer<MyApproxSync6Policy>(
+							MyApproxSync6Policy(syncQueueSize_),
+							rgbd_image1_sub_,
+							rgbd_image2_sub_,
+							rgbd_image3_sub_,
+							rgbd_image4_sub_,
+							rgbd_image5_sub_,
+							rgbd_image6_sub_);
+					if(approxSyncMaxInterval_ > 0.0)
+						approxSync6_->setMaxIntervalDuration(rclcpp::Duration::from_seconds(approxSyncMaxInterval_));
+					approxSync6_->registerCallback(std::bind(&StereoOdometry::callbackRGBD6, this, std::placeholders::_1, std::placeholders::_2, std::placeholders::_3, std::placeholders::_4, std::placeholders::_5, std::placeholders::_6));
+				}
+				else
+				{
+					exactSync6_ = new message_filters::Synchronizer<MyExactSync6Policy>(
+							MyExactSync6Policy(syncQueueSize_),
+							rgbd_image1_sub_,
+							rgbd_image2_sub_,
+							rgbd_image3_sub_,
+							rgbd_image4_sub_,
+							rgbd_image5_sub_,
+							rgbd_image6_sub_);
+					exactSync6_->registerCallback(std::bind(&StereoOdometry::callbackRGBD6, this, std::placeholders::_1, std::placeholders::_2, std::placeholders::_3, std::placeholders::_4, std::placeholders::_5, std::placeholders::_6));
+				}
+				subscribedTopicsMsg = uFormat("\n%s subscribed to (%s sync%s):\n   %s \\\n   %s \\\n   %s \\\n   %s \\\n   %s \\\n   %s",
+						get_name(),
+						approxSync?"approx":"exact",
+						approxSync&&approxSyncMaxInterval_!=0.0?uFormat(", max interval=%fs", approxSyncMaxInterval_).c_str():"",
+						rgbd_image1_sub_.getTopic().c_str(),
+						rgbd_image2_sub_.getTopic().c_str(),
+						rgbd_image3_sub_.getTopic().c_str(),
+						rgbd_image4_sub_.getTopic().c_str(),
+						rgbd_image5_sub_.getTopic().c_str(),
+						rgbd_image6_sub_.getTopic().c_str());
 			}
 			else
 			{
-				rgbdSub_ = nh.subscribe("rgbd_image", topicQueueSize_, &StereoOdometry::callbackRGBD, this);
-
-				subscribedTopicsMsg =
-						uFormat("\n%s subscribed to:\n   %s",
-						getName().c_str(),
-						rgbdSub_.getTopic().c_str());
+				RCLCPP_FATAL(this->get_logger(),
+						"%s doesn't support more than 6 cameras (rgbd_cameras=%d) "
+						"with internal synchronization interface, set rgbd_cameras=0 and use "
+						"rgbd_images input topic instead for more cameras (for which "
+						"rgbdx_sync node can sync up to 8 cameras).",
+						get_name(), rgbdCameras);
 			}
+
+		}
+		else if(rgbdCameras == 0)
+		{
+			rgbdxSub_ = create_subscription<rtabmap_msgs::msg::RGBDImages>("rgbd_images", rclcpp::QoS(topicQueueSize_).reliability((rmw_qos_reliability_policy_t)qos()), std::bind(&StereoOdometry::callbackRGBDX, this, std::placeholders::_1), options);
+
+			subscribedTopic = rgbdxSub_->get_topic_name();
+			subscribedTopicsMsg =
+					uFormat("\n%s subscribed to:\n   %s",
+					get_name(),
+					rgbdxSub_->get_topic_name());
 		}
 		else
 		{
-			ros::NodeHandle left_nh(nh, "left");
-			ros::NodeHandle right_nh(nh, "right");
-			ros::NodeHandle left_pnh(pnh, "left");
-			ros::NodeHandle right_pnh(pnh, "right");
-			image_transport::ImageTransport left_it(left_nh);
-			image_transport::ImageTransport right_it(right_nh);
-			image_transport::TransportHints hintsLeft("raw", ros::TransportHints(), left_pnh);
-			image_transport::TransportHints hintsRight("raw", ros::TransportHints(), right_pnh);
+			rgbdSub_ = create_subscription<rtabmap_msgs::msg::RGBDImage>("rgbd_image", rclcpp::QoS(topicQueueSize_).reliability((rmw_qos_reliability_policy_t)qos()), std::bind(&StereoOdometry::callbackRGBD, this, std::placeholders::_1), options);
 
-			imageRectLeft_.subscribe(left_it, left_nh.resolveName("image_rect"), topicQueueSize_, hintsLeft);
-			imageRectRight_.subscribe(right_it, right_nh.resolveName("image_rect"), topicQueueSize_, hintsRight);
-			cameraInfoLeft_.subscribe(left_nh, "camera_info", topicQueueSize_);
-			cameraInfoRight_.subscribe(right_nh, "camera_info", topicQueueSize_);
+			subscribedTopic = rgbdSub_->get_topic_name();
+			subscribedTopicsMsg =
+					uFormat("\n%s subscribed to:\n   %s",
+					get_name(),
+					rgbdSub_->get_topic_name());
+		}
+	}
+	else
+	{
+		image_transport::TransportHints hints(this); // using "image_transport" parameter
+		
+		std::string leftTopic = this->get_node_topics_interface()->resolve_topic_name("left/image_rect"); // Humble/Jazzy don't resolve base topic, fixed by https://github.com/ros-perception/image_common/commit/ea7589ae8c1f7ecb83d6aab7b4c890c2d630d27a
+		std::string rightTopic = this->get_node_topics_interface()->resolve_topic_name("right/image_rect"); // Humble/Jazzy don't resolve base topic, fixed by https://github.com/ros-perception/image_common/commit/ea7589ae8c1f7ecb83d6aab7b4c890c2d630d27a
+		imageRectLeft_.subscribe(this, leftTopic, hints.getTransport(), rclcpp::QoS(topicQueueSize_).reliability((rmw_qos_reliability_policy_t)qos()).get_rmw_qos_profile(), options);
+		imageRectRight_.subscribe(this, rightTopic, hints.getTransport(), rclcpp::QoS(topicQueueSize_).reliability((rmw_qos_reliability_policy_t)qos()).get_rmw_qos_profile(), options);
+		cameraInfoLeft_.subscribe(this, "left/camera_info", RCLCPP_QOS(topicQueueSize_, qosCamInfo), options);
+		cameraInfoRight_.subscribe(this, "right/camera_info", RCLCPP_QOS(topicQueueSize_, qosCamInfo), options);
 
-			if(approxSync)
-			{
-				approxSync_ = new message_filters::Synchronizer<MyApproxSyncPolicy>(MyApproxSyncPolicy(syncQueueSize_), imageRectLeft_, imageRectRight_, cameraInfoLeft_, cameraInfoRight_);
-				if(approxSyncMaxInterval>0.0)
-					approxSync_->setMaxIntervalDuration(ros::Duration(approxSyncMaxInterval));
-				approxSync_->registerCallback(boost::bind(&StereoOdometry::callback, this, boost::placeholders::_1, boost::placeholders::_2, boost::placeholders::_3, boost::placeholders::_4));
-			}
-			else
-			{
-				exactSync_ = new message_filters::Synchronizer<MyExactSyncPolicy>(MyExactSyncPolicy(syncQueueSize_), imageRectLeft_, imageRectRight_, cameraInfoLeft_, cameraInfoRight_);
-				exactSync_->registerCallback(boost::bind(&StereoOdometry::callback, this, boost::placeholders::_1, boost::placeholders::_2, boost::placeholders::_3, boost::placeholders::_4));
-			}
-
-			subscribedTopic = left_nh.resolveName("image_rect");
-			subscribedTopicsMsg = uFormat("\n%s subscribed to (%s sync%s):\n   %s \\\n   %s \\\n   %s \\\n   %s",
-					getName().c_str(),
-					approxSync?"approx":"exact",
-					approxSync&&approxSyncMaxInterval!=0.0?uFormat(", max interval=%fs", approxSyncMaxInterval).c_str():"",
-					imageRectLeft_.getTopic().c_str(),
-					imageRectRight_.getTopic().c_str(),
-					cameraInfoLeft_.getTopic().c_str(),
-					cameraInfoRight_.getTopic().c_str());
+		if(approxSync)
+		{
+			approxSync_ = new message_filters::Synchronizer<MyApproxSyncPolicy>(MyApproxSyncPolicy(syncQueueSize_), imageRectLeft_, imageRectRight_, cameraInfoLeft_, cameraInfoRight_);
+			if(approxSyncMaxInterval_>0.0)
+				approxSync_->setMaxIntervalDuration(rclcpp::Duration::from_seconds(approxSyncMaxInterval_));
+			approxSync_->registerCallback(std::bind(&StereoOdometry::callback, this, std::placeholders::_1, std::placeholders::_2, std::placeholders::_3, std::placeholders::_4));
+		}
+		else
+		{
+			exactSync_ = new message_filters::Synchronizer<MyExactSyncPolicy>(MyExactSyncPolicy(syncQueueSize_), imageRectLeft_, imageRectRight_, cameraInfoLeft_, cameraInfoRight_);
+			exactSync_->registerCallback(std::bind(&StereoOdometry::callback, this, std::placeholders::_1, std::placeholders::_2, std::placeholders::_3, std::placeholders::_4));
 		}
 
-		initDiagnosticMsg(subscribedTopicsMsg, approxSync, subscribedTopic);
+		subscribedTopic = imageRectLeft_.getTopic();
+		subscribedTopicsMsg = uFormat("\n%s subscribed to (%s sync%s, topic_queue_size=%d, sync_queue_size=%d):\n   %s \\\n   %s \\\n   %s \\\n   %s",
+				get_name(),
+				approxSync?"approx":"exact",
+				approxSync&&approxSyncMaxInterval_!=0.0?uFormat(", max interval=%fs", approxSyncMaxInterval_).c_str():"",
+				topicQueueSize_,
+				syncQueueSize_,
+				imageRectLeft_.getSubscriber().getTopic().c_str(),
+				imageRectRight_.getSubscriber().getTopic().c_str(),
+				cameraInfoLeft_.getSubscriber()->get_topic_name(),
+				cameraInfoRight_.getSubscriber()->get_topic_name());
 	}
 
-	virtual void updateParameters(ParametersMap & parameters)
+	initDiagnosticMsg(subscribedTopicsMsg, approxSync, subscribedTopic);
+}
+
+void StereoOdometry::updateParameters(ParametersMap & parameters)
+{
+	//make sure we are using Reg/Strategy=0
+	ParametersMap::iterator iter = parameters.find(Parameters::kRegStrategy());
+	if(iter != parameters.end() && iter->second.compare("0") != 0)
 	{
-		//make sure we are using Reg/Strategy=0
-		ParametersMap::iterator iter = parameters.find(Parameters::kRegStrategy());
-		if(iter != parameters.end() && iter->second.compare("0") != 0)
+		RCLCPP_WARN(this->get_logger(), "Stereo odometry works only with \"Reg/Strategy\"=0. Ignoring value %s.", iter->second.c_str());
+	}
+	uInsert(parameters, ParametersPair(Parameters::kRegStrategy(), "0"));
+}
+
+void StereoOdometry::commonCallback(
+		const std::vector<cv_bridge::CvImageConstPtr> & leftImages,
+		const std::vector<cv_bridge::CvImageConstPtr> & rightImages,
+		const std::vector<sensor_msgs::msg::CameraInfo>& leftCameraInfos,
+		const std::vector<sensor_msgs::msg::CameraInfo>& rightCameraInfos)
+{
+	UASSERT(leftImages.size() > 0 &&
+			leftImages.size() == rightImages.size() &&
+			leftImages.size() == leftCameraInfos.size() &&
+			rightImages.size() == rightCameraInfos.size());
+	rclcpp::Time higherStamp;
+	int leftWidth = leftImages[0]->image.cols;
+	int leftHeight = leftImages[0]->image.rows;
+	int rightWidth = rightImages[0]->image.cols;
+	int rightHeight = rightImages[0]->image.rows;
+
+	UASSERT_MSG(
+			leftWidth == rightWidth && leftHeight == rightHeight,
+		uFormat("left=%dx%d right=%dx%d", leftWidth, leftHeight, rightWidth, rightHeight).c_str());
+
+	int cameraCount = leftImages.size();
+	cv::Mat left;
+	cv::Mat right;
+	std::vector<rtabmap::StereoCameraModel> cameraModels;
+	for(unsigned int i=0; i<leftImages.size(); ++i)
+	{
+		if(!(leftImages[i]->encoding.compare(sensor_msgs::image_encodings::TYPE_8UC1) ==0 ||
+			 leftImages[i]->encoding.compare(sensor_msgs::image_encodings::MONO8) ==0 ||
+			 leftImages[i]->encoding.compare(sensor_msgs::image_encodings::MONO16) ==0 ||
+			 leftImages[i]->encoding.compare(sensor_msgs::image_encodings::BGR8) == 0 ||
+			 leftImages[i]->encoding.compare(sensor_msgs::image_encodings::RGB8) == 0 ||
+			 leftImages[i]->encoding.compare(sensor_msgs::image_encodings::BGRA8) == 0 ||
+			 leftImages[i]->encoding.compare(sensor_msgs::image_encodings::RGBA8) == 0) ||
+			!(rightImages[i]->encoding.compare(sensor_msgs::image_encodings::TYPE_8UC1) ==0 ||
+			  rightImages[i]->encoding.compare(sensor_msgs::image_encodings::MONO8) ==0 ||
+			  rightImages[i]->encoding.compare(sensor_msgs::image_encodings::MONO16) ==0 ||
+			  rightImages[i]->encoding.compare(sensor_msgs::image_encodings::BGR8) == 0 ||
+			  rightImages[i]->encoding.compare(sensor_msgs::image_encodings::RGB8) == 0 ||
+			  rightImages[i]->encoding.compare(sensor_msgs::image_encodings::BGRA8) == 0 ||
+			  rightImages[i]->encoding.compare(sensor_msgs::image_encodings::RGBA8) == 0))
 		{
-			ROS_WARN("Stereo odometry works only with \"Reg/Strategy\"=0. Ignoring value %s.", iter->second.c_str());
+			RCLCPP_ERROR(this->get_logger(), "Input type must be image=mono8,mono16,rgb8,bgr8,rgba8,bgra8 (mono8 recommended), received types are %s (left) and %s (right)",
+					leftImages[i]->encoding.c_str(), rightImages[i]->encoding.c_str());
+			return;
 		}
-		uInsert(parameters, ParametersPair(Parameters::kRegStrategy(), "0"));
-	}
 
-	void commonCallback(
-			const std::vector<cv_bridge::CvImageConstPtr> & leftImages,
-			const std::vector<cv_bridge::CvImageConstPtr> & rightImages,
-			const std::vector<sensor_msgs::CameraInfo>& leftCameraInfos,
-			const std::vector<sensor_msgs::CameraInfo>& rightCameraInfos)
-	{
-		UASSERT(leftImages.size() > 0 &&
-				leftImages.size() == rightImages.size() &&
-				leftImages.size() == leftCameraInfos.size() &&
-				rightImages.size() == rightCameraInfos.size());
-		ros::Time higherStamp;
-		int leftWidth = leftImages[0]->image.cols;
-		int leftHeight = leftImages[0]->image.rows;
-		int rightWidth = rightImages[0]->image.cols;
-		int rightHeight = rightImages[0]->image.rows;
+		rclcpp::Time stamp = rtabmap_conversions::timestampFromROS(leftImages[i]->header.stamp)>rtabmap_conversions::timestampFromROS(rightImages[i]->header.stamp)?leftImages[i]->header.stamp:rightImages[i]->header.stamp;
 
-		UASSERT_MSG(
-				leftWidth == rightWidth && leftHeight == rightHeight,
-			uFormat("left=%dx%d right=%dx%d", leftWidth, leftHeight, rightWidth, rightHeight).c_str());
-
-		int cameraCount = leftImages.size();
-		cv::Mat left;
-		cv::Mat right;
-		std::vector<rtabmap::StereoCameraModel> cameraModels;
-		for(unsigned int i=0; i<leftImages.size(); ++i)
+		if(i == 0)
 		{
-			if(!(leftImages[i]->encoding.compare(sensor_msgs::image_encodings::TYPE_8UC1) ==0 ||
-				 leftImages[i]->encoding.compare(sensor_msgs::image_encodings::MONO8) ==0 ||
-				 leftImages[i]->encoding.compare(sensor_msgs::image_encodings::MONO16) ==0 ||
-				 leftImages[i]->encoding.compare(sensor_msgs::image_encodings::BGR8) == 0 ||
-				 leftImages[i]->encoding.compare(sensor_msgs::image_encodings::RGB8) == 0 ||
-				 leftImages[i]->encoding.compare(sensor_msgs::image_encodings::BGRA8) == 0 ||
-				 leftImages[i]->encoding.compare(sensor_msgs::image_encodings::RGBA8) == 0) ||
-				!(rightImages[i]->encoding.compare(sensor_msgs::image_encodings::TYPE_8UC1) ==0 ||
-				  rightImages[i]->encoding.compare(sensor_msgs::image_encodings::MONO8) ==0 ||
-				  rightImages[i]->encoding.compare(sensor_msgs::image_encodings::MONO16) ==0 ||
-				  rightImages[i]->encoding.compare(sensor_msgs::image_encodings::BGR8) == 0 ||
-				  rightImages[i]->encoding.compare(sensor_msgs::image_encodings::RGB8) == 0 ||
-				  rightImages[i]->encoding.compare(sensor_msgs::image_encodings::BGRA8) == 0 ||
-				  rightImages[i]->encoding.compare(sensor_msgs::image_encodings::RGBA8) == 0))
-			{
-				NODELET_ERROR("Input type must be image=mono8,mono16,rgb8,bgr8,rgba8,bgra8 (mono8 recommended), received types are %s (left) and %s (right)",
-						leftImages[i]->encoding.c_str(), rightImages[i]->encoding.c_str());
-				return;
-			}
+			higherStamp = stamp;
+		}
+		else if(stamp > higherStamp)
+		{
+			higherStamp = stamp;
+		}
 
-			ros::Time stamp = leftImages[i]->header.stamp>rightImages[i]->header.stamp?leftImages[i]->header.stamp:rightImages[i]->header.stamp;
+		Transform localTransform = rtabmap_conversions::getTransform(this->frameId(), leftImages[i]->header.frame_id, stamp, tfBuffer(), waitForTransform());
+		if(localTransform.isNull())
+		{
+			return;
+		}
 
-			if(i == 0)
+		if(i>0)
+		{
+			double stampDiff = fabs(rtabmap_conversions::timestampFromROS(leftImages[i]->header.stamp) - rtabmap_conversions::timestampFromROS(leftImages[i-1]->header.stamp));
+			if(stampDiff > 1.0/60.0)
 			{
-				higherStamp = stamp;
-			}
-			else if(stamp > higherStamp)
-			{
-				higherStamp = stamp;
-			}
-
-			Transform localTransform = rtabmap_conversions::getTransform(this->frameId(), leftImages[i]->header.frame_id, stamp, this->tfListener(), this->waitForTransformDuration());
-			if(localTransform.isNull())
-			{
-				return;
-			}
-
-			if(i>0)
-			{
-				double stampDiff = fabs(leftImages[i]->header.stamp.toSec() - leftImages[i-1]->header.stamp.toSec());
-				if(stampDiff > 1.0/60.0)
+				static bool warningShown = false;
+				if(!warningShown)
 				{
-					static bool warningShown = false;
-					if(!warningShown)
-					{
-						NODELET_WARN("The time difference between cameras %d and %d is "
-								"high (diff=%fs, cam%d=%fs, cam%d=%fs). You may want "
-								"to set approx_sync_max_interval to reject bad synchronizations or use "
-								"approx_sync=false if streams have all the exact same timestamp. This "
-								"message is only printed once.",
-								i-1, i,
-								stampDiff,
-								i-1, leftImages[i-1]->header.stamp.toSec(),
-								i, leftImages[i]->header.stamp.toSec());
-						warningShown = true;
-					}
+					RCLCPP_WARN(this->get_logger(), "The time difference between cameras %d and %d is "
+							"high (diff=%fs, cam%d=%fs, cam%d=%fs). You may want "
+							"to set approx_sync_max_interval to reject bad synchronizations or use "
+							"approx_sync=false if streams have all the exact same timestamp. This "
+							"message is only printed once.",
+							i-1, i,
+							stampDiff,
+							i-1, rtabmap_conversions::timestampFromROS(leftImages[i-1]->header.stamp),
+							i, rtabmap_conversions::timestampFromROS(leftImages[i]->header.stamp));
+					warningShown = true;
 				}
 			}
+		}
 
-			int quality = -1;
-			if(!leftImages[i]->image.empty() && !rightImages[i]->image.empty())
+		if(!leftImages[i]->image.empty() && !rightImages[i]->image.empty())
+		{
+			bool alreadyRectified = true;
+			Parameters::parse(parameters(), Parameters::kRtabmapImagesAlreadyRectified(), alreadyRectified);
+			rtabmap::Transform stereoTransform;
+			if(!alreadyRectified)
 			{
-				bool alreadyRectified = true;
-				Parameters::parse(parameters(), Parameters::kRtabmapImagesAlreadyRectified(), alreadyRectified);
-				rtabmap::Transform stereoTransform;
-				if(!alreadyRectified)
+				if(rightCameraInfos[i].header.frame_id.empty() || leftCameraInfos[i].header.frame_id.empty())
 				{
-					if(rightCameraInfos[i].header.frame_id.empty() || leftCameraInfos[i].header.frame_id.empty())
+					if(rightCameraInfos[i].p[3] == 0.0 && leftCameraInfos[i].p[3] == 0)
 					{
-						if(rightCameraInfos[i].P[3] == 0.0 && leftCameraInfos[i].P[3] == 0)
-						{
-							NODELET_ERROR("Parameter %s is false but the frame_id in one of the camera_info "
-									"topic is empty, so TF between the cameras cannot be computed!",
-									Parameters::kRtabmapImagesAlreadyRectified().c_str());
-							return;
-						}
-						else
-						{
-							static bool warned = false;
-							if(!warned)
-							{
-								NODELET_WARN("Parameter %s is false but the frame_id in one of the "
-										"camera_info topic is empty, so TF between the cameras cannot be "
-										"computed! However, the baseline can be computed from the calibration, "
-										"we will use this one instead of TF. This message is only printed once...",
-										Parameters::kRtabmapImagesAlreadyRectified().c_str());
-								warned = true;
-							}
-						}
+						RCLCPP_ERROR(this->get_logger(), "Parameter %s is false but the frame_id in one of the camera_info "
+								"topic is empty, so TF between the cameras cannot be computed!",
+								Parameters::kRtabmapImagesAlreadyRectified().c_str());
+						return;
 					}
 					else
-					{
-						stereoTransform = rtabmap_conversions::getTransform(
-								rightCameraInfos[i].header.frame_id,
-								leftCameraInfos[i].header.frame_id,
-								leftCameraInfos[i].header.stamp,
-								this->tfListener(),
-								this->waitForTransformDuration());
-						if(stereoTransform.isNull())
-						{
-							NODELET_ERROR("Parameter %s is false but we cannot get TF between the two cameras! (between frames %s and %s)",
-									Parameters::kRtabmapImagesAlreadyRectified().c_str(),
-									rightCameraInfos[i].header.frame_id.c_str(),
-									leftCameraInfos[i].header.frame_id.c_str());
-							return;
-						}
-						else if(stereoTransform.isIdentity())
-						{
-							NODELET_ERROR("Parameter %s is false but we cannot get a valid TF between the two cameras! "
-									"Identity transform returned between left and right cameras. Verify that if TF between "
-									"the cameras is valid: \"rosrun tf tf_echo %s %s\".",
-									Parameters::kRtabmapImagesAlreadyRectified().c_str(),
-									rightCameraInfos[i].header.frame_id.c_str(),
-									leftCameraInfos[i].header.frame_id.c_str());
-							return;
-						}
-					}
-				}
-
-				rtabmap::StereoCameraModel stereoModel = rtabmap_conversions::stereoCameraModelFromROS(leftCameraInfos[i], rightCameraInfos[i], localTransform, stereoTransform);
-
-				if( stereoModel.baseline() == 0 &&
-					alreadyRectified &&
-					!rightCameraInfos[i].header.frame_id.empty() &&
-					!leftCameraInfos[i].header.frame_id.empty())
-				{
-					stereoTransform = rtabmap_conversions::getTransform(
-							leftCameraInfos[i].header.frame_id,
-							rightCameraInfos[i].header.frame_id,
-							leftCameraInfos[i].header.stamp,
-							this->tfListener(),
-							this->waitForTransformDuration());
-
-					if(!stereoTransform.isNull() && stereoTransform.x()>0)
 					{
 						static bool warned = false;
 						if(!warned)
 						{
-							ROS_WARN("Right camera info doesn't have Tx set but we are assuming that stereo images are already rectified (see %s parameter). While not "
-									"recommended, we used TF to get the baseline (%s->%s = %fm) for convenience (e.g., D400 ir stereo issue). It is preferred to feed "
-									"a valid right camera info if stereo images are already rectified. This message is only printed once...",
-									rtabmap::Parameters::kRtabmapImagesAlreadyRectified().c_str(),
-									rightCameraInfos[i].header.frame_id.c_str(), leftCameraInfos[i].header.frame_id.c_str(), stereoTransform.x());
+							RCLCPP_WARN(this->get_logger(), "Parameter %s is false but the frame_id in one of the "
+									"camera_info topic is empty, so TF between the cameras cannot be "
+									"computed! However, the baseline can be computed from the calibration, "
+									"we will use this one instead of TF. This message is only printed once...",
+									Parameters::kRtabmapImagesAlreadyRectified().c_str());
 							warned = true;
 						}
-						stereoModel = rtabmap::StereoCameraModel(
-								stereoModel.left().fx(),
-								stereoModel.left().fy(),
-								stereoModel.left().cx(),
-								stereoModel.left().cy(),
-								stereoTransform.x(),
-								stereoModel.localTransform(),
-								stereoModel.left().imageSize());
 					}
-				}
-
-				if(alreadyRectified && stereoModel.baseline() <= 0)
-				{
-					NODELET_ERROR("The stereo baseline (%f) should be positive (baseline=-Tx/fx). We assume a horizontal left/right stereo "
-							  "setup where the Tx (or P(0,3)) is negative in the right camera info msg.", stereoModel.baseline());
-					return;
-				}
-
-				if(stereoModel.baseline() > 10.0)
-				{
-					static bool shown = false;
-					if(!shown)
-					{
-						NODELET_WARN("Detected baseline (%f m) is quite large! Is your "
-								 "right camera_info P(0,3) correctly set? Note that "
-								 "baseline=-P(0,3)/P(0,0). This warning is printed only once.",
-								 stereoModel.baseline());
-						shown = true;
-					}
-				}
-
-				cv_bridge::CvImageConstPtr ptrLeft = leftImages[i];
-				if(leftImages[i]->encoding.compare(sensor_msgs::image_encodings::TYPE_8UC1) !=0 &&
-				   leftImages[i]->encoding.compare(sensor_msgs::image_encodings::MONO8) != 0)
-				{
-					if(keepColor_ && leftImages[i]->encoding.compare(sensor_msgs::image_encodings::MONO16) != 0)
-					{
-						ptrLeft = cv_bridge::cvtColor(leftImages[i], "bgr8");
-					}
-					else
-					{
-						ptrLeft = cv_bridge::cvtColor(leftImages[i], "mono8");
-					}
-				}
-
-				cv_bridge::CvImageConstPtr ptrRight = rightImages[i];
-				if(rightImages[i]->encoding.compare(sensor_msgs::image_encodings::TYPE_8UC1) !=0 &&
-				   rightImages[i]->encoding.compare(sensor_msgs::image_encodings::MONO8) != 0)
-				{
-					ptrRight = cv_bridge::cvtColor(rightImages[i], "mono8");
-				}
-
-				// initialize
-				if(left.empty())
-				{
-					left = cv::Mat(leftHeight, leftWidth*cameraCount, ptrLeft->image.type());
-				}
-				if(right.empty())
-				{
-					right = cv::Mat(rightHeight, rightWidth*cameraCount, ptrRight->image.type());
-				}
-
-				if(ptrLeft->image.type() == left.type())
-				{
-					ptrLeft->image.copyTo(cv::Mat(left, cv::Rect(i*leftWidth, 0, leftWidth, leftHeight)));
 				}
 				else
 				{
-					NODELET_ERROR("Some left images are not the same type! %d vs %d", ptrLeft->image.type(), left.type());
-					return;
+					stereoTransform = rtabmap_conversions::getTransform(
+							rightCameraInfos[i].header.frame_id,
+							leftCameraInfos[i].header.frame_id,
+							leftCameraInfos[i].header.stamp,
+							tfBuffer(),
+							waitForTransform());
+					if(stereoTransform.isNull())
+					{
+						RCLCPP_ERROR(this->get_logger(), "Parameter %s is false but we cannot get TF between the two cameras! (between frames %s and %s)",
+								Parameters::kRtabmapImagesAlreadyRectified().c_str(),
+								rightCameraInfos[i].header.frame_id.c_str(),
+								leftCameraInfos[i].header.frame_id.c_str());
+						return;
+					}
+					else if(stereoTransform.isIdentity())
+					{
+						RCLCPP_ERROR(this->get_logger(), "Parameter %s is false but we cannot get a valid TF between the two cameras! "
+								"Identity transform returned between left and right cameras. Verify that if TF between "
+								"the cameras is valid: \"ros2 run tf2_ros tf_echo %s %s\".",
+								Parameters::kRtabmapImagesAlreadyRectified().c_str(),
+								rightCameraInfos[i].header.frame_id.c_str(),
+								leftCameraInfos[i].header.frame_id.c_str());
+						return;
+					}
 				}
+			}
 
-				if(ptrRight->image.type() == right.type())
+			rtabmap::StereoCameraModel stereoModel = rtabmap_conversions::stereoCameraModelFromROS(leftCameraInfos[i], rightCameraInfos[i], localTransform, stereoTransform);
+
+			if( stereoModel.baseline() == 0 &&
+				alreadyRectified &&
+				!rightCameraInfos[i].header.frame_id.empty() &&
+				!leftCameraInfos[i].header.frame_id.empty())
+			{
+				stereoTransform = rtabmap_conversions::getTransform(
+						leftCameraInfos[i].header.frame_id,
+						rightCameraInfos[i].header.frame_id,
+						leftCameraInfos[i].header.stamp,
+						tfBuffer(),
+						waitForTransform());
+
+				if(!stereoTransform.isNull() && stereoTransform.x()>0)
 				{
-					ptrRight->image.copyTo(cv::Mat(right, cv::Rect(i*rightWidth, 0, rightWidth, rightHeight)));
+					static bool warned = false;
+					if(!warned)
+					{
+						RCLCPP_WARN(this->get_logger(), "Right camera info doesn't have Tx set but we are assuming that stereo images are already rectified (see %s parameter). While not "
+								"recommended, we used TF to get the baseline (%s->%s = %fm) for convenience (e.g., D400 ir stereo issue). It is preferred to feed "
+								"a valid right camera info if stereo images are already rectified. This message is only printed once...",
+								rtabmap::Parameters::kRtabmapImagesAlreadyRectified().c_str(),
+								rightCameraInfos[i].header.frame_id.c_str(), leftCameraInfos[i].header.frame_id.c_str(), stereoTransform.x());
+						warned = true;
+					}
+					stereoModel = rtabmap::StereoCameraModel(
+							stereoModel.left().fx(),
+							stereoModel.left().fy(),
+							stereoModel.left().cx(),
+							stereoModel.left().cy(),
+							stereoTransform.x(),
+							stereoModel.localTransform(),
+							stereoModel.left().imageSize());
+				}
+			}
+			if(alreadyRectified && stereoModel.baseline() <= 0)
+			{
+				RCLCPP_ERROR(this->get_logger(), "The stereo baseline (%f) should be positive (baseline=-Tx/fx). We assume a horizontal left/right stereo "
+						  "setup where the Tx (or P(0,3)) is negative in the right camera info msg.", stereoModel.baseline());
+				return;
+			}
+
+			if(stereoModel.baseline() > 10.0)
+			{
+				static bool shown = false;
+				if(!shown)
+				{
+					RCLCPP_WARN(this->get_logger(), "Detected baseline (%f m) is quite large! Is your "
+							 "right camera_info P(0,3) correctly set? Note that "
+							 "baseline=-P(0,3)/P(0,0). This warning is printed only once.",
+							 stereoModel.baseline());
+					shown = true;
+				}
+			}
+			cv_bridge::CvImageConstPtr ptrLeft = leftImages[i];
+			if(leftImages[i]->encoding.compare(sensor_msgs::image_encodings::TYPE_8UC1) !=0 &&
+			   leftImages[i]->encoding.compare(sensor_msgs::image_encodings::MONO8) != 0)
+			{
+				if(keepColor_ && leftImages[i]->encoding.compare(sensor_msgs::image_encodings::MONO16) != 0)
+				{
+					ptrLeft = cv_bridge::cvtColor(leftImages[i], "bgr8");
 				}
 				else
 				{
-					NODELET_ERROR("Some right images are not the same type! %d vs %d", ptrRight->image.type(), right.type());
-					return;
+					ptrLeft = cv_bridge::cvtColor(leftImages[i], "mono8");
 				}
+			}
+			cv_bridge::CvImageConstPtr ptrRight = rightImages[i];
+			if(rightImages[i]->encoding.compare(sensor_msgs::image_encodings::TYPE_8UC1) !=0 &&
+			   rightImages[i]->encoding.compare(sensor_msgs::image_encodings::MONO8) != 0)
+			{
+				ptrRight = cv_bridge::cvtColor(rightImages[i], "mono8");
+			}
 
-				cameraModels.push_back(stereoModel);
+			// initialize
+			if(left.empty())
+			{
+				left = cv::Mat(leftHeight, leftWidth*cameraCount, ptrLeft->image.type());
+			}
+			if(right.empty())
+			{
+				right = cv::Mat(rightHeight, rightWidth*cameraCount, ptrRight->image.type());
+			}
+
+			if(ptrLeft->image.type() == left.type())
+			{
+				ptrLeft->image.copyTo(cv::Mat(left, cv::Rect(i*leftWidth, 0, leftWidth, leftHeight)));
 			}
 			else
 			{
-				NODELET_ERROR("Odom: input images empty?!?");
+				RCLCPP_ERROR(this->get_logger(), "Some left images are not the same type! %d vs %d", ptrLeft->image.type(), left.type());
 				return;
 			}
-		}
 
-		//
-		rtabmap::SensorData data(
-				left,
-				right,
-				cameraModels,
-				0,
-				rtabmap_conversions::timestampFromROS(higherStamp));
-
-		std_msgs::Header header;
-		header.stamp = higherStamp;
-		header.frame_id = leftImages.size()==1?leftImages[0]->header.frame_id:"";
-		this->processData(data, header);
-	}
-
-	void callback(
-				const sensor_msgs::ImageConstPtr& imageLeft,
-				const sensor_msgs::ImageConstPtr& imageRight,
-				const sensor_msgs::CameraInfoConstPtr& cameraInfoLeft,
-				const sensor_msgs::CameraInfoConstPtr& cameraInfoRight)
-	{
-		if(!this->isPaused())
-		{
-			std::vector<cv_bridge::CvImageConstPtr> leftMsgs(1);
-			std::vector<cv_bridge::CvImageConstPtr> rightMsgs(1);
-			std::vector<sensor_msgs::CameraInfo> leftInfoMsgs;
-			std::vector<sensor_msgs::CameraInfo> rightInfoMsgs;
-			leftMsgs[0] = cv_bridge::toCvShare(imageLeft);
-			rightMsgs[0] = cv_bridge::toCvShare(imageRight);
-			leftInfoMsgs.push_back(*cameraInfoLeft);
-			rightInfoMsgs.push_back(*cameraInfoRight);
-
-			double stampDiff = fabs(imageLeft->header.stamp.toSec() - imageRight->header.stamp.toSec());
-			if(stampDiff > 0.010)
+			if(ptrRight->image.type() == right.type())
 			{
-				NODELET_WARN("The time difference between left and right frames is "
-						"high (diff=%fs, left=%fs, right=%fs). If your left and right cameras are hardware "
-						"synchronized, use approx_sync:=false. Otherwise, you may want "
-						"to set approx_sync_max_interval lower than 0.01s to reject spurious bad synchronizations.",
-						stampDiff,
-						imageLeft->header.stamp.toSec(),
-						imageRight->header.stamp.toSec());
+				ptrRight->image.copyTo(cv::Mat(right, cv::Rect(i*rightWidth, 0, rightWidth, rightHeight)));
 			}
-
-			this->commonCallback(leftMsgs, rightMsgs, leftInfoMsgs, rightInfoMsgs);
-		}
-	}
-
-	void callbackRGBD(
-			const rtabmap_msgs::RGBDImageConstPtr& image)
-	{
-		if(!this->isPaused())
-		{
-			std::vector<cv_bridge::CvImageConstPtr> leftMsgs(1);
-			std::vector<cv_bridge::CvImageConstPtr> rightMsgs(1);
-			std::vector<sensor_msgs::CameraInfo> leftInfoMsgs;
-			std::vector<sensor_msgs::CameraInfo> rightInfoMsgs;
-			rtabmap_conversions::toCvShare(image, leftMsgs[0], rightMsgs[0]);
-			leftInfoMsgs.push_back(image->rgb_camera_info);
-			rightInfoMsgs.push_back(image->depth_camera_info);
-
-			this->commonCallback(leftMsgs, rightMsgs, leftInfoMsgs, rightInfoMsgs);
-		}
-	}
-
-	void callbackRGBDX(
-			const rtabmap_msgs::RGBDImagesConstPtr& images)
-	{
-		if(!this->isPaused())
-		{
-			if(images->rgbd_images.empty())
+			else
 			{
-				NODELET_ERROR("Input topic \"%s\" doesn't contain any image(s)!", rgbdxSub_.getTopic().c_str());
+				RCLCPP_ERROR(this->get_logger(), "Some right images are not the same type! %d vs %d", ptrRight->image.type(), right.type());
 				return;
 			}
-			std::vector<cv_bridge::CvImageConstPtr> leftMsgs(images->rgbd_images.size());
-			std::vector<cv_bridge::CvImageConstPtr> rightMsgs(images->rgbd_images.size());
-			std::vector<sensor_msgs::CameraInfo> leftInfoMsgs;
-			std::vector<sensor_msgs::CameraInfo> rightInfoMsgs;
-			for(size_t i=0; i<images->rgbd_images.size(); ++i)
-			{
-				rtabmap_conversions::toCvShare(images->rgbd_images[i], images, leftMsgs[i], rightMsgs[i]);
-				leftInfoMsgs.push_back(images->rgbd_images[i].rgb_camera_info);
-				rightInfoMsgs.push_back(images->rgbd_images[i].depth_camera_info);
-			}
 
-			this->commonCallback(leftMsgs, rightMsgs, leftInfoMsgs, rightInfoMsgs);
+			cameraModels.push_back(stereoModel);
+		}
+		else
+		{
+			RCLCPP_ERROR(this->get_logger(), "Odom: input images empty?!?");
+			return;
 		}
 	}
 
-	void callbackRGBD2(
-			const rtabmap_msgs::RGBDImageConstPtr& image,
-			const rtabmap_msgs::RGBDImageConstPtr& image2)
+	//
+	rtabmap::SensorData data(
+			left,
+			right,
+			cameraModels,
+			0,
+			rtabmap_conversions::timestampFromROS(higherStamp));
+
+	std_msgs::msg::Header header;
+	header.stamp = higherStamp;
+	header.frame_id = leftImages.size()==1?leftImages[0]->header.frame_id:"";
+	this->processData(data, header);
+}
+
+void StereoOdometry::callback(
+		const sensor_msgs::msg::Image::ConstSharedPtr imageRectLeft,
+		const sensor_msgs::msg::Image::ConstSharedPtr imageRectRight,
+		const sensor_msgs::msg::CameraInfo::ConstSharedPtr cameraInfoLeft,
+		const sensor_msgs::msg::CameraInfo::ConstSharedPtr cameraInfoRight)
+{
+	tick(imageRectLeft->header.stamp);
+
+	if(!this->isPaused())
 	{
-		if(!this->isPaused())
+		std::vector<cv_bridge::CvImageConstPtr> leftMsgs(1);
+		std::vector<cv_bridge::CvImageConstPtr> rightMsgs(1);
+		std::vector<sensor_msgs::msg::CameraInfo> leftInfoMsgs;
+		std::vector<sensor_msgs::msg::CameraInfo> rightInfoMsgs;
+		leftMsgs[0] = cv_bridge::toCvShare(imageRectLeft);
+		rightMsgs[0] = cv_bridge::toCvShare(imageRectRight);
+		leftInfoMsgs.push_back(*cameraInfoLeft);
+		rightInfoMsgs.push_back(*cameraInfoRight);
+
+		double stampDiff = fabs(rtabmap_conversions::timestampFromROS(imageRectLeft->header.stamp) - rtabmap_conversions::timestampFromROS(imageRectRight->header.stamp));
+		if(approxSyncMaxInterval_==0.0 && stampDiff > 0.010)
 		{
-			std::vector<cv_bridge::CvImageConstPtr> leftMsgs(2);
-			std::vector<cv_bridge::CvImageConstPtr> rightMsgs(2);
-			std::vector<sensor_msgs::CameraInfo> leftInfoMsgs;
-			std::vector<sensor_msgs::CameraInfo> rightInfoMsgs;
-			rtabmap_conversions::toCvShare(image, leftMsgs[0], rightMsgs[0]);
-			rtabmap_conversions::toCvShare(image2, leftMsgs[1], rightMsgs[1]);
-			leftInfoMsgs.push_back(image->rgb_camera_info);
-			leftInfoMsgs.push_back(image2->rgb_camera_info);
-			rightInfoMsgs.push_back(image->depth_camera_info);
-			rightInfoMsgs.push_back(image2->depth_camera_info);
-
-			this->commonCallback(leftMsgs, rightMsgs, leftInfoMsgs, rightInfoMsgs);
+			RCLCPP_WARN(this->get_logger(), "The time difference between left and right frames is "
+					"high (diff=%fs, left=%fs, right=%fs). If your left and right cameras are hardware "
+					"synchronized, use approx_sync:=false. Otherwise, you may want "
+					"to set approx_sync_max_interval lower than 0.01s to reject spurious bad synchronizations.",
+					stampDiff,
+					rtabmap_conversions::timestampFromROS(imageRectLeft->header.stamp),
+					rtabmap_conversions::timestampFromROS(imageRectRight->header.stamp));
 		}
-	}
 
-	void callbackRGBD3(
-			const rtabmap_msgs::RGBDImageConstPtr& image,
-			const rtabmap_msgs::RGBDImageConstPtr& image2,
-			const rtabmap_msgs::RGBDImageConstPtr& image3)
+		this->commonCallback(leftMsgs, rightMsgs, leftInfoMsgs, rightInfoMsgs);
+	}
+}
+
+void StereoOdometry::callbackRGBD(
+		const rtabmap_msgs::msg::RGBDImage::ConstSharedPtr image)
+{
+	tick(image->header.stamp);
+
+	if(!this->isPaused())
 	{
-		if(!this->isPaused())
-		{
-			std::vector<cv_bridge::CvImageConstPtr> leftMsgs(3);
-			std::vector<cv_bridge::CvImageConstPtr> rightMsgs(3);
-			std::vector<sensor_msgs::CameraInfo> leftInfoMsgs;
-			std::vector<sensor_msgs::CameraInfo> rightInfoMsgs;
-			rtabmap_conversions::toCvShare(image, leftMsgs[0], rightMsgs[0]);
-			rtabmap_conversions::toCvShare(image2, leftMsgs[1], rightMsgs[1]);
-			rtabmap_conversions::toCvShare(image3, leftMsgs[2], rightMsgs[2]);
-			leftInfoMsgs.push_back(image->rgb_camera_info);
-			leftInfoMsgs.push_back(image2->rgb_camera_info);
-			leftInfoMsgs.push_back(image3->rgb_camera_info);
-			rightInfoMsgs.push_back(image->depth_camera_info);
-			rightInfoMsgs.push_back(image2->depth_camera_info);
-			rightInfoMsgs.push_back(image3->depth_camera_info);
+		std::vector<cv_bridge::CvImageConstPtr> leftMsgs(1);
+		std::vector<cv_bridge::CvImageConstPtr> rightMsgs(1);
+		std::vector<sensor_msgs::msg::CameraInfo> leftInfoMsgs;
+		std::vector<sensor_msgs::msg::CameraInfo> rightInfoMsgs;
+		rtabmap_conversions::toCvShare(image, leftMsgs[0], rightMsgs[0]);
+		leftInfoMsgs.push_back(image->rgb_camera_info);
+		rightInfoMsgs.push_back(image->depth_camera_info);
 
-			this->commonCallback(leftMsgs, rightMsgs, leftInfoMsgs, rightInfoMsgs);
-		}
+		this->commonCallback(leftMsgs, rightMsgs, leftInfoMsgs, rightInfoMsgs);
 	}
+}
 
-	void callbackRGBD4(
-			const rtabmap_msgs::RGBDImageConstPtr& image,
-			const rtabmap_msgs::RGBDImageConstPtr& image2,
-			const rtabmap_msgs::RGBDImageConstPtr& image3,
-			const rtabmap_msgs::RGBDImageConstPtr& image4)
+void StereoOdometry::callbackRGBDX(
+		const rtabmap_msgs::msg::RGBDImages::ConstSharedPtr images)
+{
+	tick(images->header.stamp);
+
+	if(!this->isPaused())
 	{
-		if(!this->isPaused())
+		if(images->rgbd_images.empty())
 		{
-			std::vector<cv_bridge::CvImageConstPtr> leftMsgs(4);
-			std::vector<cv_bridge::CvImageConstPtr> rightMsgs(4);
-			std::vector<sensor_msgs::CameraInfo> leftInfoMsgs;
-			std::vector<sensor_msgs::CameraInfo> rightInfoMsgs;
-			rtabmap_conversions::toCvShare(image, leftMsgs[0], rightMsgs[0]);
-			rtabmap_conversions::toCvShare(image2, leftMsgs[1], rightMsgs[1]);
-			rtabmap_conversions::toCvShare(image3, leftMsgs[2], rightMsgs[2]);
-			rtabmap_conversions::toCvShare(image4, leftMsgs[3], rightMsgs[3]);
-			leftInfoMsgs.push_back(image->rgb_camera_info);
-			leftInfoMsgs.push_back(image2->rgb_camera_info);
-			leftInfoMsgs.push_back(image3->rgb_camera_info);
-			leftInfoMsgs.push_back(image4->rgb_camera_info);
-			rightInfoMsgs.push_back(image->depth_camera_info);
-			rightInfoMsgs.push_back(image2->depth_camera_info);
-			rightInfoMsgs.push_back(image3->depth_camera_info);
-			rightInfoMsgs.push_back(image4->depth_camera_info);
-
-			this->commonCallback(leftMsgs, rightMsgs, leftInfoMsgs, rightInfoMsgs);
+			RCLCPP_ERROR(this->get_logger(), "Input topic \"%s\" doesn't contain any image(s)!", rgbdxSub_->get_topic_name());
+			return;
 		}
-	}
+		std::vector<cv_bridge::CvImageConstPtr> leftMsgs(images->rgbd_images.size());
+		std::vector<cv_bridge::CvImageConstPtr> rightMsgs(images->rgbd_images.size());
+		std::vector<sensor_msgs::msg::CameraInfo> leftInfoMsgs;
+		std::vector<sensor_msgs::msg::CameraInfo> rightInfoMsgs;
+		for(size_t i=0; i<images->rgbd_images.size(); ++i)
+		{
+			rtabmap_conversions::toCvShare(images->rgbd_images[i], images, leftMsgs[i], rightMsgs[i]);
+			leftInfoMsgs.push_back(images->rgbd_images[i].rgb_camera_info);
+			rightInfoMsgs.push_back(images->rgbd_images[i].depth_camera_info);
+		}
 
-	void callbackRGBD5(
-			const rtabmap_msgs::RGBDImageConstPtr& image,
-			const rtabmap_msgs::RGBDImageConstPtr& image2,
-			const rtabmap_msgs::RGBDImageConstPtr& image3,
-			const rtabmap_msgs::RGBDImageConstPtr& image4,
-			const rtabmap_msgs::RGBDImageConstPtr& image5)
+		this->commonCallback(leftMsgs, rightMsgs, leftInfoMsgs, rightInfoMsgs);
+	}
+}
+
+void StereoOdometry::callbackRGBD2(
+		const rtabmap_msgs::msg::RGBDImage::ConstSharedPtr image,
+		const rtabmap_msgs::msg::RGBDImage::ConstSharedPtr image2)
+{
+	tick(image->header.stamp);
+
+	if(!this->isPaused())
 	{
-		if(!this->isPaused())
-		{
-			std::vector<cv_bridge::CvImageConstPtr> leftMsgs(5);
-			std::vector<cv_bridge::CvImageConstPtr> rightMsgs(5);
-			std::vector<sensor_msgs::CameraInfo> leftInfoMsgs;
-			std::vector<sensor_msgs::CameraInfo> rightInfoMsgs;
-			rtabmap_conversions::toCvShare(image, leftMsgs[0], rightMsgs[0]);
-			rtabmap_conversions::toCvShare(image2, leftMsgs[1], rightMsgs[1]);
-			rtabmap_conversions::toCvShare(image3, leftMsgs[2], rightMsgs[2]);
-			rtabmap_conversions::toCvShare(image4, leftMsgs[3], rightMsgs[3]);
-			rtabmap_conversions::toCvShare(image5, leftMsgs[4], rightMsgs[4]);
-			leftInfoMsgs.push_back(image->rgb_camera_info);
-			leftInfoMsgs.push_back(image2->rgb_camera_info);
-			leftInfoMsgs.push_back(image3->rgb_camera_info);
-			leftInfoMsgs.push_back(image4->rgb_camera_info);
-			leftInfoMsgs.push_back(image5->rgb_camera_info);
-			rightInfoMsgs.push_back(image->depth_camera_info);
-			rightInfoMsgs.push_back(image2->depth_camera_info);
-			rightInfoMsgs.push_back(image3->depth_camera_info);
-			rightInfoMsgs.push_back(image4->depth_camera_info);
-			rightInfoMsgs.push_back(image5->depth_camera_info);
+		std::vector<cv_bridge::CvImageConstPtr> leftMsgs(2);
+		std::vector<cv_bridge::CvImageConstPtr> rightMsgs(2);
+		std::vector<sensor_msgs::msg::CameraInfo> leftInfoMsgs;
+		std::vector<sensor_msgs::msg::CameraInfo> rightInfoMsgs;
+		rtabmap_conversions::toCvShare(image, leftMsgs[0], rightMsgs[0]);
+		rtabmap_conversions::toCvShare(image2, leftMsgs[1], rightMsgs[1]);
+		leftInfoMsgs.push_back(image->rgb_camera_info);
+		leftInfoMsgs.push_back(image2->rgb_camera_info);
+		rightInfoMsgs.push_back(image->depth_camera_info);
+		rightInfoMsgs.push_back(image2->depth_camera_info);
 
-			this->commonCallback(leftMsgs, rightMsgs, leftInfoMsgs, rightInfoMsgs);
-		}
+		this->commonCallback(leftMsgs, rightMsgs, leftInfoMsgs, rightInfoMsgs);
 	}
+}
 
-	void callbackRGBD6(
-			const rtabmap_msgs::RGBDImageConstPtr& image,
-			const rtabmap_msgs::RGBDImageConstPtr& image2,
-			const rtabmap_msgs::RGBDImageConstPtr& image3,
-			const rtabmap_msgs::RGBDImageConstPtr& image4,
-			const rtabmap_msgs::RGBDImageConstPtr& image5,
-			const rtabmap_msgs::RGBDImageConstPtr& image6)
+void StereoOdometry::callbackRGBD3(
+		const rtabmap_msgs::msg::RGBDImage::ConstSharedPtr image,
+		const rtabmap_msgs::msg::RGBDImage::ConstSharedPtr image2,
+		const rtabmap_msgs::msg::RGBDImage::ConstSharedPtr image3)
+{
+	tick(image->header.stamp);
+
+	if(!this->isPaused())
 	{
-		if(!this->isPaused())
-		{
-			std::vector<cv_bridge::CvImageConstPtr> leftMsgs(6);
-			std::vector<cv_bridge::CvImageConstPtr> rightMsgs(6);
-			std::vector<sensor_msgs::CameraInfo> leftInfoMsgs;
-			std::vector<sensor_msgs::CameraInfo> rightInfoMsgs;
-			rtabmap_conversions::toCvShare(image, leftMsgs[0], rightMsgs[0]);
-			rtabmap_conversions::toCvShare(image2, leftMsgs[1], rightMsgs[1]);
-			rtabmap_conversions::toCvShare(image3, leftMsgs[2], rightMsgs[2]);
-			rtabmap_conversions::toCvShare(image4, leftMsgs[3], rightMsgs[3]);
-			rtabmap_conversions::toCvShare(image5, leftMsgs[4], rightMsgs[4]);
-			rtabmap_conversions::toCvShare(image6, leftMsgs[5], rightMsgs[5]);
-			leftInfoMsgs.push_back(image->rgb_camera_info);
-			leftInfoMsgs.push_back(image2->rgb_camera_info);
-			leftInfoMsgs.push_back(image3->rgb_camera_info);
-			leftInfoMsgs.push_back(image4->rgb_camera_info);
-			leftInfoMsgs.push_back(image5->rgb_camera_info);
-			leftInfoMsgs.push_back(image6->rgb_camera_info);
-			rightInfoMsgs.push_back(image->depth_camera_info);
-			rightInfoMsgs.push_back(image2->depth_camera_info);
-			rightInfoMsgs.push_back(image3->depth_camera_info);
-			rightInfoMsgs.push_back(image4->depth_camera_info);
-			rightInfoMsgs.push_back(image5->depth_camera_info);
-			rightInfoMsgs.push_back(image6->depth_camera_info);
+		std::vector<cv_bridge::CvImageConstPtr> leftMsgs(3);
+		std::vector<cv_bridge::CvImageConstPtr> rightMsgs(3);
+		std::vector<sensor_msgs::msg::CameraInfo> leftInfoMsgs;
+		std::vector<sensor_msgs::msg::CameraInfo> rightInfoMsgs;
+		rtabmap_conversions::toCvShare(image, leftMsgs[0], rightMsgs[0]);
+		rtabmap_conversions::toCvShare(image2, leftMsgs[1], rightMsgs[1]);
+		rtabmap_conversions::toCvShare(image3, leftMsgs[2], rightMsgs[2]);
+		leftInfoMsgs.push_back(image->rgb_camera_info);
+		leftInfoMsgs.push_back(image2->rgb_camera_info);
+		leftInfoMsgs.push_back(image3->rgb_camera_info);
+		rightInfoMsgs.push_back(image->depth_camera_info);
+		rightInfoMsgs.push_back(image2->depth_camera_info);
+		rightInfoMsgs.push_back(image3->depth_camera_info);
 
-			this->commonCallback(leftMsgs, rightMsgs, leftInfoMsgs, rightInfoMsgs);
-		}
+		this->commonCallback(leftMsgs, rightMsgs, leftInfoMsgs, rightInfoMsgs);
 	}
+}
 
-protected:
-	virtual void flushCallbacks()
+void StereoOdometry::callbackRGBD4(
+		const rtabmap_msgs::msg::RGBDImage::ConstSharedPtr image,
+		const rtabmap_msgs::msg::RGBDImage::ConstSharedPtr image2,
+		const rtabmap_msgs::msg::RGBDImage::ConstSharedPtr image3,
+		const rtabmap_msgs::msg::RGBDImage::ConstSharedPtr image4)
+{
+	tick(image->header.stamp);
+
+	if(!this->isPaused())
 	{
-		//flush callbacks
-		if(approxSync_)
-		{
-			delete approxSync_;
-			approxSync_ = new message_filters::Synchronizer<MyApproxSyncPolicy>(MyApproxSyncPolicy(syncQueueSize_), imageRectLeft_, imageRectRight_, cameraInfoLeft_, cameraInfoRight_);
-			approxSync_->registerCallback(boost::bind(&StereoOdometry::callback, this, boost::placeholders::_1, boost::placeholders::_2, boost::placeholders::_3, boost::placeholders::_4));
-		}
-		if(exactSync_)
-		{
-			delete exactSync_;
-			exactSync_ = new message_filters::Synchronizer<MyExactSyncPolicy>(MyExactSyncPolicy(syncQueueSize_), imageRectLeft_, imageRectRight_, cameraInfoLeft_, cameraInfoRight_);
-			exactSync_->registerCallback(boost::bind(&StereoOdometry::callback, this, boost::placeholders::_1, boost::placeholders::_2, boost::placeholders::_3, boost::placeholders::_4));
-		}
-		if(approxSync2_)
-		{
-			delete approxSync2_;
-			approxSync2_ = new message_filters::Synchronizer<MyApproxSync2Policy>(
-					MyApproxSync2Policy(syncQueueSize_),
-					rgbd_image1_sub_,
-					rgbd_image2_sub_);
-			approxSync2_->registerCallback(boost::bind(&StereoOdometry::callbackRGBD2, this, boost::placeholders::_1, boost::placeholders::_2));
-		}
-		if(exactSync2_)
-		{
-			delete exactSync2_;
-			exactSync2_ = new message_filters::Synchronizer<MyExactSync2Policy>(
-					MyExactSync2Policy(syncQueueSize_),
-					rgbd_image1_sub_,
-					rgbd_image2_sub_);
-			exactSync2_->registerCallback(boost::bind(&StereoOdometry::callbackRGBD2, this, boost::placeholders::_1, boost::placeholders::_2));
-		}
-		if(approxSync3_)
-		{
-			delete approxSync3_;
-			approxSync3_ = new message_filters::Synchronizer<MyApproxSync3Policy>(
-					MyApproxSync3Policy(syncQueueSize_),
-					rgbd_image1_sub_,
-					rgbd_image2_sub_,
-					rgbd_image3_sub_);
-			approxSync3_->registerCallback(boost::bind(&StereoOdometry::callbackRGBD3, this, boost::placeholders::_1, boost::placeholders::_2, boost::placeholders::_3));
-		}
-		if(exactSync3_)
-		{
-			delete exactSync3_;
-			exactSync3_ = new message_filters::Synchronizer<MyExactSync3Policy>(
-					MyExactSync3Policy(syncQueueSize_),
-					rgbd_image1_sub_,
-					rgbd_image2_sub_,
-					rgbd_image3_sub_);
-			exactSync3_->registerCallback(boost::bind(&StereoOdometry::callbackRGBD3, this, boost::placeholders::_1, boost::placeholders::_2, boost::placeholders::_3));
-		}
-		if(approxSync4_)
-		{
-			delete approxSync4_;
-			approxSync4_ = new message_filters::Synchronizer<MyApproxSync4Policy>(
-					MyApproxSync4Policy(syncQueueSize_),
-					rgbd_image1_sub_,
-					rgbd_image2_sub_,
-					rgbd_image3_sub_,
-					rgbd_image4_sub_);
-			approxSync4_->registerCallback(boost::bind(&StereoOdometry::callbackRGBD4, this, boost::placeholders::_1, boost::placeholders::_2, boost::placeholders::_3, boost::placeholders::_4));
-		}
-		if(exactSync4_)
-		{
-			delete exactSync4_;
-			exactSync4_ = new message_filters::Synchronizer<MyExactSync4Policy>(
-					MyExactSync4Policy(syncQueueSize_),
-					rgbd_image1_sub_,
-					rgbd_image2_sub_,
-					rgbd_image3_sub_,
-					rgbd_image4_sub_);
-			exactSync4_->registerCallback(boost::bind(&StereoOdometry::callbackRGBD4, this, boost::placeholders::_1, boost::placeholders::_2, boost::placeholders::_3, boost::placeholders::_4));
-		}
-		if(approxSync5_)
-		{
-			delete approxSync5_;
-			approxSync5_ = new message_filters::Synchronizer<MyApproxSync5Policy>(
-					MyApproxSync5Policy(syncQueueSize_),
-					rgbd_image1_sub_,
-					rgbd_image2_sub_,
-					rgbd_image3_sub_,
-					rgbd_image4_sub_,
-					rgbd_image5_sub_);
-			approxSync5_->registerCallback(boost::bind(&StereoOdometry::callbackRGBD5, this, boost::placeholders::_1, boost::placeholders::_2, boost::placeholders::_3, boost::placeholders::_4, boost::placeholders::_5));
-		}
-		if(exactSync5_)
-		{
-			delete exactSync5_;
-			exactSync5_ = new message_filters::Synchronizer<MyExactSync5Policy>(
-					MyExactSync5Policy(syncQueueSize_),
-					rgbd_image1_sub_,
-					rgbd_image2_sub_,
-					rgbd_image3_sub_,
-					rgbd_image4_sub_,
-					rgbd_image5_sub_);
-			exactSync5_->registerCallback(boost::bind(&StereoOdometry::callbackRGBD5, this, boost::placeholders::_1, boost::placeholders::_2, boost::placeholders::_3, boost::placeholders::_4, boost::placeholders::_5));
-		}
-		if(approxSync6_)
-		{
-			delete approxSync6_;
-			approxSync6_ = new message_filters::Synchronizer<MyApproxSync6Policy>(
-					MyApproxSync6Policy(syncQueueSize_),
-					rgbd_image1_sub_,
-					rgbd_image2_sub_,
-					rgbd_image3_sub_,
-					rgbd_image4_sub_,
-					rgbd_image5_sub_,
-					rgbd_image6_sub_);
-			approxSync6_->registerCallback(boost::bind(&StereoOdometry::callbackRGBD6, this, boost::placeholders::_1, boost::placeholders::_2, boost::placeholders::_3, boost::placeholders::_4, boost::placeholders::_5, boost::placeholders::_6));
-		}
-		if(exactSync6_)
-		{
-			delete exactSync6_;
-			exactSync6_ = new message_filters::Synchronizer<MyExactSync6Policy>(
-					MyExactSync6Policy(syncQueueSize_),
-					rgbd_image1_sub_,
-					rgbd_image2_sub_,
-					rgbd_image3_sub_,
-					rgbd_image4_sub_,
-					rgbd_image5_sub_,
-					rgbd_image6_sub_);
-			exactSync6_->registerCallback(boost::bind(&StereoOdometry::callbackRGBD6, this, boost::placeholders::_1, boost::placeholders::_2, boost::placeholders::_3, boost::placeholders::_4, boost::placeholders::_5, boost::placeholders::_6));
-		}
+		std::vector<cv_bridge::CvImageConstPtr> leftMsgs(4);
+		std::vector<cv_bridge::CvImageConstPtr> rightMsgs(4);
+		std::vector<sensor_msgs::msg::CameraInfo> leftInfoMsgs;
+		std::vector<sensor_msgs::msg::CameraInfo> rightInfoMsgs;
+		rtabmap_conversions::toCvShare(image, leftMsgs[0], rightMsgs[0]);
+		rtabmap_conversions::toCvShare(image2, leftMsgs[1], rightMsgs[1]);
+		rtabmap_conversions::toCvShare(image3, leftMsgs[2], rightMsgs[2]);
+		rtabmap_conversions::toCvShare(image4, leftMsgs[3], rightMsgs[3]);
+		leftInfoMsgs.push_back(image->rgb_camera_info);
+		leftInfoMsgs.push_back(image2->rgb_camera_info);
+		leftInfoMsgs.push_back(image3->rgb_camera_info);
+		leftInfoMsgs.push_back(image4->rgb_camera_info);
+		rightInfoMsgs.push_back(image->depth_camera_info);
+		rightInfoMsgs.push_back(image2->depth_camera_info);
+		rightInfoMsgs.push_back(image3->depth_camera_info);
+		rightInfoMsgs.push_back(image4->depth_camera_info);
+
+		this->commonCallback(leftMsgs, rightMsgs, leftInfoMsgs, rightInfoMsgs);
 	}
+}
 
-private:
-	image_transport::SubscriberFilter imageRectLeft_;
-	image_transport::SubscriberFilter imageRectRight_;
-	message_filters::Subscriber<sensor_msgs::CameraInfo> cameraInfoLeft_;
-	message_filters::Subscriber<sensor_msgs::CameraInfo> cameraInfoRight_;
+void StereoOdometry::callbackRGBD5(
+		const rtabmap_msgs::msg::RGBDImage::ConstSharedPtr image,
+		const rtabmap_msgs::msg::RGBDImage::ConstSharedPtr image2,
+		const rtabmap_msgs::msg::RGBDImage::ConstSharedPtr image3,
+		const rtabmap_msgs::msg::RGBDImage::ConstSharedPtr image4,
+		const rtabmap_msgs::msg::RGBDImage::ConstSharedPtr image5)
+{
+	tick(image->header.stamp);
 
-	ros::Subscriber rgbdSub_;
-	ros::Subscriber rgbdxSub_;
-	message_filters::Subscriber<rtabmap_msgs::RGBDImage> rgbd_image1_sub_;
-	message_filters::Subscriber<rtabmap_msgs::RGBDImage> rgbd_image2_sub_;
-	message_filters::Subscriber<rtabmap_msgs::RGBDImage> rgbd_image3_sub_;
-	message_filters::Subscriber<rtabmap_msgs::RGBDImage> rgbd_image4_sub_;
-	message_filters::Subscriber<rtabmap_msgs::RGBDImage> rgbd_image5_sub_;
-	message_filters::Subscriber<rtabmap_msgs::RGBDImage> rgbd_image6_sub_;
+	if(!this->isPaused())
+	{
+		std::vector<cv_bridge::CvImageConstPtr> leftMsgs(5);
+		std::vector<cv_bridge::CvImageConstPtr> rightMsgs(5);
+		std::vector<sensor_msgs::msg::CameraInfo> leftInfoMsgs;
+		std::vector<sensor_msgs::msg::CameraInfo> rightInfoMsgs;
+		rtabmap_conversions::toCvShare(image, leftMsgs[0], rightMsgs[0]);
+		rtabmap_conversions::toCvShare(image2, leftMsgs[1], rightMsgs[1]);
+		rtabmap_conversions::toCvShare(image3, leftMsgs[2], rightMsgs[2]);
+		rtabmap_conversions::toCvShare(image4, leftMsgs[3], rightMsgs[3]);
+		rtabmap_conversions::toCvShare(image5, leftMsgs[4], rightMsgs[4]);
+		leftInfoMsgs.push_back(image->rgb_camera_info);
+		leftInfoMsgs.push_back(image2->rgb_camera_info);
+		leftInfoMsgs.push_back(image3->rgb_camera_info);
+		leftInfoMsgs.push_back(image4->rgb_camera_info);
+		leftInfoMsgs.push_back(image5->rgb_camera_info);
+		rightInfoMsgs.push_back(image->depth_camera_info);
+		rightInfoMsgs.push_back(image2->depth_camera_info);
+		rightInfoMsgs.push_back(image3->depth_camera_info);
+		rightInfoMsgs.push_back(image4->depth_camera_info);
+		rightInfoMsgs.push_back(image5->depth_camera_info);
 
-	typedef message_filters::sync_policies::ApproximateTime<sensor_msgs::Image, sensor_msgs::Image, sensor_msgs::CameraInfo, sensor_msgs::CameraInfo> MyApproxSyncPolicy;
-	message_filters::Synchronizer<MyApproxSyncPolicy> * approxSync_;
-	typedef message_filters::sync_policies::ExactTime<sensor_msgs::Image, sensor_msgs::Image, sensor_msgs::CameraInfo, sensor_msgs::CameraInfo> MyExactSyncPolicy;
-	message_filters::Synchronizer<MyExactSyncPolicy> * exactSync_;
-	typedef message_filters::sync_policies::ApproximateTime<rtabmap_msgs::RGBDImage, rtabmap_msgs::RGBDImage> MyApproxSync2Policy;
-	message_filters::Synchronizer<MyApproxSync2Policy> * approxSync2_;
-	typedef message_filters::sync_policies::ExactTime<rtabmap_msgs::RGBDImage, rtabmap_msgs::RGBDImage> MyExactSync2Policy;
-	message_filters::Synchronizer<MyExactSync2Policy> * exactSync2_;
-	typedef message_filters::sync_policies::ApproximateTime<rtabmap_msgs::RGBDImage, rtabmap_msgs::RGBDImage, rtabmap_msgs::RGBDImage> MyApproxSync3Policy;
-	message_filters::Synchronizer<MyApproxSync3Policy> * approxSync3_;
-	typedef message_filters::sync_policies::ExactTime<rtabmap_msgs::RGBDImage, rtabmap_msgs::RGBDImage, rtabmap_msgs::RGBDImage> MyExactSync3Policy;
-	message_filters::Synchronizer<MyExactSync3Policy> * exactSync3_;
-	typedef message_filters::sync_policies::ApproximateTime<rtabmap_msgs::RGBDImage, rtabmap_msgs::RGBDImage, rtabmap_msgs::RGBDImage, rtabmap_msgs::RGBDImage> MyApproxSync4Policy;
-	message_filters::Synchronizer<MyApproxSync4Policy> * approxSync4_;
-	typedef message_filters::sync_policies::ExactTime<rtabmap_msgs::RGBDImage, rtabmap_msgs::RGBDImage, rtabmap_msgs::RGBDImage, rtabmap_msgs::RGBDImage> MyExactSync4Policy;
-	message_filters::Synchronizer<MyExactSync4Policy> * exactSync4_;
-	typedef message_filters::sync_policies::ApproximateTime<rtabmap_msgs::RGBDImage, rtabmap_msgs::RGBDImage, rtabmap_msgs::RGBDImage, rtabmap_msgs::RGBDImage, rtabmap_msgs::RGBDImage> MyApproxSync5Policy;
-	message_filters::Synchronizer<MyApproxSync5Policy> * approxSync5_;
-	typedef message_filters::sync_policies::ExactTime<rtabmap_msgs::RGBDImage, rtabmap_msgs::RGBDImage, rtabmap_msgs::RGBDImage, rtabmap_msgs::RGBDImage, rtabmap_msgs::RGBDImage> MyExactSync5Policy;
-	message_filters::Synchronizer<MyExactSync5Policy> * exactSync5_;
-	typedef message_filters::sync_policies::ApproximateTime<rtabmap_msgs::RGBDImage, rtabmap_msgs::RGBDImage, rtabmap_msgs::RGBDImage, rtabmap_msgs::RGBDImage, rtabmap_msgs::RGBDImage, rtabmap_msgs::RGBDImage> MyApproxSync6Policy;
-	message_filters::Synchronizer<MyApproxSync6Policy> * approxSync6_;
-	typedef message_filters::sync_policies::ExactTime<rtabmap_msgs::RGBDImage, rtabmap_msgs::RGBDImage, rtabmap_msgs::RGBDImage, rtabmap_msgs::RGBDImage, rtabmap_msgs::RGBDImage, rtabmap_msgs::RGBDImage> MyExactSync6Policy;
-	message_filters::Synchronizer<MyExactSync6Policy> * exactSync6_;
+		this->commonCallback(leftMsgs, rightMsgs, leftInfoMsgs, rightInfoMsgs);
+	}
+}
 
-	int topicQueueSize_;
-	int syncQueueSize_;
-	bool keepColor_;
-};
+void StereoOdometry::callbackRGBD6(
+		const rtabmap_msgs::msg::RGBDImage::ConstSharedPtr image,
+		const rtabmap_msgs::msg::RGBDImage::ConstSharedPtr image2,
+		const rtabmap_msgs::msg::RGBDImage::ConstSharedPtr image3,
+		const rtabmap_msgs::msg::RGBDImage::ConstSharedPtr image4,
+		const rtabmap_msgs::msg::RGBDImage::ConstSharedPtr image5,
+		const rtabmap_msgs::msg::RGBDImage::ConstSharedPtr image6)
+{
+	tick(image->header.stamp);
 
-PLUGINLIB_EXPORT_CLASS(rtabmap_odom::StereoOdometry, nodelet::Nodelet);
+	if(!this->isPaused())
+	{
+		std::vector<cv_bridge::CvImageConstPtr> leftMsgs(6);
+		std::vector<cv_bridge::CvImageConstPtr> rightMsgs(6);
+		std::vector<sensor_msgs::msg::CameraInfo> leftInfoMsgs;
+		std::vector<sensor_msgs::msg::CameraInfo> rightInfoMsgs;
+		rtabmap_conversions::toCvShare(image, leftMsgs[0], rightMsgs[0]);
+		rtabmap_conversions::toCvShare(image2, leftMsgs[1], rightMsgs[1]);
+		rtabmap_conversions::toCvShare(image3, leftMsgs[2], rightMsgs[2]);
+		rtabmap_conversions::toCvShare(image4, leftMsgs[3], rightMsgs[3]);
+		rtabmap_conversions::toCvShare(image5, leftMsgs[4], rightMsgs[4]);
+		rtabmap_conversions::toCvShare(image6, leftMsgs[5], rightMsgs[5]);
+		leftInfoMsgs.push_back(image->rgb_camera_info);
+		leftInfoMsgs.push_back(image2->rgb_camera_info);
+		leftInfoMsgs.push_back(image3->rgb_camera_info);
+		leftInfoMsgs.push_back(image4->rgb_camera_info);
+		leftInfoMsgs.push_back(image5->rgb_camera_info);
+		leftInfoMsgs.push_back(image6->rgb_camera_info);
+		rightInfoMsgs.push_back(image->depth_camera_info);
+		rightInfoMsgs.push_back(image2->depth_camera_info);
+		rightInfoMsgs.push_back(image3->depth_camera_info);
+		rightInfoMsgs.push_back(image4->depth_camera_info);
+		rightInfoMsgs.push_back(image5->depth_camera_info);
+		rightInfoMsgs.push_back(image6->depth_camera_info);
+
+		this->commonCallback(leftMsgs, rightMsgs, leftInfoMsgs, rightInfoMsgs);
+	}
+}
+
+void StereoOdometry::flushCallbacks()
+{
+	//flush callbacks
+	if(approxSync_)
+	{
+		delete approxSync_;
+		approxSync_ = new message_filters::Synchronizer<MyApproxSyncPolicy>(MyApproxSyncPolicy(syncQueueSize_), imageRectLeft_, imageRectRight_, cameraInfoLeft_, cameraInfoRight_);
+		approxSync_->registerCallback(std::bind(&StereoOdometry::callback, this, std::placeholders::_1, std::placeholders::_2, std::placeholders::_3, std::placeholders::_4));
+	}
+	if(exactSync_)
+	{
+		delete exactSync_;
+		exactSync_ = new message_filters::Synchronizer<MyExactSyncPolicy>(MyExactSyncPolicy(syncQueueSize_), imageRectLeft_, imageRectRight_, cameraInfoLeft_, cameraInfoRight_);
+		exactSync_->registerCallback(std::bind(&StereoOdometry::callback, this, std::placeholders::_1, std::placeholders::_2, std::placeholders::_3, std::placeholders::_4));
+	}
+	if(approxSync2_)
+	{
+		delete approxSync2_;
+		approxSync2_ = new message_filters::Synchronizer<MyApproxSync2Policy>(
+				MyApproxSync2Policy(syncQueueSize_),
+				rgbd_image1_sub_,
+				rgbd_image2_sub_);
+		approxSync2_->registerCallback(std::bind(&StereoOdometry::callbackRGBD2, this, std::placeholders::_1, std::placeholders::_2));
+	}
+	if(exactSync2_)
+	{
+		delete exactSync2_;
+		exactSync2_ = new message_filters::Synchronizer<MyExactSync2Policy>(
+				MyExactSync2Policy(syncQueueSize_),
+				rgbd_image1_sub_,
+				rgbd_image2_sub_);
+		exactSync2_->registerCallback(std::bind(&StereoOdometry::callbackRGBD2, this, std::placeholders::_1, std::placeholders::_2));
+	}
+	if(approxSync3_)
+	{
+		delete approxSync3_;
+		approxSync3_ = new message_filters::Synchronizer<MyApproxSync3Policy>(
+				MyApproxSync3Policy(syncQueueSize_),
+				rgbd_image1_sub_,
+				rgbd_image2_sub_,
+				rgbd_image3_sub_);
+		approxSync3_->registerCallback(std::bind(&StereoOdometry::callbackRGBD3, this, std::placeholders::_1, std::placeholders::_2, std::placeholders::_3));
+	}
+	if(exactSync3_)
+	{
+		delete exactSync3_;
+		exactSync3_ = new message_filters::Synchronizer<MyExactSync3Policy>(
+				MyExactSync3Policy(syncQueueSize_),
+				rgbd_image1_sub_,
+				rgbd_image2_sub_,
+				rgbd_image3_sub_);
+		exactSync3_->registerCallback(std::bind(&StereoOdometry::callbackRGBD3, this, std::placeholders::_1, std::placeholders::_2, std::placeholders::_3));
+	}
+	if(approxSync4_)
+	{
+		delete approxSync4_;
+		approxSync4_ = new message_filters::Synchronizer<MyApproxSync4Policy>(
+				MyApproxSync4Policy(syncQueueSize_),
+				rgbd_image1_sub_,
+				rgbd_image2_sub_,
+				rgbd_image3_sub_,
+				rgbd_image4_sub_);
+		approxSync4_->registerCallback(std::bind(&StereoOdometry::callbackRGBD4, this, std::placeholders::_1, std::placeholders::_2, std::placeholders::_3, std::placeholders::_4));
+	}
+	if(exactSync4_)
+	{
+		delete exactSync4_;
+		exactSync4_ = new message_filters::Synchronizer<MyExactSync4Policy>(
+				MyExactSync4Policy(syncQueueSize_),
+				rgbd_image1_sub_,
+				rgbd_image2_sub_,
+				rgbd_image3_sub_,
+				rgbd_image4_sub_);
+		exactSync4_->registerCallback(std::bind(&StereoOdometry::callbackRGBD4, this, std::placeholders::_1, std::placeholders::_2, std::placeholders::_3, std::placeholders::_4));
+	}
+	if(approxSync5_)
+	{
+		delete approxSync5_;
+		approxSync5_ = new message_filters::Synchronizer<MyApproxSync5Policy>(
+				MyApproxSync5Policy(syncQueueSize_),
+				rgbd_image1_sub_,
+				rgbd_image2_sub_,
+				rgbd_image3_sub_,
+				rgbd_image4_sub_,
+				rgbd_image5_sub_);
+		approxSync5_->registerCallback(std::bind(&StereoOdometry::callbackRGBD5, this, std::placeholders::_1, std::placeholders::_2, std::placeholders::_3, std::placeholders::_4, std::placeholders::_5));
+	}
+	if(exactSync5_)
+	{
+		delete exactSync5_;
+		exactSync5_ = new message_filters::Synchronizer<MyExactSync5Policy>(
+				MyExactSync5Policy(syncQueueSize_),
+				rgbd_image1_sub_,
+				rgbd_image2_sub_,
+				rgbd_image3_sub_,
+				rgbd_image4_sub_,
+				rgbd_image5_sub_);
+		exactSync5_->registerCallback(std::bind(&StereoOdometry::callbackRGBD5, this, std::placeholders::_1, std::placeholders::_2, std::placeholders::_3, std::placeholders::_4, std::placeholders::_5));
+	}
+	if(approxSync6_)
+	{
+		delete approxSync6_;
+		approxSync6_ = new message_filters::Synchronizer<MyApproxSync6Policy>(
+				MyApproxSync6Policy(syncQueueSize_),
+				rgbd_image1_sub_,
+				rgbd_image2_sub_,
+				rgbd_image3_sub_,
+				rgbd_image4_sub_,
+				rgbd_image5_sub_,
+				rgbd_image6_sub_);
+		approxSync6_->registerCallback(std::bind(&StereoOdometry::callbackRGBD6, this, std::placeholders::_1, std::placeholders::_2, std::placeholders::_3, std::placeholders::_4, std::placeholders::_5, std::placeholders::_6));
+	}
+	if(exactSync6_)
+	{
+		delete exactSync6_;
+		exactSync6_ = new message_filters::Synchronizer<MyExactSync6Policy>(
+				MyExactSync6Policy(syncQueueSize_),
+				rgbd_image1_sub_,
+				rgbd_image2_sub_,
+				rgbd_image3_sub_,
+				rgbd_image4_sub_,
+				rgbd_image5_sub_,
+				rgbd_image6_sub_);
+		exactSync6_->registerCallback(std::bind(&StereoOdometry::callbackRGBD6, this, std::placeholders::_1, std::placeholders::_2, std::placeholders::_3, std::placeholders::_4, std::placeholders::_5, std::placeholders::_6));
+	}
+}
 
 }
+
+#include "rclcpp_components/register_node_macro.hpp"
+
+// Register the component with class_loader.
+// This acts as a sort of entry point, allowing the component to be discoverable when its library
+// is being loaded into a running process.
+RCLCPP_COMPONENTS_REGISTER_NODE(rtabmap_odom::StereoOdometry)
 

@@ -1,5 +1,5 @@
-#include "image_geometry/pinhole_camera_model.h"
-#include <sensor_msgs/distortion_models.h>
+#include "image_geometry/pinhole_camera_model.hpp"
+#include <sensor_msgs/distortion_models.hpp>
 #include <gtest/gtest.h>
 
 /// @todo Tests with simple values (R = identity, D = 0, P = K or simple scaling)
@@ -30,27 +30,27 @@ protected:
     cam_info_.height = 512;
     cam_info_.width  = 640;
     // No ROI
-    cam_info_.D.resize(4);
-    std::copy(D, D+4, cam_info_.D.begin());
-    std::copy(K, K+9, cam_info_.K.begin());
-    std::copy(R, R+9, cam_info_.R.begin());
-    std::copy(P, P+12, cam_info_.P.begin());
+    cam_info_.d.resize(4);
+    std::copy(D, D+4, cam_info_.d.begin());
+    std::copy(K, K+9, cam_info_.k.begin());
+    std::copy(R, R+9, cam_info_.r.begin());
+    std::copy(P, P+12, cam_info_.p.begin());
     cam_info_.distortion_model = sensor_msgs::distortion_models::EQUIDISTANT;
 
     model_.fromCameraInfo(cam_info_);
   }
 
-  sensor_msgs::CameraInfo cam_info_;
+  sensor_msgs::msg::CameraInfo cam_info_;
   image_geometry::PinholeCameraModel model_;
 };
 
 TEST_F(EquidistantTest, accessorsCorrect)
 {
   EXPECT_STREQ("tf_frame", model_.tfFrame().c_str());
-  EXPECT_EQ(cam_info_.P[0], model_.fx());
-  EXPECT_EQ(cam_info_.P[5], model_.fy());
-  EXPECT_EQ(cam_info_.P[2], model_.cx());
-  EXPECT_EQ(cam_info_.P[6], model_.cy());
+  EXPECT_EQ(cam_info_.p[0], model_.fx());
+  EXPECT_EQ(cam_info_.p[5], model_.fy());
+  EXPECT_EQ(cam_info_.p[2], model_.cx());
+  EXPECT_EQ(cam_info_.p[6], model_.cy());
 }
 
 TEST_F(EquidistantTest, projectPoint)
@@ -149,7 +149,7 @@ TEST_F(EquidistantTest, getDeltas)
 TEST_F(EquidistantTest, initialization)
 {
 
-    sensor_msgs::CameraInfo info;
+    sensor_msgs::msg::CameraInfo info;
     image_geometry::PinholeCameraModel camera;
 
     camera.fromCameraInfo(info);
@@ -225,22 +225,22 @@ TEST_F(EquidistantTest, rectifyIfCalibrated)
   // Test that rectified image is sufficiently different
   // using default distortion but with first element zeroed
   // out.
-  sensor_msgs::CameraInfo cam_info_2 = cam_info_;
-  cam_info_2.D[0] = 0.0;
+  sensor_msgs::msg::CameraInfo cam_info_2 = cam_info_;
+  cam_info_2.d[0] = 0.0;
   model_.fromCameraInfo(cam_info_2);
   model_.rectifyImage(distorted_image, rectified_image);
   error = cv::norm(distorted_image, rectified_image, cv::NORM_L1);
   EXPECT_GT(error, diff_threshold);
 
   // Test that rectified image is the same using zero distortion
-  cam_info_2.D.assign(cam_info_2.D.size(), 0);
+  cam_info_2.d.assign(cam_info_2.d.size(), 0);
   model_.fromCameraInfo(cam_info_2);
   model_.rectifyImage(distorted_image, rectified_image);
   error = cv::norm(distorted_image, rectified_image, cv::NORM_L1);
   EXPECT_EQ(error, 0);
 
   // Test that rectified image is the same using empty distortion
-  cam_info_2.D.clear();
+  cam_info_2.d.clear();
   model_.fromCameraInfo(cam_info_2);
   model_.rectifyImage(distorted_image, rectified_image);
   error = cv::norm(distorted_image, rectified_image, cv::NORM_L1);

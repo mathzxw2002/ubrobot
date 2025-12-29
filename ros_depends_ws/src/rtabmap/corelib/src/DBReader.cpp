@@ -260,7 +260,7 @@ bool DBReader::init(
 			else
 			{
 				Signature * s = _dbDriver->loadSignature(*_ids.begin());
-				_dbDriver->loadNodeData(s);
+				_dbDriver->loadNodeData(*s);
 				if( s->sensorData().imageCompressed().empty() &&
 					s->getWords().empty() &&
 					!s->sensorData().laserScanCompressed().empty())
@@ -510,22 +510,41 @@ SensorData DBReader::getNextData(SensorCaptureInfo * info)
 					}
 					else
 					{
-						// if localization data saved in database, covariance will be set in a prior link
-						_dbDriver->loadLinks(*_currentId, links, Link::kPosePrior);
-						if(links.size())
-						{
-							// assume the first is the backward neighbor, take its variance
-							infMatrix = links.begin()->second.infMatrix();
-							_previousInfMatrix = infMatrix;
-						}
-						else
-						{
-							if(_previousInfMatrix.empty())
+						// In case the graph was reduced, look for forward neighbor link from previous id
+						bool covAdded = false;
+						if(_currentId != _ids.begin()) {
+							std::set<int>::iterator previousId = _currentId;
+							--previousId;
+							std::multimap<int, Link> previousLinks;
+							_dbDriver->loadLinks(*previousId, previousLinks, Link::kNeighbor);
+							if(previousLinks.size() && previousLinks.rbegin()->first == *_currentId)
 							{
-								_previousInfMatrix = cv::Mat::eye(6,6,CV_64FC1);
+								// assume the last is the forward neighbor pointing to current ID, take its covariance
+								infMatrix = previousLinks.rbegin()->second.infMatrix();
+								_previousInfMatrix = infMatrix;
+								covAdded = true;
 							}
-							// we have a node not linked to map, use last variance
-							infMatrix = _previousInfMatrix;
+						}
+
+						if(!covAdded) {
+							// if localization data saved in database, covariance will be set in a prior link
+							_dbDriver->loadLinks(*_currentId, links, Link::kPosePrior);
+							if(links.size())
+							{
+								// assume the first is the backward neighbor, take its variance
+								infMatrix = links.begin()->second.infMatrix();
+								_previousInfMatrix = infMatrix;
+							}
+							else
+							{
+								if(_previousInfMatrix.empty())
+								{
+									_previousInfMatrix = cv::Mat::eye(6,6,CV_64FC1);
+								}
+								// we have a node not linked to map, use last variance
+								UWARN("The node loaded (%d) doesn't have neighbor, re-using the covariance of the previous link for odometry.", s->id());
+								infMatrix = _previousInfMatrix;
+							}
 						}
 					}
 				}
@@ -607,6 +626,7 @@ SensorData DBReader::getNextData(SensorCaptureInfo * info)
 				// update images and local transforms
 				cv::Mat combinedImages;
 				cv::Mat combinedDepthImages;
+				cv::Mat combinedDepthConfidenceImages;
 				std::vector<CameraModel> combinedModels;
 				std::vector<StereoCameraModel> combinedStereoModels;
 				for(size_t i=0; i<_cameraIndices.size(); ++i)
@@ -645,6 +665,18 @@ SensorData DBReader::getNextData(SensorCaptureInfo * info)
 						fromROI = cv::Mat(data.depthOrRightRaw(), cv::Rect(_cameraIndices[i]*subImageWidth, 0, subImageWidth, data.depthOrRightRaw().rows));
 						toROI = cv::Mat(combinedDepthImages, cv::Rect(addedCameras*subImageWidth, 0, subImageWidth, combinedDepthImages.rows));
 						fromROI.copyTo(toROI);
+
+						if(!data.depthConfidenceRaw().empty())
+						{
+							UASSERT(data.depthConfidenceRaw().size() == data.depthOrRightRaw().size());
+							if(combinedDepthConfidenceImages.empty())
+							{
+								combinedDepthConfidenceImages = cv::Mat(data.depthConfidenceRaw().rows, subImageWidth*(_cameraIndices.size()-i), data.depthConfidenceRaw().type());
+							}
+							fromROI = cv::Mat(data.depthConfidenceRaw(), cv::Rect(_cameraIndices[i]*subImageWidth, 0, subImageWidth, data.depthConfidenceRaw().rows));
+							toROI = cv::Mat(combinedDepthConfidenceImages, cv::Rect(addedCameras*subImageWidth, 0, subImageWidth, combinedDepthConfidenceImages.rows));
+							fromROI.copyTo(toROI);
+						}
 					}
 
 					if(!data.cameraModels().empty())
@@ -671,7 +703,7 @@ SensorData DBReader::getNextData(SensorCaptureInfo * info)
 				}
 				if(!combinedModels.empty())
 				{
-					data.setRGBDImage(combinedImages, combinedDepthImages, combinedModels);
+					data.setRGBDImage(combinedImages, combinedDepthImages, combinedDepthConfidenceImages, combinedModels);
 				}
 				else
 				{
@@ -728,10 +760,11 @@ SensorData DBReader::getNextData(SensorCaptureInfo * info)
 			}
 			data.setLandmarks(landmarks);
 
-			UDEBUG("Laser=%d RGB/Left=%d Depth/Right=%d, Grid=%d, UserData=%d, GlobalPose=%d, GPS=%d, IMU=%d",
+			UDEBUG("Laser=%d RGB/Left=%d Depth/Right=%d, Conf=%d, Grid=%d, UserData=%d, GlobalPose=%d, GPS=%d, IMU=%d",
 					data.laserScanRaw().isEmpty()?0:1,
 					data.imageRaw().empty()?0:1,
 					data.depthOrRightRaw().empty()?0:1,
+					data.depthConfidenceRaw().empty()?0:1,
 					data.gridCellSize()==0.0f?0:1,
 					data.userDataRaw().empty()?0:1,
 					globalPose.isNull()?0:1,
@@ -780,13 +813,19 @@ SensorData DBReader::getNextData(SensorCaptureInfo * info)
 				}
 				else if(!combinedLocalTransforms.empty())
 				{
-					// We are overriding the camra local transforms, let's move 3D words accordingly
+					// We are overriding the camera local transforms, let's move 3D words accordingly
 					UASSERT(dbModels.size() == combinedLocalTransforms.size());
 					std::vector<cv::Point3f> newKeypoints3D;
+					UASSERT(dbModels[0].imageWidth()>0);
+					int subImageWidth = dbModels[0].imageWidth();
 					for(size_t i = 0; i<keypoints3D.size(); ++i)
 					{
-						cv::Point3f pt = util3d::transformPoint(keypoints3D.at(i), dbModels[i].localTransform().inverse());
-						pt = util3d::transformPoint(pt, combinedLocalTransforms[i]);
+						int cameraIndex = int(keypoints.at(i).pt.x / subImageWidth);
+						UASSERT_MSG(cameraIndex >= 0 && cameraIndex < (int)dbModels.size(),
+								uFormat("cameraIndex=%d, db models=%d, kpt.x=%f, image width=%d",
+										cameraIndex, (int)dbModels.size(), keypoints[i].pt.x, subImageWidth).c_str());
+						cv::Point3f pt = util3d::transformPoint(keypoints3D.at(i), dbModels[cameraIndex].localTransform().inverse());
+						pt = util3d::transformPoint(pt, combinedLocalTransforms[cameraIndex]);
 						newKeypoints3D.push_back(pt);
 					}
 					data.setFeatures(keypoints, newKeypoints3D, descriptors);
@@ -817,6 +856,7 @@ SensorData DBReader::getNextData(SensorCaptureInfo * info)
 				if(info)
 				{
 					info->odomPose = pose;
+					UASSERT(!infMatrix.empty());
 					info->odomCovariance = infMatrix.inv();
 					info->odomVelocity = s->getVelocity();
 					UDEBUG("odom variance = %f/%f", info->odomCovariance.at<double>(0,0), info->odomCovariance.at<double>(5,5));

@@ -65,6 +65,8 @@ class ExportCloudsDialog;
 class EditDepthArea;
 class EditMapArea;
 class LinkRefiningDialog;
+class Registration;
+class RegistrationIcp;
 
 class RTABMAP_GUI_EXPORT DatabaseViewer : public QMainWindow
 {
@@ -202,8 +204,8 @@ private:
 	void updateLoopClosuresSlider(int from = 0, int to = 0);
 	void updateCovariances(const QList<Link> & links);
 	void refineLinks(const QList<Link> & links);
-	void refineConstraint(int from, int to,  bool silent);
-	bool addConstraint(int from, int to, bool silent, bool silentlyUseOptimizedGraphAsGuess = false);
+	void refineConstraint(int from, int to, Registration * reg, RegistrationIcp * regIcp, bool silent);
+	bool addConstraint(int from, int to, Registration * reg, bool silent, bool silentlyUseOptimizedGraphAsGuess = false);
 	void exportPoses(int format);
 	void exportGPS(int format);
 
@@ -218,6 +220,7 @@ private:
 	std::map<int, int> mapIds_;
 	std::map<int, int> weights_;
 	std::map<int, std::vector<int> > wmStates_;
+	std::map<int, EnvSensors> envSensors_;
 	QMap<int, int> idToIndex_;
 	QList<rtabmap::Link> neighborLinks_;
 	QList<rtabmap::Link> loopLinks_;

@@ -1,6 +1,6 @@
 #class rtabmap::SensorData
 
-Header header
+std_msgs/Header header
 
 # For RGB-D, left corresponds to rgb camera, and right corresponds to depth camera.
 

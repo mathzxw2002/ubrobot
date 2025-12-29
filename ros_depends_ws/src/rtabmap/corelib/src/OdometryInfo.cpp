@@ -126,10 +126,10 @@ std::map<std::string, float> OdometryInfo::statistics(const Transform & pose)
 	stats.insert(std::make_pair("Odometry/ICPStructuralComplexity/", reg.icpStructuralComplexity));
 	stats.insert(std::make_pair("Odometry/ICPStructuralDistribution/", reg.icpStructuralDistribution));
 	stats.insert(std::make_pair("Odometry/ICPCorrespondences/", reg.icpCorrespondences));
-	stats.insert(std::make_pair("Odometry/StdDevLin/", sqrt((float)reg.covariance.at<double>(0,0))));
-	stats.insert(std::make_pair("Odometry/StdDevAng/", sqrt((float)reg.covariance.at<double>(5,5))));
-	stats.insert(std::make_pair("Odometry/VarianceLin/", (float)reg.covariance.at<double>(0,0)));
-	stats.insert(std::make_pair("Odometry/VarianceAng/", (float)reg.covariance.at<double>(5,5)));
+	stats.insert(std::make_pair("Odometry/StdDevLin/", reg.covariance.empty()?0:sqrt((float)reg.covariance.at<double>(0,0))));
+	stats.insert(std::make_pair("Odometry/StdDevAng/", reg.covariance.empty()?0:sqrt((float)reg.covariance.at<double>(5,5))));
+	stats.insert(std::make_pair("Odometry/VarianceLin/", reg.covariance.empty()?0:(float)reg.covariance.at<double>(0,0)));
+	stats.insert(std::make_pair("Odometry/VarianceAng/", reg.covariance.empty()?0:(float)reg.covariance.at<double>(5,5)));
 	stats.insert(std::make_pair("Odometry/TimeEstimation/ms", timeEstimation*1000.0f));
 	stats.insert(std::make_pair("Odometry/TimeFiltering/ms", timeParticleFiltering*1000.0f));
 	stats.insert(std::make_pair("Odometry/LocalMapSize/", localMapSize));
@@ -191,9 +191,8 @@ std::map<std::string, float> OdometryInfo::statistics(const Transform & pose)
 	{
 		if(!transform.isNull())
 		{
-			rtabmap::Transform diff = transformGroundTruth.inverse()*transform;
-			stats.insert(std::make_pair("Odometry/TG_error_lin/m", diff.getNorm()));
-			stats.insert(std::make_pair("Odometry/TG_error_ang/deg", diff.getAngle()*180.0/CV_PI));
+			stats.insert(std::make_pair("Odometry/TG_error_lin/m", transformGroundTruth.getDistance(transform)));
+			stats.insert(std::make_pair("Odometry/TG_error_ang/deg", transformGroundTruth.getAngle(transform)*180.0/CV_PI));
 		}
 
 		transformGroundTruth.getTranslationAndEulerAngles(x,y,z,roll,pitch,yaw);

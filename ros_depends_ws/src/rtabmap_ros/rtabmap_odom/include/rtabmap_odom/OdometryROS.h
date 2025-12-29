@@ -28,19 +28,23 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 #ifndef ODOMETRYROS_H_
 #define ODOMETRYROS_H_
 
-#include <ros/ros.h>
-#include <nodelet/nodelet.h>
+#include "rclcpp/rclcpp.hpp"
 
 #include <tf2_ros/transform_broadcaster.h>
-#include <tf/transform_listener.h>
+#include <tf2_ros/buffer.h>
+#include <tf2_ros/transform_listener.h>
 
-#include <std_srvs/Empty.h>
-#include <std_msgs/Header.h>
-#include <sensor_msgs/Imu.h>
+#include <diagnostic_updater/diagnostic_updater.hpp>
 
-#include <diagnostic_updater/diagnostic_updater.h>
+#include <std_srvs/srv/empty.hpp>
+#include <std_msgs/msg/header.hpp>
+#include <nav_msgs/msg/odometry.hpp>
+#include <sensor_msgs/msg/imu.hpp>
+#include <sensor_msgs/msg/point_cloud2.hpp>
 
-#include <rtabmap_msgs/ResetPose.h>
+#include <rtabmap_msgs/msg/odom_info.hpp>
+#include <rtabmap_msgs/msg/rgbd_image.hpp>
+#include <rtabmap_msgs/srv/reset_pose.hpp>
 #include <rtabmap/core/SensorData.h>
 #include <rtabmap/core/Parameters.h>
 #include <rtabmap/utilite/UThread.h>
@@ -56,23 +60,24 @@ class Odometry;
 
 namespace rtabmap_odom {
 
-class OdometryROS : public nodelet::Nodelet, public UThread
+class OdometryROS : public rclcpp::Node, public UThread
 {
 
 public:
-	OdometryROS(bool stereoParams, bool visParams, bool icpParams);
+	explicit OdometryROS(const rclcpp::NodeOptions & options);
+	explicit OdometryROS(const std::string & name, const rclcpp::NodeOptions & options);
 	virtual ~OdometryROS();
 
-	void processData(rtabmap::SensorData & data, const std_msgs::Header & header);
+	void processData(rtabmap::SensorData & data, const std_msgs::msg::Header & header);
 
-	bool reset(std_srvs::Empty::Request&, std_srvs::Empty::Response&);
-	bool resetToPose(rtabmap_msgs::ResetPose::Request&, rtabmap_msgs::ResetPose::Response&);
-	bool pause(std_srvs::Empty::Request&, std_srvs::Empty::Response&);
-	bool resume(std_srvs::Empty::Request&, std_srvs::Empty::Response&);
-	bool setLogDebug(std_srvs::Empty::Request&, std_srvs::Empty::Response&);
-	bool setLogInfo(std_srvs::Empty::Request&, std_srvs::Empty::Response&);
-	bool setLogWarn(std_srvs::Empty::Request&, std_srvs::Empty::Response&);
-	bool setLogError(std_srvs::Empty::Request&, std_srvs::Empty::Response&);
+	void resetOdom(const std::shared_ptr<rmw_request_id_t>, const std::shared_ptr<std_srvs::srv::Empty::Request>, std::shared_ptr<std_srvs::srv::Empty::Response>);
+	void resetToPose(const std::shared_ptr<rmw_request_id_t>, const std::shared_ptr<rtabmap_msgs::srv::ResetPose::Request>, std::shared_ptr<rtabmap_msgs::srv::ResetPose::Response>);
+	void pause(const std::shared_ptr<rmw_request_id_t>,	const std::shared_ptr<std_srvs::srv::Empty::Request>, std::shared_ptr<std_srvs::srv::Empty::Response>);
+	void resume(const std::shared_ptr<rmw_request_id_t>, const std::shared_ptr<std_srvs::srv::Empty::Request>, std::shared_ptr<std_srvs::srv::Empty::Response>);
+	void setLogDebug(const std::shared_ptr<rmw_request_id_t>, const std::shared_ptr<std_srvs::srv::Empty::Request>, std::shared_ptr<std_srvs::srv::Empty::Response>);
+	void setLogInfo(const std::shared_ptr<rmw_request_id_t>, const std::shared_ptr<std_srvs::srv::Empty::Request>, std::shared_ptr<std_srvs::srv::Empty::Response>);
+	void setLogWarn(const std::shared_ptr<rmw_request_id_t>, const std::shared_ptr<std_srvs::srv::Empty::Request>, std::shared_ptr<std_srvs::srv::Empty::Response>);
+	void setLogError(const std::shared_ptr<rmw_request_id_t>, const std::shared_ptr<std_srvs::srv::Empty::Request>, std::shared_ptr<std_srvs::srv::Empty::Response>);
 
 	const std::string & frameId() const {return frameId_;}
 	const std::string & odomFrameId() const {return odomFrameId_;}
@@ -81,25 +86,30 @@ public:
 	bool isPaused() const {return paused_;}
 
 protected:
+	void init(bool stereoParams, bool visParams, bool icpParams);
+	rmw_qos_reliability_policy_t qos() const {return qos_;}
 	void initDiagnosticMsg(const std::string & subscribedTopicsMsg, bool approxSync, const std::string & subscribedTopic = "");
 
-	virtual void flushCallbacks() = 0;
-	tf::TransformListener & tfListener() {return tfListener_;}
-	double waitForTransformDuration() const {return waitForTransform_?waitForTransformDuration_:0.0;}
+	virtual void flushCallbacks() {};
+	tf2_ros::Buffer & tfBuffer() {return *tfBuffer_;}
+	const double & waitForTransform() const {return waitForTransform_;}
 	rtabmap::Transform velocityGuess() const;
 	double previousStamp() const {return previousStamp_;}
-	virtual void postProcessData(const rtabmap::SensorData & data, const std_msgs::Header & header) const {}
+	virtual void postProcessData(const rtabmap::SensorData & /*data*/, const std_msgs::msg::Header & /*header*/) const {}
 
 private:
-	virtual void onInit();
-	virtual void onOdomInit() = 0;
-	virtual void updateParameters(rtabmap::ParametersMap & parameters) {}
-
+	void processData();
 	virtual void mainLoop();
 	virtual void mainLoopKill();
+	virtual void updateParameters(rtabmap::ParametersMap &) {}
+	virtual void onOdomInit() {}
 
-	void callbackIMU(const sensor_msgs::ImuConstPtr& msg);
+	void callbackIMU(const sensor_msgs::msg::Imu::SharedPtr msg);
 	void reset(const rtabmap::Transform & pose = rtabmap::Transform::getIdentity());
+
+protected:
+	rclcpp::CallbackGroup::SharedPtr dataCallbackGroup_;
+	void tick(const rclcpp::Time & stamp);
 
 private:
 	rtabmap::Odometry * odometry_;
@@ -113,41 +123,47 @@ private:
 	double guessMinTranslation_;
 	double guessMinRotation_;
 	double guessMinTime_;
+	double guessLinearVariance_;
+	double guessAngularVariance_;
 	bool publishTf_;
-	bool waitForTransform_;
-	double waitForTransformDuration_;
+	double waitForTransform_;
 	bool publishNullWhenLost_;
 	bool publishCompressedSensorData_;
+	rmw_qos_reliability_policy_t qos_;
 	rtabmap::ParametersMap parameters_;
 
-	ros::Publisher odomPub_;
-	ros::Publisher odomInfoPub_;
-	ros::Publisher odomInfoLitePub_;
-	ros::Publisher odomLocalMap_;
-	ros::Publisher odomLocalScanMap_;
-	ros::Publisher odomLastFrame_;
-	ros::Publisher odomRgbdImagePub_;
-	ros::Publisher odomSensorDataPub_;
-	ros::Publisher odomSensorDataFeaturesPub_;
-	ros::Publisher odomSensorDataCompressedPub_;
-	ros::ServiceServer resetSrv_;
-	ros::ServiceServer resetToPoseSrv_;
-	ros::ServiceServer pauseSrv_;
-	ros::ServiceServer resumeSrv_;
-	ros::ServiceServer setLogDebugSrv_;
-	ros::ServiceServer setLogInfoSrv_;
-	ros::ServiceServer setLogWarnSrv_;
-	ros::ServiceServer setLogErrorSrv_;
-	tf2_ros::TransformBroadcaster tfBroadcaster_;
-	tf::TransformListener tfListener_;
-	ros::Subscriber imuSub_;
+	rclcpp::Publisher<nav_msgs::msg::Odometry>::SharedPtr odomPub_;
+	rclcpp::Publisher<rtabmap_msgs::msg::OdomInfo>::SharedPtr odomInfoPub_;
+	rclcpp::Publisher<rtabmap_msgs::msg::OdomInfo>::SharedPtr odomInfoLitePub_;
+	rclcpp::Publisher<sensor_msgs::msg::PointCloud2>::SharedPtr odomLocalMap_;
+	rclcpp::Publisher<sensor_msgs::msg::PointCloud2>::SharedPtr odomLocalScanMap_;
+	rclcpp::Publisher<sensor_msgs::msg::PointCloud2>::SharedPtr odomLastFrame_;
+	rclcpp::Publisher<rtabmap_msgs::msg::RGBDImage>::SharedPtr odomRgbdImagePub_;
+	rclcpp::Publisher<rtabmap_msgs::msg::SensorData>::SharedPtr odomSensorDataPub_;
+	rclcpp::Publisher<rtabmap_msgs::msg::SensorData>::SharedPtr odomSensorDataFeaturesPub_;
+	rclcpp::Publisher<rtabmap_msgs::msg::SensorData>::SharedPtr odomSensorDataCompressedPub_;
+
+	rclcpp::Service<std_srvs::srv::Empty>::SharedPtr resetSrv_;
+	rclcpp::Service<rtabmap_msgs::srv::ResetPose>::SharedPtr resetToPoseSrv_;
+	rclcpp::Service<std_srvs::srv::Empty>::SharedPtr pauseSrv_;
+	rclcpp::Service<std_srvs::srv::Empty>::SharedPtr resumeSrv_;
+	rclcpp::Service<std_srvs::srv::Empty>::SharedPtr setLogDebugSrv_;
+	rclcpp::Service<std_srvs::srv::Empty>::SharedPtr setLogInfoSrv_;
+	rclcpp::Service<std_srvs::srv::Empty>::SharedPtr setLogWarnSrv_;
+	rclcpp::Service<std_srvs::srv::Empty>::SharedPtr setLogErrorSrv_;
+
+	std::shared_ptr<tf2_ros::TransformBroadcaster> tfBroadcaster_;
+	std::shared_ptr<tf2_ros::Buffer> tfBuffer_;
+	std::shared_ptr<tf2_ros::TransformListener> tfListener_;
+	rclcpp::Subscription<sensor_msgs::msg::Imu>::SharedPtr imuSub_;
+	rclcpp::CallbackGroup::SharedPtr imuCallbackGroup_;
 
 	// Safe-threading
 	UMutex imuMutex_;
 	UMutex dataMutex_;	
 	USemaphore dataReady_;
 	rtabmap::SensorData dataToProcess_;
-	std_msgs::Header dataHeaderToProcess_;
+	std_msgs::msg::Header dataHeaderToProcess_;
 	bool bufferedDataToProcess_;
 
 	bool paused_;
@@ -159,15 +175,25 @@ private:
 	rtabmap::Transform guess_;
 	rtabmap::Transform guessPreviousPose_;
 	double previousStamp_;
+	double previousClockTime_;
+	double lastReceivedTopicClock_;
+	double lastReceivedTopicStamp_;
 	double expectedUpdateRate_;
 	double maxUpdateRate_;
 	double minUpdateRate_;
+	bool alwaysProcessMostRecentFrame_;
 	std::string compressionImgFormat_;
 	bool compressionParallelized_;
 	int odomStrategy_;
 	bool waitIMUToinit_;
+	bool alwaysCheckImuTf_;
 	bool imuProcessed_;
-	std::map<double, rtabmap::IMU> imus_;
+	int processedMsgs_;
+	int droppedMsgs_;
+	std::map<double, sensor_msgs::msg::Imu::ConstSharedPtr> imus_;
+	std::string configPath_;
+	rtabmap::Transform initialPose_;
+	rtabmap::Transform imuLocalTransform_;
 
 	rtabmap_util::ULogToRosout ulogToRosout_;
 
@@ -175,11 +201,13 @@ private:
 	{
 	public:
 		OdomStatusTask();
-		void setStatus(bool isLost);
+		void setStatus(bool isLost, int processedMsgs, int droppedMsgs);
 		void run(diagnostic_updater::DiagnosticStatusWrapper &stat);
 	private:
 		bool lost_;
 		bool dataReceived_;
+		int processedMsgs_;
+		int droppedMsgs_;
 	};
 	OdomStatusTask statusDiagnostic_;
 	std::unique_ptr<rtabmap_sync::SyncDiagnostic> syncDiagnostic_;

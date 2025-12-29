@@ -9,17 +9,20 @@
 <arg name="odom_strategy" default="0"/> <!-- 0=FrameToKeyFrame（RTAB-Map 自带） -->
 <arg name="unite_imu_method" default="copy"/> <!-- "copy" or "linear_interpolation" -->
 
-<include file="$(find realsense2_camera)/launch/rs_camera.launch" ns="cam_front">
+<include file="$(find realsense2_camera)/launch/rs_aligned_depth.launch" ns="cam_front">
    <arg name="serial_no" value="419522070679"/>
    <arg name="align_depth"   value="$(arg depth_mode)"/>
-   <arg name="unite_imu_method" value="$(arg unite_imu_method)"/>
+   <!--arg name="unite_imu_method" value="$(arg unite_imu_method)"/-->
    <arg name="enable_gyro"   value="true"/>
    <arg name="enable_accel"  value="true"/>
    <arg name="enable_infra1" value="false"/>
    <arg name="enable_infra2" value="false"/>
    <arg name="gyro_fps"      value="200"/>
-   <arg name="accel_fps"     value="250"/>
+   <arg name="accel_fps"     value="100"/> <!-- change 250 to 100 -->
    <arg name="enable_sync"   value="true"/>
+   <arg name="depth_width" value="640"/>
+   <arg name="depth_height" value="480"/>
+   <arg name="color_fps" value="15"/>
 </include>
 
 <node pkg="imu_filter_madgwick" type="imu_filter_node" name="imu_filter_node">
@@ -36,13 +39,12 @@
    <arg name="depth_topic"       value="/cam_front/camera/aligned_depth_to_color/image_raw"/>
    <arg name="camera_info_topic" value="/cam_front/camera/color/camera_info"/>
    <arg name="visual_odometry"   value="true"/>
-   <arg name="approx_sync"       value="false"/>
-   <arg name="frame_id"          value="/cam_front/camera_link"/>
+   <arg name="approx_sync"       value="true"/>
+   <arg name="frame_id"          value="camera_link"/>
    <arg name="imu_topic"         value="/rtabmap/imu"/>
    <arg name="rtabmap_viz"        value="false"/>
    <arg name="rviz"              value="false"/>
 </include>
-
 
 <include file="$(find realsense2_camera)/launch/rs_aligned_depth.launch" ns="cam_arm">            
    <arg name="serial_no" value="336222070923"/>                                              
@@ -50,10 +52,14 @@
    <arg name="enable_gyro"   value="true"/>                                                  
    <arg name="enable_accel"  value="true"/>                                                  
    <arg name="gyro_fps"      value="200"/>                                                   
-   <arg name="accel_fps"     value="250"/>                                                   
-   <arg name="enable_sync"   value="true"/>                                                  
+   <arg name="accel_fps"     value="100"/>                                                   
+   <arg name="enable_sync"   value="true"/>
+   <arg name="depth_width" value="640"/>
+   <arg name="depth_height" value="480"/>
+   <arg name="color_fps" value="15"/>                                                  
 </include>
 
+<!--
 <include file="$(find piper_kinematics)/launch/piper_ik.launch">         
     <arg name="max_iterations" value="50"/>
     <arg name="damping_factor" value="0.1"/>
@@ -65,6 +71,6 @@
    <arg name="auto_enable" value="true" />
    <arg name="gripper_val_mutiple" value="1" />
 </include>
-
+-->
 
 </launch>

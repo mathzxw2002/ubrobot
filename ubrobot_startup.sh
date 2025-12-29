@@ -18,7 +18,7 @@ export IS_HALF="True"
 #source /home/china/vision_opencv/install/setup.bash
 #sudo chmod 666 /dev/ttyACM0
 
-#bash ros_depends_ws/src/piper_ros/can_activate.sh
+bash ros_depends_ws/src/piper_ros/can_activate.sh
 # arm 336222070923 
 # head 419522070679
 roslaunch ros_depends_ws/src/rtabmap_ros/rtabmap_examples/launch/ubrobot.launch --screen

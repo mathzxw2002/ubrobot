@@ -11,13 +11,6 @@ from collections import deque
 from enum import Enum
 import numpy as np
 
-# ROS2
-#import rclpy
-#from rclpy.executors import SingleThreadedExecutor
-#from geometry_msgs.msg import Twist
-#from nav_msgs.msg import Odometry
-
-# ROS1
 import rospy
 from message_filters import ApproximateTimeSynchronizer, Subscriber
 from cv_bridge import CvBridge
@@ -52,13 +45,10 @@ class ControlMode(Enum):
     PID_Mode = 1
     MPC_Mode = 2
 
-#class Go2Manager(Node):
 class Go2Manager():
     def __init__(self):
-        #super().__init__('go2_manager')
         rospy.init_node('go2_manager', anonymous=True) 
 
-        # ===================== 1. 初始化实例属性（原全局变量） =====================
         # 控制模式相关
         self.policy_init = True
         self.mpc = None
@@ -82,20 +72,15 @@ class Go2Manager():
         self.dual_sys_eval_url = "http://192.168.18.230:5801/eval_dual"
         self.cosmos_reason1_url = "http://192.168.18.230:5802/eval_cosmos_reason1"
 
-        # ===================== 2. 初始化ROS2订阅/发布器 =====================
-        rgb_down_sub = Subscriber(Image, "/cam_front/camera/color/image_raw")
-        depth_down_sub = Subscriber(Image, "/cam_front/camera/aligned_depth_to_color/image_raw")
-
-        #qos_profile = QoSProfile(reliability=ReliabilityPolicy.BEST_EFFORT, history=HistoryPolicy.KEEP_LAST, depth=10)
+        rgb_down_sub = Subscriber("/cam_front/camera/color/image_raw", Image)
+        depth_down_sub = Subscriber("/cam_front/camera/aligned_depth_to_color/image_raw", Image)
 
         self.syncronizer = ApproximateTimeSynchronizer([rgb_down_sub, depth_down_sub], 1, 0.1)
         self.syncronizer.registerCallback(self.rgb_depth_down_callback)
-        #self.odom_sub = self.create_subscription(Odometry, "/odom", self.odom_callback)
-        self.odom_sub = rospy.Subscriber("/odom", Odometry, self.odom_callback)
+        self.odom_sub = rospy.Subscriber("/rtabmap/odom", Odometry, self.odom_callback)
 
 
         # 控制指令发布器
-        #self.control_pub = self.create_publisher(Twist, '/cmd_vel_bridge', 5)
         self.control_pub = rospy.Publisher('/cmd_vel_bridge', Twist, queue_size=5)
 
         # ===================== 3. 初始化类成员变量 =====================
@@ -125,7 +110,7 @@ class Go2Manager():
         self.vel = None
 
         # 初始化机器人基座（可根据需要启用）
-        lekiwi_base_config = LeKiwiConfig()
+        #lekiwi_base_config = LeKiwiConfig()
         # self.lekiwi_base = LeKiwi(lekiwi_base_config)
         # self.lekiwi_base.connect()
 
@@ -485,10 +470,10 @@ class Go2Manager():
         # 保存数据和时间戳
         self.rgb_depth_rw_lock.acquire_write()
         self.rgb_bytes = image_bytes
-        self.rgb_time = rgb_msg.header.stamp.sec + rgb_msg.header.stamp.nanosec / 1.0e9
+        self.rgb_time = rgb_msg.header.stamp.secs + rgb_msg.header.stamp.nsecs / 1.0e9
         self.last_rgb_time = self.rgb_time
         self.depth_bytes = depth_bytes
-        self.depth_time = depth_msg.header.stamp.sec + depth_msg.header.stamp.nanosec / 1.0e9
+        self.depth_time = depth_msg.header.stamp.secs + depth_msg.header.stamp.nsecs / 1.0e9
         self.last_depth_time = self.depth_time
         self.rgb_depth_rw_lock.release_write()
 

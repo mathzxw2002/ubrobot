@@ -26,7 +26,7 @@ class RobotVLM:
         }
         try:
             response = requests.post(
-                self.cosmos_reason1_url,
+                self.url,
                 files=files,
                 data={'json': json_data},
                 timeout=100

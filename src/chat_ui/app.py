@@ -80,9 +80,13 @@ def gradio_planning_txt_update():
         time.sleep(1)'''
     
     pil_annotated_img = manager.get_observation()
-    res = manager.reasoning_vlm(pil_annotated_img, "briefly describe what see in your front?")
+    #res = manager.reasoning_vlm(pil_annotated_img, "briefly describe what see in your front?")
 
-    print(res)
+    instruction = "go to the near frontal black bag and stop immediately."
+    manager.set_user_instruction(instruction)
+    manager.start_threads()
+
+    #print(res)
 
 
 def create_gradio():

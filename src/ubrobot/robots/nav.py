@@ -8,7 +8,7 @@ import time
 from PIL import ImageDraw, ImageFont
 import cv2
 from PIL import Image as PIL_Image
-
+import requests
 
 class RobotNav:
     def __init__(self, api_key = None, base_url = "https://dashscope.aliyuncs.com/compatible-mode/v1"):

@@ -298,7 +298,7 @@ class Go2Manager():
                     odom_infer = copy.deepcopy(odom[1])
             self.odom_rw_lock.release_read()'''
 
-            rgb_bytes, depth_bytes, rgb_time, odom_infer = self.get_rgb_depth_odoom()
+            rgb_bytes, depth_bytes, rgb_time, odom_infer = self.get_rgb_depth_odom()
 
 
             # 执行规划逻辑
@@ -364,8 +364,8 @@ class Go2Manager():
             time.sleep(max(0, DESIRED_TIME - (time.time() - start_time)))
 
     def start_threads(self):
-        self.control_thread_instance.start()
-        #self.planning_thread_instance.start()
+        #self.control_thread_instance.start()
+        self.planning_thread_instance.start()
         print("✅ Go2Manager: control thread and planning thread started successfully")
 
     # ===================== 11. 回调方法：前向图像处理 =====================

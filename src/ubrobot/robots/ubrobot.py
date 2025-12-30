@@ -212,6 +212,10 @@ class Go2Manager():
             cv2.circle(image, (pixel_goal[1], pixel_goal[0]), 5, (255, 0, 0), -1)
         image = PIL_Image.fromarray(image).convert('RGB')
         return image
+    
+    def get_observation(self):
+        image = PIL_Image.fromarray(self.rgb_image).convert('RGB')
+        return image
 
     # ===================== 6. 私有方法：双系统评估 =====================
     def _dual_sys_eval(self, image_bytes, depth_bytes, front_image_bytes=None):

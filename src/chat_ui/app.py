@@ -64,7 +64,7 @@ def gradio_planning_txt_update():
 
     while True:
         #planning_response_str = ""
-        pil_annotated_img = None
+        pil_annotated_img = manager.get_observation()
         
         #json_output_dict = planning_response
 

@@ -62,7 +62,7 @@ def gradio_planning_txt_update():
             time.sleep(1)'''
     #print(ins_str)
 
-    while True:
+    '''while True:
         #planning_response_str = ""
         pil_annotated_img = manager.get_observation()
         
@@ -77,7 +77,12 @@ def gradio_planning_txt_update():
         #pil_annotated_img = annotate_image(http_idx, manager.rgb_image, discrete_act, traj_path, pixel_goal, "./")
         
         yield gr.update(value=pil_annotated_img)
-        time.sleep(1)
+        time.sleep(1)'''
+    
+    pil_annotated_img = manager.get_observation()
+    res = manager.reasoning_vlm(pil_annotated_img, "briefly describe what see in your front?")
+
+    print(res)
 
 
 def create_gradio():

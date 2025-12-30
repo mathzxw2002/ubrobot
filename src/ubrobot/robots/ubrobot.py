@@ -35,6 +35,8 @@ import threading
 import os
 import traceback
 
+from .vlm import RobotVLM
+
 ROOT = Path(__file__).parents[2]
 SEPARATOR = "-" * 20
 
@@ -113,6 +115,9 @@ class Go2Manager():
         #lekiwi_base_config = LeKiwiConfig()
         # self.lekiwi_base = LeKiwi(lekiwi_base_config)
         # self.lekiwi_base.connect()
+
+        # vlm model
+        self.vlm = RobotVLM()
 
         # ===================== 4. 初始化线程实例 =====================
         self.control_thread_instance = threading.Thread(target=self._control_thread, daemon=True)
@@ -216,10 +221,42 @@ class Go2Manager():
     def get_observation(self):
         image = PIL_Image.fromarray(self.rgb_image).convert('RGB')
         return image
+    
+    def reasoning_vlm(self, image_pil: PIL_Image.Image, instruction:str):
+        response_restult_str = None
+        image_bytes = io.BytesIO()
+        image_pil.save(image_bytes, format="JPEG")
+        image_bytes.seek(0)
+        response_restult_str = self.vlm.reasoning_vlm_infer(image_bytes, instruction)
+        return response_restult_str
 
-    # ===================== 6. 私有方法：双系统评估 =====================
+    def dual_sys_eval_orig(image_bytes, depth_bytes, front_image_bytes, url='http://192.168.18.230:5801/eval_dual'):
+        global policy_init, http_idx, first_running_time, global_nav_instruction_str
+
+        #instruction = "Turn around and walk out of this office. Turn towards your slight right at the chair. Move forward to the walkway and go near the red bin. You can see an open door on your right side, go inside the open door. Stop at the computer monitor"
+        #instruction = "walk close to office chair, walk away from the package with SANY brand."
+        #instruction = "turn around to the office chair side."
+        instruction = global_nav_instruction_str
+        data = {"reset": policy_init, "idx": http_idx, "ins": instruction}
+        json_data = json.dumps(data)
+
+        policy_init = False
+        files = {
+            'image': ('rgb_image', image_bytes, 'image/jpeg'),
+            'depth': ('depth_image', depth_bytes, 'image/png'),
+        }
+        start = time.time()
+        response = requests.post(url, files=files, data={'json': json_data}, timeout=100)
+        print(f"response {response.text}")
+        http_idx += 1
+        if http_idx == 0:
+            first_running_time = time.time()
+        print(f"idx: {http_idx} after http {time.time() - start}")
+
+        return json.loads(response.text)
+
     def _dual_sys_eval(self, image_bytes, depth_bytes, front_image_bytes=None):
-        """发送图像/深度数据到HTTP服务，获取评估结果"""
+        
         global frame_data
         instruction = self.global_nav_instruction_str
         data = {"reset": self.policy_init, "idx": self.http_idx, "ins": instruction}
@@ -253,30 +290,6 @@ class Go2Manager():
         print(f"idx: {self.http_idx} after dual_sys_eval {time.time() - start}")
 
         return json.loads(response.text)
-
-    # ===================== 7. 私有方法：Cosmos Reason1 推理 =====================
-    def _cosmos_reason1_infer(self, image_bytes, instruction):
-        """发送图像和指令到HTTP服务，获取推理结果"""
-        data = {"ins": instruction}
-        json_data = json.dumps(data)
-
-        files = {
-            'image': ('rgb_image', image_bytes, 'image/jpeg'),
-        }
-        try:
-            response = requests.post(
-                self.cosmos_reason1_url,
-                files=files,
-                data={'json': json_data},
-                timeout=100
-            )
-            response.raise_for_status()
-            print(f"cosmos_reason1_infer response {response.text}")
-        except requests.exceptions.RequestException as e:
-            print(f"cosmos_reason1_infer request failed: {e}")
-            return ""
-
-        return response.text
 
     # ===================== 8. 私有方法：控制线程 =====================
     def _control_thread(self):
@@ -568,7 +581,7 @@ class Go2Manager():
         # 可选：执行推理
         if self.rgb_bytes is not None:
             image_bytes = copy.deepcopy(self.rgb_bytes)
-            self._cosmos_reason1_infer(image_bytes, ins_str)
+            #self._cosmos_reason1_infer(image_bytes, ins_str)
 
     # ===================== 17. 公有方法：重置导航任务 =====================
     def nav_task_reset(self):

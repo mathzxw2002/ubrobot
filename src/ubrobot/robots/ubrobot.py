@@ -138,14 +138,14 @@ class Go2Manager():
 
     def _control_thread(self):
         while True:
-            if not self.global_nav_instruction_str:
+            if self.global_nav_instruction_str is None:
                 time.sleep(0.01)
                 continue
             
             self.act_rw_lock.acquire_read()
             act = copy.deepcopy(self.act)
             self.act_rw_lock.release_read()
-            if not act:
+            if act is None:
                 time.sleep(0.01)
                 continue
             self.send_action(act)
@@ -189,12 +189,13 @@ class Go2Manager():
             start_time = time.time()
             time.sleep(0.05)
 
-            if not self.new_image_arrived  and not self.global_nav_instruction_str:
+            if not self.new_image_arrived:
                 time.sleep(0.01)
                 continue
             self.new_image_arrived = False
+
             rgb_bytes, depth_bytes, odom_infer = self.get_rgb_depth_odom()
-            if odom_infer is not None and rgb_bytes is not None and depth_bytes is not None:
+            if odom_infer is not None and rgb_bytes is not None and depth_bytes is not None and self.global_nav_instruction_str is not None:
 
                 start = time.time()
                 nav_action, vis_annotated_img = self.nav_policy_infer(self.policy_init, self.http_idx, rgb_bytes, depth_bytes, self.global_nav_instruction_str, self.odom, self.homo_odom)

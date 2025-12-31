@@ -36,7 +36,7 @@ class RobotNav:
         self.idx2actions = OrderedDict({"0": "STOP", "1": "↑", "2": "←", "3": "→", "5": "↓", })
         
            
-    def _annotate_image(self, idx, rgb_bytes, llm_output, trajectory, pixel_goal):
+    def _annotate_image(self, idx, rgb_bytes, llm_output, trajectory, pixel_goal, odom):
         """可视化轨迹和像素目标，给图像添加标注"""
         #image = PIL_Image.fromarray(image)
         rgb_bytes.seek(0)
@@ -50,11 +50,18 @@ class RobotNav:
         text_content.append(f"Frame    Id  : {idx}")
         text_content.append(f"Actions      : {llm_output}")
 
-        llm_output_actionstr = llm_output
-        for idx, action in self.idx2actions.items():
-            llm_output_actionstr = llm_output_actionstr.replace(idx, action)
-        text_content.append(f"Actions      : {llm_output_actionstr}")
-        text_content.append(f"Odom      : {self.odom}")
+        action_list = []
+        for num in llm_output:
+            num_str = str(num)
+            action = self.idx2actions.get(num_str, "-")
+            action_list.append(action)
+
+        text_content.append(f"Actions      : {action_list}")
+
+        shot_odom = []
+        for i in odom:
+            shot_odom.append(f"{i:.2f}")
+        text_content.append(f"Odom      : {shot_odom}")
 
         max_width = 0
         total_height = 0
@@ -240,7 +247,7 @@ class RobotNav:
             pixel_goal = nav_result.get('pixel_goal', None)
             traj_path = nav_result.get('trajectory', None)
             discrete_act = nav_result.get('discrete_action', None)
-            vis_annotated_img = self._annotate_image(http_idx, image_bytes, discrete_act, traj_path, pixel_goal)
+            vis_annotated_img = self._annotate_image(http_idx, image_bytes, discrete_act, traj_path, pixel_goal, odom)
 
         return nav_action, vis_annotated_img
         

@@ -52,6 +52,10 @@ def go2_robot_standdown():
     print("standing down the robot.")
     manager.go2_robot_standdown()
 
+def go2_robot_move():
+    print("unitree go2 moving test...")
+    manager.go2_robot_move()
+
 def create_gradio():
     with gr.Blocks(title="UBRobot ChatUI") as demo:
         gr.Markdown(
@@ -91,6 +95,7 @@ def create_gradio():
                 stop_bt = gr.Button("STOP!!!")
                 standup_bt = gr.Button("StandUP")
                 standdown_bt = gr.Button("StandDOWN")
+                move_bt =  gr.Button("MOVE TEST")
 
         # Use State to store user chat history
         user_messages = gr.State([{'role': 'system', 'content': None}])
@@ -127,6 +132,7 @@ def create_gradio():
         stop_bt.click(go2_robot_stop, inputs=[], outputs=[])
         standup_bt.click(go2_robot_standup, inputs=[], outputs=[])
         standdown_bt.click(go2_robot_standdown, inputs=[], outputs=[])
+        move_bt.click(go2_robot_move, inputs=[], outputs=[])
 
         #with gr.Row():
             #with gr.Column(scale=1, min_width=300):

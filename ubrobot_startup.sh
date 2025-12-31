@@ -16,4 +16,5 @@ export IS_HALF="True"
 
 #sudo chmod 666 /dev/ttyACM0
 
+export CYCLONEDDS_HOME="/home/unitree/ubrobot/third_party/install" 
 python3 src/chat_ui/app.py

@@ -131,10 +131,10 @@ class Go2Manager():
 
         # unitree go2 dog
         self.go2client = None
-        #ChannelFactoryInitialize(0, "eth0") # default net card
-        #sport_client = SportClient()  
-        #sport_client.SetTimeout(10.0)
-        #sport_client.Init()
+        ChannelFactoryInitialize(0, "eth0") # default net card
+        self.go2client = SportClient()  
+        self.go2client.SetTimeout(10.0)
+        self.go2client.Init()
     
     def get_observation(self):
         # TODO  加锁
@@ -376,7 +376,20 @@ class Go2Manager():
             print("Go2 Sport Client NOT initialized!")
             return
         else:
-            self.go2client.StandDown()    
+            self.go2client.StandDown()
+
+    def go2_robot_move(self):
+        if self.go2client is None:
+            print("Go2 Sport Client NOT initialized!")
+            return -1
+        else:
+            self.go2client.SpeedLevel(-1) # slow 
+            ret = self.go2client.Move(0.3,0,0)
+            time.sleep(1)
+
+            self.go2client.StopMove()
+
+            return ret
 
 if __name__ == "__main__":
 

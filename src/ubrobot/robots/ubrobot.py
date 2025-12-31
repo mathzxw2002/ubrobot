@@ -224,7 +224,7 @@ class Go2Manager():
                 if v < 0.0:
                     v = 0.0
 
-                print(v, w)
+                #print(v, w)
                 #self.move(v, 0.0, w)
     
 

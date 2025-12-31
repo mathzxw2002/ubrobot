@@ -48,15 +48,16 @@ class RobotNav:
         font = ImageFont.truetype("DejaVuSansMono.ttf", font_size)
         text_content = []
         text_content.append(f"Frame    Id  : {idx}")
-        text_content.append(f"Actions      : {llm_output}")
 
-        action_list = []
-        for num in llm_output:
-            num_str = str(num)
-            action = self.idx2actions.get(num_str, "-")
-            action_list.append(action)
+        if llm_output is not None:
+            text_content.append(f"Actions      : {llm_output}")
 
-        text_content.append(f"Actions      : {action_list}")
+            action_list = []
+            for num in llm_output:
+                num_str = str(num)
+                action = self.idx2actions.get(num_str, "-")
+                action_list.append(action)
+            text_content.append(f"Actions      : {action_list}")
 
         shot_odom = []
         for i in odom:

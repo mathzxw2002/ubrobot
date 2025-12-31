@@ -10,6 +10,8 @@ import cv2
 from PIL import Image as PIL_Image
 import requests
 
+from collections import OrderedDict
+
 import math
 import numpy as np
 
@@ -30,6 +32,8 @@ class RobotAction:
 class RobotNav:
     def __init__(self, api_key = None, base_url = "https://dashscope.aliyuncs.com/compatible-mode/v1"):
         api_key = api_key if api_key else os.getenv("DASHSCOPE_API_KEY")
+
+        self.idx2actions = OrderedDict({"0": "STOP", "1": "↑", "2": "←", "3": "→", "5": "↓", })
         
            
     def _annotate_image(self, idx, rgb_bytes, llm_output, trajectory, pixel_goal):
@@ -45,6 +49,13 @@ class RobotNav:
         text_content = []
         text_content.append(f"Frame    Id  : {idx}")
         text_content.append(f"Actions      : {llm_output}")
+
+        llm_output_actionstr = llm_output
+        for idx, action in self.idx2actions.items():
+            llm_output_actionstr = llm_output_actionstr.replace(idx, action)
+        text_content.append(f"Actions      : {llm_output_actionstr}")
+        text_content.append(f"Odom      : {self.odom}")
+
         max_width = 0
         total_height = 0
         for line in text_content:

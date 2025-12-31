@@ -25,61 +25,17 @@ from ubrobot.robots.ubrobot import Go2Manager
 manager = None
 
 def gradio_planning_txt_update():
-    # TODO double check
-    #image_bytes = copy.deepcopy(manager.rgb_bytes)
-    #result_str = cosmos_reason1_infer(image_bytes, global_nav_instruction_str)
-    #result_str = ""
-
     '''chat_history = []
     chat_history.append({"role": "user", "content": global_nav_instruction_str})
     chat_history.append({"role": "assistant", "content": result_str})
-
-    if global_nav_instruction_str is not None:
-        while True:
-    
-            idx2actions = OrderedDict({"0": "STOP", "1": "↑", "2": "←", "3": "→", "5": "↓", })
-
-            planning_response_str = ""
-            pil_annotated_img = None
-            if planning_response is not None:
-
-                json_output_dict = planning_response
-
-                pixel_goal = json_output_dict.get('pixel_goal', None)
-                traj_path = json_output_dict.get('trajectory', None)
-                discrete_act = json_output_dict.get('discrete_action', None)
-
-                planning_response_str = str(idx2actions) + "\n" + str(planning_response)
-
-                pil_annotated_img = annotate_image(http_idx, manager.rgb_image, discrete_act, traj_path, pixel_goal, "./")
-             
-                yield gr.update(value=planning_response_str), gr.update(value=pil_annotated_img), gr.update(value=chat_history)
-            time.sleep(1)'''
-    #print(ins_str)
-
+    '''
     while True:
-        #planning_response_str = ""
-        pil_annotated_img = manager.get_observation()
-        
-        #json_output_dict = planning_response
-
-        #pixel_goal = json_output_dict.get('pixel_goal', None)
-        #traj_path = json_output_dict.get('trajectory', None)
-        #discrete_act = json_output_dict.get('discrete_action', None)
-
-        #planning_response_str = str(idx2actions) + "\n" + str(planning_response)
-
-        #pil_annotated_img = annotate_image(http_idx, manager.rgb_image, discrete_act, traj_path, pixel_goal, "./")
-
+    
         pil_annotated_img = manager.get_observation()
         #res = manager.reasoning_vlm(pil_annotated_img, "briefly describe what see in your front?")
-
         instruction = "go to the near frontal black bag and stop immediately."
         manager.set_user_instruction(instruction)
-        
         nav_action, vis_annotated_img = manager.get_next_planning()
-
-        #print(res)
         yield gr.update(value=vis_annotated_img)
         time.sleep(1)
 
@@ -97,7 +53,7 @@ def go2_robot_standdown():
     manager.go2_robot_standdown()
 
 def create_gradio():
-    with gr.Blocks(title="UBRobot ChatUI") as demo:   
+    with gr.Blocks(title="UBRobot ChatUI") as demo:
         gr.Markdown(
             """
             <div style="text-align: center; font-size: 32px; font-weight: bold; margin-bottom: 20px;">

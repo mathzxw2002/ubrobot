@@ -138,6 +138,10 @@ class Go2Manager():
 
     def _control_thread(self):
         while True:
+            if not self.global_nav_instruction_str:
+                time.sleep(0.01)
+                continue
+            
             self.act_rw_lock.acquire_read()
             act = copy.deepcopy(self.act)
             self.act_rw_lock.release_read()

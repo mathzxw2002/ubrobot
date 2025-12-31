@@ -29,11 +29,7 @@ import os
 import traceback
 
 from .vlm import RobotVLM
-from .nav import RobotNav
-
-class ControlMode(Enum):
-    PID_Mode = 1
-    MPC_Mode = 2
+from .nav import RobotNav, RobotAction, ControlMode
 
 class Go2Manager():
     def __init__(self):
@@ -44,19 +40,14 @@ class Go2Manager():
         self.mpc = None
         self.pid = PID_controller(Kp_trans=2.0, Kd_trans=0.0, Kp_yaw=1.5, Kd_yaw=0.0, max_v=0.6, max_w=0.5)
         self.http_idx = -1
-        self.first_running_time = 0.0
-        
-        self.current_control_mode = ControlMode.MPC_Mode
-        #self.trajs_in_world = None
-        self.desired_v = 0.0
-        self.desired_w = 0.0
-        #self.planning_response = None
+
         self.global_nav_instruction_str = None
 
         # 读写锁相关
         self.rgb_depth_rw_lock = ReadWriteLock()
         self.odom_rw_lock = ReadWriteLock()
         self.mpc_rw_lock = ReadWriteLock()
+        self.act_rw_lock = ReadWriteLock()
 
         rgb_down_sub = Subscriber("/cam_front/camera/color/image_raw", Image)
         depth_down_sub = Subscriber("/cam_front/camera/aligned_depth_to_color/image_raw", Image)
@@ -74,23 +65,14 @@ class Go2Manager():
         self.rgb_bytes = None
         self.depth_image = None
         self.depth_bytes = None
-        self.rgb_forward_image = None
-        self.rgb_forward_bytes = None
         self.new_image_arrived = False
-        self.new_vis_image_arrived = False
         self.rgb_time = 0.0
 
         self.odom = None
         self.linear_vel = 0.0
         self.angular_vel = 0.0
-        #self.request_cnt = 0
-        self.odom_cnt = 0
         self.odom_queue = deque(maxlen=50)
-        #self.odom_timestamp = 0.0
-
-        #self.last_trajs_in_world = None
         self.homo_odom = None
-        self.homo_goal = None
         self.vel = None
 
         # vlm model
@@ -101,6 +83,9 @@ class Go2Manager():
 
         self.control_thread_instance = threading.Thread(target=self._control_thread, daemon=True)
         self.planning_thread_instance = threading.Thread(target=self._planning_thread, daemon=True)
+
+        # nav action
+        self.act = None
     
     def get_observation(self):
         # TODO  加锁
@@ -134,252 +119,87 @@ class Go2Manager():
                 min_diff = diff
                 odom_infer = copy.deepcopy(odom[1])
         self.odom_rw_lock.release_read()
-        return rgb_bytes, depth_bytes, rgb_time, odom_infer
+        return rgb_bytes, depth_bytes, odom_infer
     
-    def nav_policy_infer(self, image_bytes, depth_bytes, instruction):
-        start = time.time()
-        nav_result = self.nav._dual_sys_eval(self.policy_init, self.http_idx, image_bytes, depth_bytes, instruction)
-        self.policy_init = False
-        self.http_idx += 1
-        if self.http_idx == 0:
-            self.first_running_time = time.time()
-        print(f"idx: {self.http_idx} after dual_sys_eval {time.time() - start}")
-        return nav_result
+    def nav_policy_infer(self, policy_init, http_idx, image_bytes, depth_bytes, instruction, odom, homo_odom):
+        nav_action, vis_annotated_img = self.nav._dual_sys_eval(policy_init, http_idx, image_bytes, depth_bytes, instruction, odom, homo_odom)
+        return nav_action, vis_annotated_img
 
     def _control_thread(self):
-        """机器人运动控制线程，根据控制模式执行MPC或PID控制"""
         while True:
-            if self.global_nav_instruction_str is None:
+            self.act_rw_lock.acquire_read()
+            act = copy.deepcopy(self.act)
+            self.act_rw_lock.release_read()
+            if not act:
                 time.sleep(0.01)
                 continue
-
-            print("=============== in control thread...", self.current_control_mode)
-            if self.current_control_mode == ControlMode.MPC_Mode:
-                # MPC模式：基于轨迹的最优控制
-                self.odom_rw_lock.acquire_read()
-                odom = copy.deepcopy(self.odom) if self.odom else None
-                self.odom_rw_lock.release_read()
-                if self.mpc is not None and odom is not None:
-                    local_mpc = self.mpc
-                    opt_u_controls, opt_x_states = local_mpc.solve(np.array(odom))
-                    v, w = opt_u_controls[0, 0], opt_u_controls[0, 1]
-
-                    self.desired_v, self.desired_w = v, w
-                    self.move(v, 0.0, w)
-            elif self.current_control_mode == ControlMode.PID_Mode:
-                # PID模式：基于目标点的增量控制
-                self.odom_rw_lock.acquire_read()
-                odom = copy.deepcopy(self.odom) if self.odom else None
-                self.odom_rw_lock.release_read()
-                homo_odom = copy.deepcopy(self.homo_odom) if self.homo_odom is not None else None
-                vel = copy.deepcopy(self.vel) if self.vel is not None else None
-                homo_goal = copy.deepcopy(self.homo_goal) if self.homo_goal is not None else None
-
-                if homo_odom is not None and vel is not None and homo_goal is not None:
-                    v, w, e_p, e_r = self.pid.solve(homo_odom, homo_goal, vel)
-                    if v < 0.0:
-                        v = 0.0
-                    self.desired_v, self.desired_w = v, w
-
-                    print(v, w)
-                    self.move(v, 0.0, w)
-
+            self.send_action(act)
             time.sleep(0.1)
     
-    def transform_nav_result2_control(self, response, odom):
-        traj_len = 0.0
-        if 'trajectory' in response:
-            trajectory = response['trajectory']
-            trajs_in_world = []
-            #odom = odom_infer
-            traj_len = np.linalg.norm(trajectory[-1][:2])
-            print(f"traj len {traj_len}")
-
-            # 转换轨迹到世界坐标系
-            for i, traj in enumerate(trajectory):
-                if i < 3:
-                    continue
-                x_, y_, yaw_ = odom[0], odom[1], odom[2]
-                w_T_b = np.array(
-                    [
-                        [np.cos(yaw_), -np.sin(yaw_), 0, x_],
-                        [np.sin(yaw_), np.cos(yaw_), 0, y_],
-                        [0.0, 0.0, 1.0, 0],
-                        [0.0, 0.0, 0.0, 1.0],
-                    ]
-                )
-                w_P = (w_T_b @ (np.array([traj[0], traj[1], 0.0, 1.0])).T)[:2]
-                trajs_in_world.append(w_P)
-            trajs_in_world = np.array(trajs_in_world)
-            print(f"{time.time()} update traj")
-
-            # 更新MPC参考轨迹
+    def send_action(self, act):
+        if act.current_control_mode == ControlMode.MPC_Mode:
             self.mpc_rw_lock.acquire_write()
             if self.mpc is None:
-                self.mpc = Mpc_controller(np.array(trajs_in_world))
+                self.mpc = Mpc_controller(np.array(act.trajs_in_world))
             else:
-                self.mpc.update_ref_traj(np.array(trajs_in_world))
-            #self.request_cnt += 1
+                self.mpc.update_ref_traj(np.array(act.trajs_in_world))
             self.mpc_rw_lock.release_write()
-            self.current_control_mode = ControlMode.MPC_Mode
-        elif 'discrete_action' in response:
-            # 离散动作：切换到PID模式
-            actions = response['discrete_action']
-            if actions != [5] and actions != [9]:
-                self.incremental_change_goal(actions)
-                self.current_control_mode = ControlMode.PID_Mode
-            #if actions == [0]:
-            #    self.global_nav_instruction_str = None
 
-    def update_mpc_traj(self, trajectory, odom):
-        #trajectory = response['trajectory']
-        trajs_in_world = []
-        #odom = odom_infer
-        traj_len = np.linalg.norm(trajectory[-1][:2])
-        print(f"traj len {traj_len}")
+            # MPC模式：基于轨迹的最优控制
+            self.odom_rw_lock.acquire_read()
+            odom = copy.deepcopy(self.odom) if self.odom else None
+            self.odom_rw_lock.release_read()
+            if self.mpc is not None and odom is not None:
+                local_mpc = self.mpc
+                opt_u_controls, opt_x_states = local_mpc.solve(np.array(odom))
+                v, w = opt_u_controls[0, 0], opt_u_controls[0, 1]
 
-        # 转换轨迹到世界坐标系
-        for i, traj in enumerate(trajectory):
-            if i < 3:
-                continue
-            x_, y_, yaw_ = odom[0], odom[1], odom[2]
-            w_T_b = np.array(
-                [
-                    [np.cos(yaw_), -np.sin(yaw_), 0, x_],
-                    [np.sin(yaw_), np.cos(yaw_), 0, y_],
-                    [0.0, 0.0, 1.0, 0],
-                    [0.0, 0.0, 0.0, 1.0],
-                ]
-            )
-            w_P = (w_T_b @ (np.array([traj[0], traj[1], 0.0, 1.0])).T)[:2]
-            trajs_in_world.append(w_P)
-        trajs_in_world = np.array(trajs_in_world)
-        print(f"{time.time()} update traj")
+                #self.move(v, 0.0, w)
+        elif act.current_control_mode == ControlMode.PID_Mode:
+            #self.homo_goal = act.homo_goal
+            homo_odom = copy.deepcopy(self.homo_odom) if self.homo_odom is not None else None
+            vel = copy.deepcopy(self.vel) if self.vel is not None else None
+            if homo_odom is not None and vel is not None and act.homo_goal is not None:
+                v, w, e_p, e_r = self.pid.solve(homo_odom, act.homo_goal, vel)
+                if v < 0.0:
+                    v = 0.0
 
-        # 更新MPC参考轨迹
-        #self.last_trajs_in_world = self.trajs_in_world
-        self.mpc_rw_lock.acquire_write()
-        if self.mpc is None:
-            self.mpc = Mpc_controller(np.array(trajs_in_world))
-        else:
-            self.mpc.update_ref_traj(np.array(trajs_in_world))
-        #self.request_cnt += 1
-        self.mpc_rw_lock.release_write()
-        self.current_control_mode = ControlMode.MPC_Mode
+                print(v, w)
+                #self.move(v, 0.0, w)
+    
 
     def _planning_thread(self):
 
         while True:
             start_time = time.time()
-            DESIRED_TIME = 0.3
             time.sleep(0.05)
 
-            if not self.new_image_arrived:
+            if not self.new_image_arrived  and not self.global_nav_instruction_str:
                 time.sleep(0.01)
                 continue
-
             self.new_image_arrived = False
-
-            # 读取图像数据
-            '''self.rgb_depth_rw_lock.acquire_read()
-            rgb_bytes = copy.deepcopy(self.rgb_bytes)
-            depth_bytes = copy.deepcopy(self.depth_bytes)
-
-            rgb_time = self.rgb_time
-            self.rgb_depth_rw_lock.release_read()'''
-    
-            '''self.odom_rw_lock.acquire_read()
-            min_diff = 1e10
-            odom_infer = None
-            for odom in self.odom_queue:
-                diff = abs(odom[0] - rgb_time)
-                if diff < min_diff:
-                    min_diff = diff
-                    odom_infer = copy.deepcopy(odom[1])
-            self.odom_rw_lock.release_read()'''
-
-            rgb_bytes, depth_bytes, rgb_time, odom_infer = self.get_rgb_depth_odom()
-
-
-            # 执行规划逻辑
+            rgb_bytes, depth_bytes, odom_infer = self.get_rgb_depth_odom()
             if odom_infer is not None and rgb_bytes is not None and depth_bytes is not None:
 
-                #response = self._dual_sys_eval(rgb_bytes, depth_bytes, None)
-                response = self.nav_policy_infer(rgb_bytes, depth_bytes, self.global_nav_instruction_str)
-                #self.planning_response = response
+                start = time.time()
+                nav_action, vis_annotated_img = self.nav_policy_infer(self.policy_init, self.http_idx, rgb_bytes, depth_bytes, self.global_nav_instruction_str, self.odom, self.homo_odom)
 
-                traj_len = 0.0
-                if 'trajectory' in response:
-                    trajectory = response['trajectory']
-                    self.update_mpc_traj(trajectory, odom_infer)
-
-                    '''trajs_in_world = []
-                    odom = odom_infer
-                    traj_len = np.linalg.norm(trajectory[-1][:2])
-                    print(f"traj len {traj_len}")
-
-                    # 转换轨迹到世界坐标系
-                    for i, traj in enumerate(trajectory):
-                        if i < 3:
-                            continue
-                        x_, y_, yaw_ = odom[0], odom[1], odom[2]
-                        w_T_b = np.array(
-                            [
-                                [np.cos(yaw_), -np.sin(yaw_), 0, x_],
-                                [np.sin(yaw_), np.cos(yaw_), 0, y_],
-                                [0.0, 0.0, 1.0, 0],
-                                [0.0, 0.0, 0.0, 1.0],
-                            ]
-                        )
-                        w_P = (w_T_b @ (np.array([traj[0], traj[1], 0.0, 1.0])).T)[:2]
-                        trajs_in_world.append(w_P)
-                    trajs_in_world = np.array(trajs_in_world)
-                    print(f"{time.time()} update traj")
-
-                    # 更新MPC参考轨迹
-                    #self.last_trajs_in_world = self.trajs_in_world
-                    self.mpc_rw_lock.acquire_write()
-                    if self.mpc is None:
-                        self.mpc = Mpc_controller(np.array(trajs_in_world))
-                    else:
-                        self.mpc.update_ref_traj(np.array(trajs_in_world))
-                    #self.request_cnt += 1
-                    self.mpc_rw_lock.release_write()
-                    self.current_control_mode = ControlMode.MPC_Mode'''
-                elif 'discrete_action' in response:
-                    # 离散动作：切换到PID模式
-                    actions = response['discrete_action']
-                    if actions != [5] and actions != [9]:
-                        self.incremental_change_goal(actions)
-                        self.current_control_mode = ControlMode.PID_Mode
-                    #if actions == [0]:
-                    #    self.global_nav_instruction_str = None
+                self.policy_init = False
+                self.http_idx += 1
+                print(f"idx: {self.http_idx} after dual_sys_eval {time.time() - start}")
+                
+                self.act_rw_lock.acquire_write()
+                self.act = nav_action
+                self.act_rw_lock.release_write()
             else:
-                print(
-                    f"skip planning. odom_infer: {odom_infer is not None} rgb_bytes: {rgb_bytes is not None} depth_bytes: {depth_bytes is not None}"
-                )
+                print(f"skip planning. odom_infer: {odom_infer is not None} rgb_bytes: {rgb_bytes is not None} depth_bytes: {depth_bytes is not None}")
                 time.sleep(0.1)
-
-            # 控制线程执行频率
+            DESIRED_TIME = 0.3
             time.sleep(max(0, DESIRED_TIME - (time.time() - start_time)))
 
     def start_threads(self):
-        #self.control_thread_instance.start()
         self.planning_thread_instance.start()
         print("✅ Go2Manager: control thread and planning thread started successfully")
-
-    # ===================== 11. 回调方法：前向图像处理 =====================
-    def rgb_forward_callback(self, rgb_msg):
-        """处理前向彩色摄像头图像消息"""
-        raw_image = self.cv_bridge.imgmsg_to_cv2(rgb_msg, 'rgb8')[:, :, :]
-        self.rgb_forward_image = raw_image
-        image = PIL_Image.fromarray(self.rgb_forward_image)
-        image_bytes = io.BytesIO()
-        image.save(image_bytes, format='JPEG')
-        image_bytes.seek(0)
-        self.rgb_forward_bytes = image_bytes
-        self.new_vis_image_arrived = True
-        self.new_image_arrived = True
 
     def rgb_depth_down_callback(self, rgb_msg, depth_msg):
         """处理下视彩色图像和对齐后的深度图像消息"""
@@ -415,13 +235,12 @@ class Go2Manager():
         self.rgb_depth_rw_lock.release_write()
 
         # 标记图像更新
-        self.new_vis_image_arrived = True
+        #self.new_vis_image_arrived = True
         self.new_image_arrived = True
 
-    # ===================== 13. 回调方法：里程计处理 =====================
     def odom_callback(self, msg):
         """处理里程计消息，更新机器人位姿和速度"""
-        self.odom_cnt += 1
+        #self.odom_cnt += 1
         self.odom_rw_lock.acquire_write()
         # 计算偏航角
         zz = msg.pose.pose.orientation.z
@@ -443,40 +262,6 @@ class Go2Manager():
         self.homo_odom[:2, 3] = [msg.pose.pose.position.x, msg.pose.pose.position.y]
         self.vel = [msg.twist.twist.linear.x, msg.twist.twist.angular.z]
 
-        # 初始化目标点
-        if self.odom_cnt == 1:
-            self.homo_goal = self.homo_odom.copy()
-
-    def incremental_change_goal(self, actions):
-        """根据离散动作增量更新机器人目标位姿"""
-        if self.homo_goal is None:
-            raise ValueError("Please initialize homo_goal before change it!")
-        homo_goal = self.homo_odom.copy()
-        for each_action in actions:
-            if each_action == 0:
-                pass
-            elif each_action == 1:
-                # 前进
-                yaw = math.atan2(homo_goal[1, 0], homo_goal[0, 0])
-                homo_goal[0, 3] += 0.25 * np.cos(yaw)
-                homo_goal[1, 3] += 0.25 * np.sin(yaw)
-            elif each_action == 2:
-                # 左转15度
-                angle = math.radians(15)
-                rotation_matrix = np.array(
-                    [[math.cos(angle), -math.sin(angle), 0], [math.sin(angle), math.cos(angle), 0], [0, 0, 1]]
-                )
-                homo_goal[:3, :3] = np.dot(rotation_matrix, homo_goal[:3, :3])
-            elif each_action == 3:
-                # 右转15度
-                angle = -math.radians(15.0)
-                rotation_matrix = np.array(
-                    [[math.cos(angle), -math.sin(angle), 0], [math.sin(angle), math.cos(angle), 0], [0, 0, 1]]
-                )
-                homo_goal[:3, :3] = np.dot(rotation_matrix, homo_goal[:3, :3])
-        self.homo_goal = homo_goal
-
-    # ===================== 15. 公有方法：发布运动控制指令 =====================
     def move(self, vx, vy, vyaw):
         """发布机器人线速度和角速度控制指令"""
         request = Twist()
@@ -493,7 +278,6 @@ class Go2Manager():
                   }
         # self.lekiwi_base.send_action(action)
 
-    # ===================== 16. 公有方法：设置导航指令 =====================
     def set_nav_instruction(self, ins_str):
         """设置全局导航指令，替代原Gradio输入"""
         self.global_nav_instruction_str = ins_str
@@ -502,12 +286,15 @@ class Go2Manager():
             image_bytes = copy.deepcopy(self.rgb_bytes)
             #self._cosmos_reason1_infer(image_bytes, ins_str)
 
-    # ===================== 17. 公有方法：重置导航任务 =====================
     def nav_task_reset(self):
         """重置导航任务，停止机器人运动"""
         self.global_nav_instruction_str = None
         self.move(0.0, 0.0, 0.0)
         print("✅ Go2Manager: nav task reset and robot stopped")
+
+    def stop_robot(self):
+        # TODO
+        return None
 
 if __name__ == "__main__":
 

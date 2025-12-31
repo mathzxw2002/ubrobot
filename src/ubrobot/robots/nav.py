@@ -10,43 +10,35 @@ import cv2
 from PIL import Image as PIL_Image
 import requests
 
+import math
+import numpy as np
+
+from enum import Enum
+
+class ControlMode(Enum):
+    PID_Mode = 1
+    MPC_Mode = 2
+
+class RobotAction:
+    def __init__(self):
+        self.current_control_mode = ControlMode.MPC_Mode
+        self.trajs_in_world = None
+        self.homo_goal = None
+        self.odom = None
+        self.homo_odom = None
+
 class RobotNav:
     def __init__(self, api_key = None, base_url = "https://dashscope.aliyuncs.com/compatible-mode/v1"):
         api_key = api_key if api_key else os.getenv("DASHSCOPE_API_KEY")
-        self.client = OpenAI(
-            #api_key=os.getenv("DASHSCOPE_API_KEY"),
-            api_key="sk-479fdd23120c4201bff35a107883c7c3",
-            base_url=base_url,
-        )
-       
-    def infer(self, user_input, user_messages, chat_mode):
-        # prompt 
-        if len(user_messages) == 1:
-            if chat_mode == "单轮对话 (一次性回答问题)":
-                user_messages[0]['content'] = '你负责为一个语音聊天系统生成对话文本输出，使用长度接近的短句，确保语气情感丰富、友好，并且响应迅速以保持用户的参与感。请你以“好的”、“没问题”、“明白了”等短句作为回复的开头。'
-            else:
-                with open('src/prompt.txt', 'r') as f:
-                    user_messages[0]['content'] = f.read()
-        user_messages.append({'role': 'user', 'content': user_input})
-        print(user_messages)
-
-        completion = self.client.chat.completions.create(
-            model="qwen-turbo",
-            messages=user_messages
-        )
-        print(completion)
-        chat_response = completion.choices[0].message.content
-        user_messages.append({'role': 'assistant', 'content': chat_response})
-
-        if len(user_messages) > 10:
-            user_messages.pop(0)
-  
-        print(f'[Qwen API] {chat_response}')
-        return chat_response, user_messages
-    
-    def _annotate_image(self, idx, image, llm_output, trajectory, pixel_goal, output_dir):
+        
+           
+    def _annotate_image(self, idx, rgb_bytes, llm_output, trajectory, pixel_goal):
         """可视化轨迹和像素目标，给图像添加标注"""
-        image = PIL_Image.fromarray(image)
+        #image = PIL_Image.fromarray(image)
+        rgb_bytes.seek(0)
+        # 从字节流中读取图像，返回 PIL.Image.Image 对象
+        image = PIL_Image.open(rgb_bytes)
+
         draw = ImageDraw.Draw(image)
         font_size = 20
         font = ImageFont.truetype("DejaVuSansMono.ttf", font_size)
@@ -138,7 +130,75 @@ class RobotNav:
         image = PIL_Image.fromarray(image).convert('RGB')
         return image
     
-    def _dual_sys_eval(self, policy_init, http_idx, image_bytes, depth_bytes, instruction, url='http://192.168.18.230:5801/eval_dual'):
+    def incremental_change_goal(self, actions, homo_odom):
+
+        homo_goal = homo_odom.copy()
+        for each_action in actions:
+            if each_action == 0:
+                pass
+            elif each_action == 1:
+                # 前进
+                yaw = math.atan2(homo_goal[1, 0], homo_goal[0, 0])
+                homo_goal[0, 3] += 0.25 * np.cos(yaw)
+                homo_goal[1, 3] += 0.25 * np.sin(yaw)
+            elif each_action == 2:
+                # 左转15度
+                angle = math.radians(15)
+                rotation_matrix = np.array(
+                    [[math.cos(angle), -math.sin(angle), 0], [math.sin(angle), math.cos(angle), 0], [0, 0, 1]]
+                )
+                homo_goal[:3, :3] = np.dot(rotation_matrix, homo_goal[:3, :3])
+            elif each_action == 3:
+                # 右转15度
+                angle = -math.radians(15.0)
+                rotation_matrix = np.array(
+                    [[math.cos(angle), -math.sin(angle), 0], [math.sin(angle), math.cos(angle), 0], [0, 0, 1]]
+                )
+                homo_goal[:3, :3] = np.dot(rotation_matrix, homo_goal[:3, :3])
+        return homo_goal
+    
+    def convert_policy_res_to_action(self, response, odom, homo_odom):
+
+        act = RobotAction()
+        act.odom = odom
+        act.homo_odom = homo_odom
+
+        if 'trajectory' in response:
+            trajectory = response['trajectory']
+
+            trajs_in_world = []
+            traj_len = np.linalg.norm(trajectory[-1][:2])
+            print(f"traj len {traj_len}")
+
+            # 转换轨迹到世界坐标系
+            for i, traj in enumerate(trajectory):
+                if i < 3:
+                    continue
+                x_, y_, yaw_ = odom[0], odom[1], odom[2]
+                w_T_b = np.array(
+                    [
+                        [np.cos(yaw_), -np.sin(yaw_), 0, x_],
+                        [np.sin(yaw_), np.cos(yaw_), 0, y_],
+                        [0.0, 0.0, 1.0, 0],
+                        [0.0, 0.0, 0.0, 1.0],
+                    ]
+                )
+                w_P = (w_T_b @ (np.array([traj[0], traj[1], 0.0, 1.0])).T)[:2]
+                trajs_in_world.append(w_P)
+            trajs_in_world = np.array(trajs_in_world)
+            print(f"{time.time()} update traj")
+            act.trajs_in_world = trajs_in_world
+            act.current_control_mode = ControlMode.MPC_Mode
+        elif 'discrete_action' in response:
+            # 离散动作：切换到PID模式
+            actions = response['discrete_action']
+            if actions != [5] and actions != [9]:
+                act.homo_goal = self.incremental_change_goal(actions, homo_odom)
+                #self.homo_goal = act.homo_goal
+                act.current_control_mode = ControlMode.PID_Mode
+        return act
+    
+    def _dual_sys_eval(self, policy_init, http_idx, image_bytes, depth_bytes, instruction, odom, homo_odom, url='http://192.168.18.230:5801/eval_dual'):
         
         #global frame_data
         data = {"reset": policy_init, "idx": http_idx, "ins": instruction}
@@ -148,7 +208,7 @@ class RobotNav:
             'image': ('rgb_image', image_bytes, 'image/jpeg'),
             'depth': ('depth_image', depth_bytes, 'image/png'),
         }
-        
+
         try:
             response = requests.post(
                 url,
@@ -162,12 +222,18 @@ class RobotNav:
             print(f"dual_sys_eval request failed: {e}")
             return {}
 
-        return json.loads(response.text)
+        nav_result = json.loads(response.text)
+        nav_action = self.convert_policy_res_to_action(nav_result, odom, homo_odom)
+
+        if 1:
+            pixel_goal = nav_result.get('pixel_goal', None)
+            traj_path = nav_result.get('trajectory', None)
+            discrete_act = nav_result.get('discrete_action', None)
+            vis_annotated_img = self._annotate_image(http_idx, image_bytes, discrete_act, traj_path, pixel_goal)
+
+        return nav_action, vis_annotated_img
+        
 
 if __name__ == "__main__":
     start_time = time.time()
-    qwen = Qwen()
-    print(f"Cost {time.time()-start_time} secs")
-    start_time = time.time()
-    qwen.infer_stream("讲一个长点的故事", [{'role': 'system', 'content': None}], None, None, "单轮对话 (一次性回答问题)")
     print(f"Cost {time.time()-start_time} secs")

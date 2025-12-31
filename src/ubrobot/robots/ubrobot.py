@@ -11,6 +11,16 @@ from collections import deque
 from enum import Enum
 import numpy as np
 
+import sys
+from unitree_sdk2py.core.channel import ChannelSubscriber, ChannelFactoryInitialize
+from unitree_sdk2py.idl.default import unitree_go_msg_dds__SportModeState_
+from unitree_sdk2py.idl.unitree_go.msg.dds_ import SportModeState_
+from unitree_sdk2py.go2.sport.sport_client import (
+    SportClient,
+    PathPoint,
+    SPORT_PATH_POINT_SIZE,
+)
+
 import rospy
 from message_filters import ApproximateTimeSynchronizer, Subscriber
 from cv_bridge import CvBridge
@@ -30,6 +40,34 @@ import traceback
 
 from .vlm import RobotVLM
 from .nav import RobotNav, RobotAction, ControlMode
+
+from dataclasses import dataclass
+
+@dataclass
+class TestOption:
+    name: str
+    id: int
+
+option_list = [
+    TestOption(name="damp", id=0),         
+    TestOption(name="stand_up", id=1),     
+    TestOption(name="stand_down", id=2),   
+    TestOption(name="move forward", id=3),         
+    TestOption(name="move lateral", id=4),    
+    TestOption(name="move rotate", id=5),  
+    TestOption(name="stop_move", id=6),  
+    TestOption(name="hand stand", id=7),
+    TestOption(name="balanced stand", id=9),     
+    TestOption(name="recovery", id=10),       
+    TestOption(name="left flip", id=11),      
+    TestOption(name="back flip", id=12),
+    TestOption(name="free walk", id=13),  
+    TestOption(name="free bound", id=14), 
+    TestOption(name="free avoid", id=15),  
+    TestOption(name="walk upright", id=17),
+    TestOption(name="cross step", id=18),
+    TestOption(name="free jump", id=19)       
+]
 
 class Go2Manager():
     def __init__(self):
@@ -90,6 +128,13 @@ class Go2Manager():
 
         # nav action
         self.act = None
+
+        # unitree go2 dog
+        self.go2client = None
+        #ChannelFactoryInitialize(0, "eth0") # default net card
+        #sport_client = SportClient()  
+        #sport_client.SetTimeout(10.0)
+        #sport_client.Init()
     
     def get_observation(self):
         # TODO  加锁
@@ -312,9 +357,26 @@ class Go2Manager():
         self.move(0.0, 0.0, 0.0)
         print("✅ Go2Manager: nav task reset and robot stopped")
 
-    def stop_robot(self):
-        # TODO
-        return None
+    def go2_robot_stop(self):
+        if self.go2client is None:
+            print("Go2 Sport Client NOT initialized!")
+            return
+        else:
+            self.go2client.StopMove()
+
+    def go2_robot_standup(self):
+        if self.go2client is None:
+            print("Go2 Sport Client NOT initialized!")
+            return
+        else:
+            self.go2client.StandUp()
+
+    def go2_robot_standdown(self):
+        if self.go2client is None:
+            print("Go2 Sport Client NOT initialized!")
+            return
+        else:
+            self.go2client.StandDown()    
 
 if __name__ == "__main__":
 

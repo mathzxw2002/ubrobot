@@ -25,11 +25,6 @@ from ubrobot.robots.ubrobot import Go2Manager
 manager = None
 
 def gradio_planning_txt_update():
-
-    #global planning_response, global_nav_instruction_str, http_idx
-
-    #global_nav_instruction_str = ins_str
-
     # TODO double check
     #image_bytes = copy.deepcopy(manager.rgb_bytes)
     #result_str = cosmos_reason1_infer(image_bytes, global_nav_instruction_str)
@@ -88,6 +83,19 @@ def gradio_planning_txt_update():
         yield gr.update(value=vis_annotated_img)
         time.sleep(1)
 
+def go2_robot_stop():
+    # TODO
+    print("stopping the robot.")
+    manager.go2_robot_stop()
+
+def go2_robot_standup():
+    print("standing up the robot.")
+    manager.go2_robot_standup()
+
+def go2_robot_standdown():
+    print("standing down the robot.")
+    manager.go2_robot_standdown()
+
 def create_gradio():
     with gr.Blocks(title="UBRobot ChatUI") as demo:   
         gr.Markdown(
@@ -120,11 +128,13 @@ def create_gradio():
                 user_input = mgr.MultimodalInput(sources=["microphone"])
 
             with gr.Column(scale = 1):
-                #video_stream = gr.Video(label="Video Stream 🎬 (基于Gradio 5测试版，网速不佳可能卡顿)", streaming=True, height = 500, scale = 1) 
                 gr.Markdown("### Nav with Instruction")
                 nav_img_output = gr.Image(type="pil", height=480,)
                 planning_response_txt = gr.Textbox(interactive=False, lines=5)
                 ins_msg_bt = gr.Button("nav instruction")
+                stop_bt = gr.Button("STOP!!!")
+                standup_bt = gr.Button("StandUP")
+                standdown_bt = gr.Button("StandDOWN")
 
         # Use State to store user chat history
         user_messages = gr.State([{'role': 'system', 'content': None}])
@@ -158,6 +168,9 @@ def create_gradio():
             )
         
         ins_msg_bt.click(gradio_planning_txt_update, inputs=[], outputs=[nav_img_output])
+        stop_bt.click(go2_robot_stop, inputs=[], outputs=[])
+        standup_bt.click(go2_robot_standup, inputs=[], outputs=[])
+        standdown_bt.click(go2_robot_standdown, inputs=[], outputs=[])
 
         #with gr.Row():
             #with gr.Column(scale=1, min_width=300):

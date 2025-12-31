@@ -62,7 +62,7 @@ def gradio_planning_txt_update():
             time.sleep(1)'''
     #print(ins_str)
 
-    '''while True:
+    while True:
         #planning_response_str = ""
         pil_annotated_img = manager.get_observation()
         
@@ -75,19 +75,18 @@ def gradio_planning_txt_update():
         #planning_response_str = str(idx2actions) + "\n" + str(planning_response)
 
         #pil_annotated_img = annotate_image(http_idx, manager.rgb_image, discrete_act, traj_path, pixel_goal, "./")
+
+        pil_annotated_img = manager.get_observation()
+        #res = manager.reasoning_vlm(pil_annotated_img, "briefly describe what see in your front?")
+
+        instruction = "go to the near frontal black bag and stop immediately."
+        manager.set_user_instruction(instruction)
         
-        yield gr.update(value=pil_annotated_img)
-        time.sleep(1)'''
-    
-    pil_annotated_img = manager.get_observation()
-    #res = manager.reasoning_vlm(pil_annotated_img, "briefly describe what see in your front?")
+        nav_action, vis_annotated_img = manager.get_next_planning()
 
-    instruction = "go to the near frontal black bag and stop immediately."
-    manager.set_user_instruction(instruction)
-    manager.start_threads()
-
-    #print(res)
-
+        #print(res)
+        yield gr.update(value=vis_annotated_img)
+        time.sleep(1)
 
 def create_gradio():
     with gr.Blocks(title="UBRobot ChatUI") as demo:   
@@ -188,6 +187,8 @@ if __name__ == "__main__":
     app = gr.mount_gradio_app(app, gradio_app, path='/')
 
     manager = Go2Manager()
+
+    manager.start_threads()
     
     uvicorn.run(
         app, 

@@ -41,13 +41,17 @@ class Go2Manager():
         self.pid = PID_controller(Kp_trans=2.0, Kd_trans=0.0, Kp_yaw=1.5, Kd_yaw=0.0, max_v=0.6, max_w=0.5)
         self.http_idx = -1
 
+        # nav 
         self.global_nav_instruction_str = None
+        self.nav_action = None
+        self.nav_annotated_img = None
 
         # 读写锁相关
         self.rgb_depth_rw_lock = ReadWriteLock()
         self.odom_rw_lock = ReadWriteLock()
         self.mpc_rw_lock = ReadWriteLock()
         self.act_rw_lock = ReadWriteLock()
+        self.nav_rw_lock = ReadWriteLock()
 
         rgb_down_sub = Subscriber("/cam_front/camera/color/image_raw", Image)
         depth_down_sub = Subscriber("/cam_front/camera/aligned_depth_to_color/image_raw", Image)
@@ -91,6 +95,13 @@ class Go2Manager():
         # TODO  加锁
         image = PIL_Image.fromarray(self.rgb_image).convert('RGB')
         return image
+    
+    def get_next_planning(self):
+        self.nav_rw_lock.acquire_read()
+        nav_action = copy.deepcopy(self.nav_action)
+        vis_annotated_img = copy.deepcopy(self.nav_annotated_img)
+        self.nav_rw_lock.release_read()
+        return nav_action, vis_annotated_img
     
     def reasoning_vlm(self, image_pil: PIL_Image.Image, instruction:str):
         response_restult_str = None
@@ -184,6 +195,9 @@ class Go2Manager():
                 start = time.time()
                 nav_action, vis_annotated_img = self.nav_policy_infer(self.policy_init, self.http_idx, rgb_bytes, depth_bytes, self.global_nav_instruction_str, self.odom, self.homo_odom)
 
+                self.nav_action = nav_action
+                self.nav_annotated_img = vis_annotated_img
+
                 self.policy_init = False
                 self.http_idx += 1
                 print(f"idx: {self.http_idx} after dual_sys_eval {time.time() - start}")
@@ -199,6 +213,7 @@ class Go2Manager():
 
     def start_threads(self):
         self.planning_thread_instance.start()
+        self.control_thread_instance.start()
         print("✅ Go2Manager: control thread and planning thread started successfully")
 
     def rgb_depth_down_callback(self, rgb_msg, depth_msg):

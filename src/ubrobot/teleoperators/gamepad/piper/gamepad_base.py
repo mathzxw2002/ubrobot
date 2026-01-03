@@ -92,7 +92,7 @@ class GamepadBase:
         self.speed_factors = [0.25, 0.5, 1.0, 2.0, 3.0, 4.0, 5.0]
         self.speed_factor_index = 2     # Default 1.0x
         self.movement_speeds = [10, 20, 30, 40, 50, 60, 70, 80, 90, 100]
-        self.movement_speed_index = 9   # Default 100%
+        self.movement_speed_index = 1   # Default 100%
 
         # Saved positions
         self.saved_positions = []
@@ -510,17 +510,18 @@ class GamepadBase:
 
     def _increase_movement_speed(self):
         """Increase movement speed (support cycle)"""
-        if self.movement_speed_index < len(self.movement_speeds) - 1:
-            self.movement_speed_index += 1
-        else:
-            self.movement_speed_index = 0  # Cycle to beginning
-
+        #if self.movement_speed_index < len(self.movement_speeds) - 1:
+        #    self.movement_speed_index += 1
+        #else:
+        #    self.movement_speed_index = 0  # Cycle to beginning
+        self.movement_speed_index = 1
+    
     def _decrease_movement_speed(self):
         """Decrease movement speed (support cycle)"""
         if self.movement_speed_index > 0:
             self.movement_speed_index -= 1
-        else:
-            self.movement_speed_index = len(self.movement_speeds) - 1  # Cycle to end
+        #else:
+        #    self.movement_speed_index = len(self.movement_speeds) - 1  # Cycle to end
 
     def _toggle_arm_connection(self):
         """Toggle robot arm connection status"""

@@ -414,7 +414,7 @@ public:
             sensor_msgs::PointCloud2 cloud_msg;
             #pragma omp parallel for
             for (int l = 0; l < object_clouds.size(); ++l){
-                auto grasp_pose = planner_.computeGraspPose(object_clouds[l], 0.10);
+                auto grasp_pose = planner_.computeGraspPose(object_clouds[l], 0.20);
             }
             // pcl::toROSMsg(*object_clouds[0], cloud_msg); // 发布第一个物体或合并所有
             pcl::toROSMsg(*merged_cloud, cloud_msg);

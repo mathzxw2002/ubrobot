@@ -5,11 +5,11 @@ os.environ["WGPU_BACKEND"] = "gl"
 import time
 import argparse
 
-from lerobot.robots.piper.robot import PiperRobot
-from lerobot.robots.piper.config import PiperRobotConfig
-from lerobot.teleoperators.piper.teleoperator import PiperTeleoperator
-from lerobot.teleoperators.piper.config import PiperTeleoperatorConfig, PiperKeyboardTeleopConfig
-from lerobot.teleoperators.piper.teleop_keyboard import PiperKeyboardTeleop
+from ubrobot.robots.piper.robot import PiperRobot
+from ubrobot.robots.piper.config import PiperRobotConfig
+from ubrobot.teleoperators.piper.teleoperator import PiperTeleoperator
+from ubrobot.teleoperators.piper.config import PiperTeleoperatorConfig, PiperKeyboardTeleopConfig
+from ubrobot.teleoperators.piper.teleop_keyboard import PiperKeyboardTeleop
 from lerobot.cameras.opencv.configuration_opencv import OpenCVCameraConfig, Cv2Rotation
 from lerobot.processor import make_default_processors
 from lerobot.scripts.lerobot_record import record_loop # record_loop can be used for teleoperation without recording

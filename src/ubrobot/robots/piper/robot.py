@@ -2,12 +2,12 @@ import time
 import torch
 from dataclasses import replace
 
-from lerobot.motors.piper.motors_bus import PiperMotorsBus, PiperMotorsBusConfig
+from ubrobot.motors.piper.motors_bus import PiperMotorsBus, PiperMotorsBusConfig
 from lerobot.robots.robot import Robot
 from lerobot.robots.config import RobotConfig
 from lerobot.cameras.utils import make_cameras_from_configs
 from lerobot.utils.errors import DeviceAlreadyConnectedError, DeviceNotConnectedError
-from lerobot.robots.piper.config import PiperRobotConfig
+from ubrobot.robots.piper.config import PiperRobotConfig
 
 class PiperRobot(Robot):
     config_class = PiperRobotConfig

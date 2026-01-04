@@ -4,13 +4,10 @@ repo for robot navigation and manipulation (WIP)
 # TODOs
 - [ ] add architecure for this project
 - [ ] docker
-- [ ] add support for unitree go2
-- [ ] xx
-
 
 # Installation
 
-UBRobot works with Ubuntu 24.04, Python 3.10+ and PyTorch 2.8+.
+UBRobot works with Ubuntu 20.04, Python 3.10+ and PyTorch 2.8+.
 
 ## Environment Setup
 
@@ -35,32 +32,12 @@ wget https://github.com/Dao-AILab/flash-attention/releases/download/v2.8.3/flash
 pip install flash_attn-2.8.3+cu12torch2.8cxx11abiFALSE-cp310-cp310-linux_x86_64.whl
 
 pip install transformers==4.51.0 diffusers==0.31.0 accelerate==1.10.1 opencv-python==4.10.0.82 pillow==10.4.0 gym==0.23.1
-pip install imageio==2.37.0 imageio-ffmpeg==0.6.0 ftfy==6.3.1
-pip install scipy matplotlib
-pip install qwen_vl_utils
 ```
 
 cpu version
 ```bash
 pip install torch==2.8.0 torchvision==0.23.0 torchaudio==2.8.0 --index-url https://download.pytorch.org/whl/cpu
 pip install transformers==4.51.0 diffusers==0.31.0 accelerate==1.10.1 opencv-python==4.10.0.82 pillow==10.4.0 gym==0.23.1
-pip install imageio==2.37.0 imageio-ffmpeg==0.6.0 ftfy==6.3.1
-pip install scipy matplotlib
-pip install qwen_vl_utils
-```
-
-pip install "fastrtc[vad, tts]"
-
-## Install LeRobot
-
-### From Source
-First, clone the repository and navigate into the directory:
-```bash
-git clone https://github.com/huggingface/lerobot.git
-cd lerobot
-
-pip install -e ".[aloha, pusht]"
-
 ```
 
 ## Install InternNav from Source
@@ -110,8 +87,3 @@ python src/lerobot/processor/migrate_policy_normalization.py --pretrained-path /
     year = {2025}
 }
 ```
-
-
-
-
-export CYCLONEDDS_HOME="/{path to your cyclonedds}/cyclonedds/install"

@@ -5,7 +5,7 @@ import pygame
 # Choose the appropriate controller based on the inverse kinematics algorithm
 # from src.gamepad_pin import RoboticArmController
 # from src.gamepad_curobo import RoboticArmController
-from src.gamepad_trac_ik import RoboticArmController
+from gamepad_trac_ik import RoboticArmController
 # from src.gamepad_limit import RoboticArmController
 # from src.gamepad_no_limit import RoboticArmController
 
@@ -21,8 +21,8 @@ def get_current_path():
 
 def main():
     """Main function for robotic arm teleoperation."""
-    urdf_path = os.path.join(get_current_path(), "piper/piper.urdf")
-    mesh_path = os.path.join(get_current_path(), "piper/meshes/")
+    urdf_path = os.path.join(get_current_path(), "./piper.urdf")
+    mesh_path = os.path.join(get_current_path(), "./meshes/")
 
     # Initialize control class
     controller = Teleop(urdf_path, mesh_path, "/base_link", "link6")
@@ -41,6 +41,7 @@ def main():
             print(f"Update time: {(t2 - t1) *1000:.3f}ms")
             t1 = t2
 
+            #os.system('cls' if os.name == 'nt' else 'clear')
             pygame.time.wait(5)  # Control loop frequency
 
     except KeyboardInterrupt:

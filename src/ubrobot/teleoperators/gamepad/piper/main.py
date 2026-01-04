@@ -5,7 +5,7 @@ import numpy as np
 from piper_sdk import *
 
 # Choose the appropriate controller based on the inverse kinematics algorithm
-from src.gamepad_trac_ik import RoboticArmController
+from gamepad_trac_ik import RoboticArmController
 
 # Inherit RoboticArmController class, add physical robot arm control function
 class Teleop(RoboticArmController):
@@ -87,8 +87,8 @@ def get_current_path():
 
 def main():
     """Main function for robotic arm teleoperation."""
-    urdf_path = os.path.join(get_current_path(), "piper/piper.urdf")
-    mesh_path = os.path.join(get_current_path(), "piper/meshes/")
+    urdf_path = os.path.join(get_current_path(), "./piper.urdf")
+    mesh_path = os.path.join(get_current_path(), "./meshes/")
 
     # Initialize low-level interface
     robot = C_PiperInterface_V2()

@@ -1,5 +1,5 @@
-from .gamepad_base import GamepadBase, np, R
-from .kinematic_trac_ik import Kinematic
+from gamepad_base import GamepadBase, np, R
+from kinematic_trac_ik import Kinematic
 
 
 class RoboticArmController(GamepadBase):

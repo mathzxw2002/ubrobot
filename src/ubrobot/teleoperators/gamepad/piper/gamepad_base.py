@@ -174,13 +174,13 @@ class GamepadBase:
             self.hat_map = {'dpad': 0}
         else:
             self.button_map = {
-                'a': 0, 'b': 1, 'x': 2, 'y': 3,
-                'lb': 4, 'rb': 5, 'back': 6, 'start': 7,
-                'home': 8, 'l3': 9, 'r3': 10,
+                'a': 0, 'b': 1, 'x': 3, 'y': 4,
+                'lb': 6, 'rb': 7, 'back': 10, 'start': 11,
+                'home': 15, #'l3': 8, 'r3': 9,
             }
             self.axis_map = {
-                'left_x': 0, 'left_y': 1, 'right_x': 3, 'right_y': 4,
-                'left_trigger': 2, 'right_trigger': 5,
+                'left_x': 0, 'left_y': 1, 'right_x': 2, 'right_y': 3,
+                'left_trigger': 5, 'right_trigger': 4,
             }
             self.hat_map = {'dpad': 0}
 
@@ -615,6 +615,26 @@ class GamepadBase:
         else:
             self.command_mode = 0x00
 
+    def _get_all_button_states(self):
+        button_states = {}
+        if not self.joystick_connected or self.joystick is None:
+            return button_states
+
+        # get value for each button
+        total_buttons = self.joystick.get_numbuttons()
+        for button_index in range(total_buttons):
+            button_value = self.joystick.get_button(button_index)
+            button_states[button_index] = button_value
+            state_desc = "pressed" if button_value == 1 else "not pressed"
+            print(f"Button{button_index}：Value={button_value}，State={state_desc}")
+
+        total_axes = self.joystick.get_numaxes()
+        for axis_index in range(total_axes):
+            raw_value = self.joystick.get_axis(axis_index)
+            print("axis button and status:==============================", axis_index, raw_value)
+
+        return button_states
+
     def update(self):
         """Update joystick input and calculate robot arm status"""
         # Check joystick connection status
@@ -622,8 +642,11 @@ class GamepadBase:
             return
 
         try:
+
+            #self._get_all_button_states()
             # Update all button states
             button_events = {}
+
             for name, button in self.buttons.items():
                 if name not in self.button_map:
                     continue
@@ -631,7 +654,7 @@ class GamepadBase:
                 button_id = self.button_map[name]
                 if button_id >= self.joystick.get_numbuttons():
                     continue
-
+                
                 pressed = button.update(self.joystick.get_button(button_id))
                 if pressed:
                     button_events[name] = True

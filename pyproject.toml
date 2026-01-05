@@ -59,6 +59,11 @@ dependencies = [
 	"pillow==10.4.0",
 	"gym==0.23.1",
 
+	"rospkg",
+	"PyQt5-sip",
+	"empy",
+	"ultralytics",
+
 
 	# remote git resource
 	"pytracik @ git+https://github.com/mathzxw2002/pytracik.git",

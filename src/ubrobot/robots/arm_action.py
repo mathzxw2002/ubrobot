@@ -10,6 +10,7 @@ import time
 import math
 from enum import Enum
 from collections import deque
+import io
 
 # ROS消息导入
 from sensor_msgs.msg import PointCloud2
@@ -236,7 +237,7 @@ class PoseTransformer:
         self.new_image_arrived = False
         self.rgb_time = 0.0
 
-        self.seg_model = YOLO('yolov11n-seg.pt')
+        self.seg_model = YOLO('./yolo11n-seg.pt')
         
         # 状态管理
         self.original_pose = None
@@ -260,7 +261,6 @@ class PoseTransformer:
         self.task_reslut = 0
         
         # 动作序列管理
-        A
         self.action_sequence = ActionSequence()
         
         # 预定义路径点
@@ -598,7 +598,7 @@ class PoseTransformer:
 
         image.save("./input_img.png")
 
-        seg_vis_pil = Image.fromarray(res_plotted).convert('RGB')
+        seg_vis_pil = PIL_Image.fromarray(res_plotted).convert('RGB')
         seg_vis_pil.save("./vis_img.png")
 
 

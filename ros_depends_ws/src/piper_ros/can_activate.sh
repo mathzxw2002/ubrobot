@@ -1,7 +1,7 @@
 #!/bin/bash
 
 # 默认的 CAN 名称，用户可以通过命令行参数设定
-DEFAULT_CAN_NAME="${1:-can1}"
+DEFAULT_CAN_NAME="${1:-can0}"
 
 # 单个 CAN 模块时的默认比特率，用户可以通过命令行参数设定
 DEFAULT_BITRATE="${2:-1000000}"

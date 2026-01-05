@@ -71,6 +71,7 @@ teleoperator.connect()
 listener, events = init_keyboard_listener()
 # init_rerun(session_name="piper_teleoperate") # Removed rerun call
 
+#print("----------------", robot.is_connected, teleoperator.is_connected)
 if not robot.is_connected or not teleoperator.is_connected:
     raise ValueError("Robot or teleop is not connected!")
 

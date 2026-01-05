@@ -1,7 +1,7 @@
 
 from dataclasses import dataclass, field
 from lerobot.robots.config import RobotConfig
-from lerobot.motors.piper.motors_bus import PiperMotorsBusConfig
+from ubrobot.motors.piper.motors_bus import PiperMotorsBusConfig
 from lerobot.cameras.configs import CameraConfig
 from typing import Dict
 

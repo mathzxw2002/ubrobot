@@ -69,7 +69,7 @@ class PiperMotorsBus(MotorsBus):
 
         # Convert config.motors (Dict[str, Tuple[int, str]]) to Dict[str, Motor] for super().__init__
         converted_motors = {
-            name: Motor(id=motor_id, model=model_name, norm_mode=MotorNormMode.IDENTITY)
+            name: Motor(id=motor_id, model=model_name, norm_mode="identity")
             for name, (motor_id, model_name) in config.motors.items()
         }
         super().__init__(port=config.can_name, motors=converted_motors)

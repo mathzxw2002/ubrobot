@@ -41,6 +41,11 @@ from ultralytics import YOLO
 from scipy.linalg import qr
 import transforms3d.quaternions as tfq
 
+import matplotlib
+matplotlib.use('Agg')
+import matplotlib.pyplot as plt
+from mpl_toolkits.mplot3d import Axes3D
+
 class GraspPoseCalculator:
     def __init__(self):
         """初始化抓取姿态计算器"""
@@ -416,6 +421,8 @@ class PoseTransformer:
         self.vis = o3d.visualization.VisualizerWithKeyCallback()
 
         self.yolo_model = YOLO('./yolo11n-seg.pt')
+
+        self.grasp_calc = GraspPoseCalculator()
         
         # 状态管理
         self.original_pose = None
@@ -625,13 +632,14 @@ class PoseTransformer:
         # conf: 置信度阈值，iou: IOU阈值，classes: 指定检测类别
         results = self.yolo_model(
             rgb_image,
-            conf=0.5,  # 过滤置信度<0.5的结果，可调整
-            iou=0.45,
-            classes=self.target_classes
+            #conf=0.5,  # 过滤置信度<0.5的结果，可调整
+            #iou=0.45,
+            #classes=self.target_classes
         )
 
         # 2. 处理推理结果（优先取置信度最高的目标）
-        if len(results[0].masks) == 0:  # 无目标检测到
+        #print("results[0].masks...", results[0].masks)
+        if results[0].masks is None or len(results[0].masks) == 0:  # 无目标检测到
             rospy.logwarn("YOLO未检测到任何目标")
             h, w, _ = rgb_image.shape
             return None, np.zeros((h, w), dtype=np.uint8), rgb_image.copy()
@@ -757,17 +765,14 @@ class PoseTransformer:
         self.visualize_results(rgb_image_with_bbox, target_pcd, aabb, obb)
 
     def visualize_results(self, rgb_image_with_bbox, target_pcd, aabb, obb):
-        """
-        可视化2D图像（带bbox）和3D点云（带3D包围框）
-        """
-        # 1. 2D可视化（OpenCV窗口）
-        cv2.imshow("RGB Image with 2D BBox", rgb_image_with_bbox)
-        cv2.waitKey(1)  # 刷新窗口，不阻塞
+        
+        cv2.imwrite("2d_detection_result.jpg", rgb_image_with_bbox)
 
         # 2. 3D可视化（Open3D窗口，复用窗口）
         if not self.vis_3d_init:
             # 首次初始化窗口
-            self.vis.create_window(window_name="3D Object Visualization", width=800, height=600)
+            self.vis.create_window(visible=False, width=800, height=600)
+
             # 添加相机坐标系（原点为相机光心，尺寸0.5米）
             coord_frame = o3d.geometry.TriangleMesh.create_coordinate_frame(size=0.5, origin=[0, 0, 0])
             self.vis.add_geometry(coord_frame)
@@ -781,11 +786,93 @@ class PoseTransformer:
             self.vis.update_geometry(target_pcd)
             self.vis.update_geometry(aabb)
             self.vis.update_geometry(obb)
+            print("----------------", target_pcd, aabb, obb)
 
-        # 刷新3D窗口
         self.vis.poll_events()
         self.vis.update_renderer()
+        #self.vis.capture_screen_image("3d_detection_result.jpg")
+        self.vis.destroy_window()
 
+        o3d.io.write_point_cloud("./target_pcd.pcd", target_pcd)
+        #aabb_mesh = o3d.geometry.TriangleMesh.create_from_oriented_bounding_box(aabb)
+        obb_mesh = o3d.geometry.TriangleMesh.create_from_oriented_bounding_box(obb)
+        #o3d.io.write_triangle_mesh("./aabb_mesh.ply", aabb_mesh)
+        o3d.io.write_triangle_mesh("./obb_mesh.ply", obb_mesh)
+
+    def visualize_results_plot(self, rgb_image_with_bbox, target_pcd, aabb, obb):
+        try:
+            # 存储2D检测结果
+            cv2.imwrite("/home/unitree/ubrobot/results/2d_result.jpg", rgb_image_with_bbox)
+
+            # 存储3D点云+包围框（matplotlib离线绘图）
+            fig = plt.figure(figsize=(8,6))
+            ax = fig.add_subplot(111, projection='3d')
+
+            # 绘制点云（转换为numpy数组）
+            pcd_np = np.asarray(target_pcd.points)
+            ax.scatter(pcd_np[:,0], pcd_np[:,1], pcd_np[:,2], s=1, alpha=0.5, c='blue')
+
+            # 绘制AABB包围框
+            aabb_points = np.asarray(aabb.get_box_points())
+            # 绘制包围框的12条边
+            edges = [
+                [0,1], [1,2], [2,3], [3,0],
+                [4,5], [5,6], [6,7], [7,4],
+                [0,4], [1,5], [2,6], [3,7]
+            ]
+            for edge in edges:
+                ax.plot3D(
+                    [aabb_points[edge[0],0], aabb_points[edge[1],0]],
+                    [aabb_points[edge[0],1], aabb_points[edge[1],1]],
+                    [aabb_points[edge[0],2], aabb_points[edge[1],2]],
+                    'r-'
+                )
+
+            # 绘制OBB包围框
+            obb_points = np.asarray(obb.get_box_points())
+            for edge in edges:
+                ax.plot3D(
+                    [obb_points[edge[0],0], obb_points[edge[1],0]],
+                    [obb_points[edge[0],1], obb_points[edge[1],1]],
+                    [obb_points[edge[0],2], obb_points[edge[1],2]],
+                    'g-'
+                )
+
+            # 设置坐标轴标签
+            ax.set_xlabel('X')
+            ax.set_ylabel('Y')
+            ax.set_zlabel('Z')
+            ax.set_title('3D Detection Result')
+
+            # 保存3D结果（指定可写路径，避免权限问题）
+            plt.savefig("./3d_result.jpg")
+            plt.close(fig)  # 关闭画布，释放内存
+
+        except Exception as e:
+            # 捕获异常并打印，避免ROS回调崩溃
+            print(f"可视化存储失败: {str(e)}")
+
+    def visualize_grasp_pose(pcd, grasp_pose):
+        """在Open3D可视化窗口中叠加显示抓取姿态（坐标系）"""
+        # 创建抓取姿态的坐标系（轴长0.1米）
+        grasp_frame = o3d.geometry.TriangleMesh.create_coordinate_frame(size=0.1)
+        # 提取抓取姿态的位置和旋转
+        pos = grasp_pose["pose"]["position"]
+        ori = grasp_pose["pose"]["orientation"]
+        # 转换四元数为旋转矩阵
+        rot_mat = o3d.geometry.get_rotation_matrix_from_quaternion(
+            [ori["x"], ori["y"], ori["z"], ori["w"]]
+        )
+        # 应用位置和旋转
+        grasp_frame.rotate(rot_mat, center=(0,0,0))
+        grasp_frame.translate([pos["x"], pos["y"], pos["z"]])
+    
+        # 可视化点云+包围框+抓取姿态
+        o3d.visualization.draw_geometries([
+            pcd, aabb, obb, grasp_frame,
+            o3d.geometry.TriangleMesh.create_coordinate_frame(size=0.5)  # 全局坐标系
+        ], window_name="抓取姿态可视化")
+    
     def pose_callback(self, msg):
         """PoseStamped消息回调"""
         self.original_pose = msg
@@ -983,11 +1070,50 @@ class PoseTransformer:
 
         seg_vis_pil = PIL_Image.fromarray(res_plotted).convert('RGB')
         seg_vis_pil.save("./vis_img.png")
+        
 
+        # ================== 3. 关键：从OBB提取PCA相关参数（核心步骤） ===========
+        # OBB包含了PCA主方向、局部AABB中心、变换矩阵等关键信息，直接从obb中提取
+        # 3.1 提取PCA局部坐标系下的AABB盒尺寸（对应C++中的aabb_length_x/y/z）
+        aabb_dimensions = [
+            obb.extent[0],  # X轴长度（局部坐标系）
+            obb.extent[1],  # Y轴长度（局部坐标系）
+            obb.extent[2]   # Z轴长度（局部坐标系）
+        ]
 
+        aabb_center_local = obb.center ## 3.2 提取PCA局部坐标系下的AABB盒中心（对应C++中的aabb_center_local）,  OBB的中心就是PCA局部坐标系下的AABB中心
 
+        # 3.3 构建逆变换矩阵tm_inv（4x4，对应C++中的tm_inv）
+        # OBB的旋转矩阵（3x3）+ 平移向量（3x1）→ 4x4变换矩阵
+        tm_inv = np.eye(4, dtype=np.float64)
+        tm_inv[:3, :3] = np.array(obb.R)  # OBB的旋转矩阵（PCA主方向）
+        tm_inv[:3, 3] = np.array(obb.center)  # OBB的中心（平移向量）
 
+        # ===================== 4. 机械爪参数配置 =====================
+        gripper_max_opening = 0.05  # 机械爪最大张开距离（米），根据实际硬件调整（如0.1米）
+        frame_id = "camera_color_optical_frame"  # 坐标系ID（与你的点云坐标系一致）
 
+        # ===================== 5. 夹持方向筛选 + 可抓取性判断 =====================
+        grasp_axis, is_graspable, min_dim = grasp_calc.select_grasp_axis(
+            aabb_dimensions=aabb_dimensions,
+            gripper_max_opening=gripper_max_opening
+        )
+
+        # ===================== 6. 若可抓取，计算最终抓取姿态 =====================
+        if is_graspable:
+            # 计算抓取姿态（位置+旋转）
+            grasp_pose = grasp_calc.compute_grasp_pose(
+                aabb_center_local=aabb_center_local,
+                tm_inv=tm_inv,
+                grasp_axis=grasp_axis,
+                frame_id=frame_id
+        )
+
+        # ===================== 7. 结果输出/使用 =====================
+        print("\n===== 最终抓取姿态 =====")
+        print(f"坐标系：{grasp_pose['header']['frame_id']}")
+        print(f"抓取位置：x={grasp_pose['pose']['position']['x']:.3f}m, y={grasp_pose['pose']['position']['y']:.3f}m, z={grasp_pose['pose']['position']['z']:.3f}m")
+        print(f"抓取四元数：x={grasp_pose['pose']['orientation']['x']:.3f}, y={grasp_pose['pose']['orientation']['y']:.3f}, z={grasp_pose['pose']['orientation']['z']:.3f}, w={grasp_pose['pose']['orientation']['w']:.3f}")
 
     def record_search_route(self):
         """记录搜索路径"""

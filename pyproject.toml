@@ -63,6 +63,7 @@ dependencies = [
 	"PyQt5-sip",
 	"empy",
 	"ultralytics",
+	"open3d",
 	"transforms3d",
 	"eigenpy",
 

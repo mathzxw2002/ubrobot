@@ -565,6 +565,8 @@ class PoseTransformer:
                       self.fx, self.fy, self.ppx, self.ppy)
     
     def rgb_depth_down_callback(self, rgb_msg, depth_msg):
+
+        print("======================, rgb_depth_down_callback, ")
         """处理下视彩色图像和对齐后的深度图像消息"""
         # 处理彩色图像
         raw_image = self.cv_bridge.imgmsg_to_cv2(rgb_msg, 'rgb8')[:, :, :]
@@ -600,6 +602,8 @@ class PoseTransformer:
         # 标记图像更新
         self.new_image_arrived = True
 
+        print("++++++++++++++++++++++++++++", self.new_image_arrived)
+
         #self.process_object_3d_data()
 
     def pixel_to_3d(self, u, v, z):
@@ -620,15 +624,9 @@ class PoseTransformer:
     
     def yolo_segmentation(self, rgb_image):
         """
-        基于Ultralytics YOLO进行真实物体分割，替代原模拟检测
-        :param rgb_image: RGB图像（rgb8格式，numpy数组，形状[H, W, 3]）
-        :return: 
-            bbox: 目标2D矩形框 [x1, y1, x2, y2]（取置信度最高的目标）
-            mask: 目标2D掩码（与图像同尺寸，0=背景，255=目标）
-            rgb_image_with_bbox: 绘制了bbox和掩码的可视化RGB图像
+        Yolo-based object detection and segmentation
+        :param rgb_image: RGB image（rgb8 format，numpy [H, W, 3]）
         """
-        # 1. YOLO模型推理（传入RGB图像，返回分割结果）
-        # conf: 置信度阈值，iou: IOU阈值，classes: 指定检测类别
         results = self.yolo_model(
             rgb_image,
             #conf=0.5,  # 过滤置信度<0.5的结果，可调整
@@ -636,54 +634,49 @@ class PoseTransformer:
             #classes=self.target_classes
         )
 
-        # 2. 处理推理结果（优先取置信度最高的目标）
-        #print("results[0].masks...", results[0].masks)
-        if results[0].masks is None or len(results[0].masks) == 0:  # 无目标检测到
-            rospy.logwarn("YOLO未检测到任何目标")
+        single_result = results[0] # get result for the 1st image
+        if single_result.masks is None or len(single_result.masks) == 0:
+            rospy.logwarn("YOLO No Object Found!")
             h, w, _ = rgb_image.shape
-            return None, np.zeros((h, w), dtype=np.uint8), rgb_image.copy()
+            return None, np.zeros((h, w), dtype=np.uint8)
 
-        # 获取第一个结果（或置信度最高的结果）
-        result = results[0]
-        # 提取所有目标的置信度
-        confidences = result.boxes.conf.cpu().numpy()
-        max_conf_idx = np.argmax(confidences)  # 置信度最高目标的索引
+        confs = single_result.boxes.conf.cpu().numpy()
+        boxes = single_result.boxes.xyxy.cpu().numpy().astype(int)
+        cls_ids = single_result.boxes.cls.cpu().numpy()
 
-        # 3. 提取目标bbox（xyxy格式：[x1, y1, x2, y2]）
-        bbox = result.boxes.xyxy[max_conf_idx].cpu().numpy().astype(int)  # 转为整数像素坐标
+        masks = None
+        if single_result.masks is not None:
+            masks = single_result.masks.data.cpu().numpy()
+
+        conf_with_idx = list(enumerate(confs))  # e.g. [(0, 0.95), (1, 0.88), ...]
+
+        # sort by conf
+        conf_with_idx_sorted = sorted(conf_with_idx, key=lambda x: x[1], reverse=True)
+        sorted_indices = [idx for idx, conf in conf_with_idx_sorted]
+
+        sorted_confs = confs[sorted_indices]
+        sorted_boxes = boxes[sorted_indices]
+        sorted_cls_ids = cls_ids[sorted_indices]
+        sorted_masks = masks[sorted_indices] if masks is not None else None
 
         # 4. 提取目标mask（归一化mask转为图像尺寸）
-        mask = result.masks.data[max_conf_idx].cpu().numpy()  # 原始mask形状[H_model, W_model]
-        mask = cv2.resize(mask, (rgb_image.shape[1], rgb_image.shape[0]))  # 缩放到图像尺寸
-        mask = (mask > 0.5).astype(np.uint8) * 255  # 二值化：0/255
+        #mask = cv2.resize(mask, (rgb_image.shape[1], rgb_image.shape[0]))  # 缩放到图像尺寸
+        #mask = (mask > 0.5).astype(np.uint8) * 255
 
-        # 5. 绘制bbox和mask到RGB图像（可视化）
-        rgb_image_with_bbox = rgb_image.copy()
-        # 绘制矩形框（绿色，线宽2）
-        x1, y1, x2, y2 = bbox
-        cv2.rectangle(rgb_image_with_bbox, (x1, y1), (x2, y2), (0, 255, 0), 2)
-        # 绘制掩码（半透明红色，便于观察）
-        mask_color = np.zeros_like(rgb_image_with_bbox)
-        mask_color[:, :, 0] = mask  # 红色通道赋值
-        rgb_image_with_bbox = cv2.addWeighted(rgb_image_with_bbox, 1.0, mask_color, 0.3, 0)
-        # 绘制类别名称和置信度
-        class_id = int(result.boxes.cls[max_conf_idx].cpu().numpy())
-        class_name = self.yolo_model.names[class_id]
-        conf_text = f"{class_name}: {confidences[max_conf_idx]:.2f}"
-        cv2.putText(rgb_image_with_bbox, conf_text, (x1, y1-10), 
-                    cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 255, 0), 2)
-
-        return bbox, mask, rgb_image_with_bbox
+        vis_image = single_result.plot()
+        save_path = "./segment_result.jpg"
+        vis_image_bgr = cv2.cvtColor(vis_image, cv2.COLOR_RGB2BGR)
+        cv2.imwrite(save_path, vis_image_bgr)
+        return sorted_boxes, sorted_confs, sorted_cls_ids, sorted_masks
     
-    def get_object_3d_data(self, bbox, mask):
+    def get_object_3d_data(self, bbox, mask, rgb_image, depth_image):
         """
         从2D检测结果提取目标3D点云、3D包围框
         :param bbox: 2D矩形框 [x1, y1, x2, y2]
         :param mask: 2D目标掩码
         :return: target_pcd（3D点云）、aabb（轴对齐3D包围框）、obb（定向3D包围框）
         """
-        # 检查必要数据是否有效
-        if self.rgb_image is None or self.depth_image is None:
+        if rgb_image is None or depth_image is None:
             rospy.logwarn("RGB/深度图像无效，无法提取3D数据")
             return None, None, None
         if bbox is None or mask is None:
@@ -693,8 +686,8 @@ class PoseTransformer:
         x1, y1, x2, y2 = map(int, bbox)
         # 裁剪ROI区域（提升计算效率，仅处理目标区域）
         roi_mask = mask[y1:y2, x1:x2]
-        roi_depth = self.depth_image[y1:y2, x1:x2]
-        roi_rgb = self.rgb_image[y1:y2, x1:x2]
+        roi_depth = depth_image[y1:y2, x1:x2]
+        roi_rgb = rgb_image[y1:y2, x1:x2]
 
         # 获取ROI内目标像素的坐标（行、列）
         u_roi, v_roi = np.where(roi_mask > 0)
@@ -703,7 +696,7 @@ class PoseTransformer:
         v = v_roi + x1  # 原始图像横坐标（列）
 
         # 提取对应深度值（米单位）和RGB颜色
-        z_values = self.depth_image[u, v]
+        z_values = depth_image[u, v]
         rgb_values = roi_rgb[u_roi, v_roi]
 
         # 过滤无效数据（深度<=0为无效）
@@ -735,15 +728,14 @@ class PoseTransformer:
         aabb.color = (1, 0, 0)  # 红色：轴对齐包围框
         obb = target_pcd.get_oriented_bounding_box()
         obb.color = (0, 1, 0)  # 绿色：定向包围框
-
         return target_pcd, aabb, obb
 
     def process_object_3d_data(self):
         """
         核心处理函数：串联2D检测->3D数据提取->可视化
         """
-        # 检查前置条件
         if not self.new_image_arrived:
+            print("self.new_image_arrived, ", self.new_image_arrived)
             return
         if self.fx is None or self.fy is None or self.ppx is None or self.ppy is None:
             rospy.logwarn("相机内参未就绪，跳过3D处理")
@@ -752,29 +744,27 @@ class PoseTransformer:
             rospy.logwarn("RGB/深度图像未就绪，跳过3D处理")
             return
 
-        # 1. 获取2D检测结果
-        bbox, mask, rgb_image_with_bbox = self.yolo_segmentation(self.rgb_image)
+        sorted_boxes, sorted_confs, sorted_cls_ids, sorted_masks = self.yolo_segmentation(self.rgb_image)
 
-        # 2. 提取3D目标数据
-        target_pcd, aabb, obb = self.get_object_3d_data(bbox, mask)
+        bbox = sorted_boxes[0]
+        mask = sorted_masks[0]
+        target_pcd, aabb, obb = self.get_object_3d_data(bbox, mask, self.rgb_image, self.depth_image)
         if target_pcd is None:
             return
 
-        # 3. 可视化2D和3D结果
-        self.visualize_results(rgb_image_with_bbox, target_pcd, aabb, obb)
+        print("++++++++++++++++++++++++++++", type(target_pcd))
+        self.visualize_pcd_with_boxes_offline(target_pcd, aabb, obb)
+        #self.visualize_results(target_pcd, aabb, obb)
 
         # ================== 3. 关键：从OBB提取PCA相关参数（核心步骤） ===========
         # OBB包含了PCA主方向、局部AABB中心、变换矩阵等关键信息，直接从obb中提取
-        # 3.1 提取PCA局部坐标系下的AABB盒尺寸（对应C++中的aabb_length_x/y/z）
         aabb_dimensions = [
             obb.extent[0],  # X轴长度（局部坐标系）
             obb.extent[1],  # Y轴长度（局部坐标系）
             obb.extent[2]   # Z轴长度（局部坐标系）
         ]
 
-        aabb_center_local = obb.center ## 3.2 提取PCA局部坐标系下的AABB盒中心（对应C++中的aabb_center_local）,  OBB的中心就是PCA局部坐标系下的AABB中心
-
-        # 3.3 构建逆变换矩阵tm_inv（4x4，对应C++中的tm_inv）
+        # 3.3 构建逆变换矩阵tm_inv（4x4)
         # OBB的旋转矩阵（3x3）+ 平移向量（3x1）→ 4x4变换矩阵
         tm_inv = np.eye(4, dtype=np.float64)
         tm_inv[:3, :3] = np.array(obb.R)  # OBB的旋转矩阵（PCA主方向）
@@ -790,24 +780,83 @@ class PoseTransformer:
             gripper_max_opening=gripper_max_opening
         )
 
-        # ===================== 6. 若可抓取，计算最终抓取姿态 =====================
         if is_graspable:
-            # 计算抓取姿态（位置+旋转）
             grasp_pose = self.grasp_calc.compute_grasp_pose(
-                aabb_center_local=aabb_center_local,
+                aabb_center_local=obb.center,
                 tm_inv=tm_inv,
                 grasp_axis=grasp_axis,
                 frame_id=frame_id
+            )
+
+            print("\n===== 最终抓取姿态 =====")
+            print(f"坐标系：{grasp_pose['header']['frame_id']}")
+            print(f"抓取位置：x={grasp_pose['pose']['position']['x']:.3f}m, y={grasp_pose['pose']['position']['y']:.3f}m, z={grasp_pose['pose']['position']['z']:.3f}m")
+            print(f"抓取四元数：x={grasp_pose['pose']['orientation']['x']:.3f}, y={grasp_pose['pose']['orientation']['y']:.3f}, z={grasp_pose['pose']['orientation']['z']:.3f}, w={grasp_pose['pose']['orientation']['w']:.3f}")
+
+    def visualize_pcd_with_boxes_offline(self, pcd, aabb, obb,
+        output_img_path: str = "pcd_boxes_render.png",
+        img_width: int = 800,
+        img_height: int = 600,
+        camera_position: tuple = (2.0, 2.0, 2.0),
+        lookat: tuple = (0.0, 0.0, 0.0)
+    ):
+        """
+        离线渲染点云+AABB+OBB包围盒（不依赖OpenGL窗口）
+        :param pcd_path: 点云文件路径（.ply/.pcd等），若指定则忽略pcd_points
+        :param pcd_points: 点云数据（N×3的numpy数组），优先级低于pcd_path
+        :param output_img_path: 渲染图像保存路径
+        :param img_width/height: 渲染图像尺寸
+        :param camera_position: 相机位置
+        :param lookat: 相机看向的中心点
+        """
+
+        renderer = o3d.visualization.rendering.OffscreenRenderer(img_width, img_height)
+        renderer.scene.set_background([1.0, 1.0, 1.0, 1.0]) 
+        renderer.scene.scene.set_sun_light(
+            [1.0, 1.0, 1.0],
+            [1.0, 1.0, 1.0],
+            100000
+        )
+        renderer.scene.scene.enable_sun_light(True)
+
+        material = o3d.visualization.rendering.MaterialRecord()
+        material.shader = "defaultUnlit"  # 无光照着色器（点云更清晰）
+        material.point_size = 2.0  # 点云大小
+        print("check type...", type(pcd))
+        renderer.scene.add_geometry("point_cloud", pcd, material)
+
+        box_material = o3d.visualization.rendering.MaterialRecord()
+        box_material.shader = "defaultUnlit"
+        box_material.line_width = 5.0  # 包围盒线宽
+        #renderer.scene.add_geometry("aabb_box", aabb, box_material)
+        renderer.scene.add_geometry("obb_box", obb, box_material)
+
+        # 7. 设置相机视角
+        renderer.setup_camera(
+            60.0,  # 视角FOV
+            camera_position,  # 相机位置
+            lookat,  # 看向的点
+            [0.0, 1.0, 0.0]  # 相机上方向
         )
 
-        print("\n===== 最终抓取姿态 =====")
-        print(f"坐标系：{grasp_pose['header']['frame_id']}")
-        print(f"抓取位置：x={grasp_pose['pose']['position']['x']:.3f}m, y={grasp_pose['pose']['position']['y']:.3f}m, z={grasp_pose['pose']['position']['z']:.3f}m")
-        print(f"抓取四元数：x={grasp_pose['pose']['orientation']['x']:.3f}, y={grasp_pose['pose']['orientation']['y']:.3f}, z={grasp_pose['pose']['orientation']['z']:.3f}, w={grasp_pose['pose']['orientation']['w']:.3f}")
+        # 8. 渲染图像（返回RGBA格式）
+        img_rgba = renderer.render_to_image()
+        # 转换为numpy数组（H×W×4）→ 转BGR（用于OpenCV显示/保存）
+        img_rgb = np.asarray(img_rgba)[:, :, :3]
+        img_bgr = cv2.cvtColor(img_rgb, cv2.COLOR_RGB2BGR)
 
-    def visualize_results(self, rgb_image_with_bbox, target_pcd, aabb, obb):
+        # 9. 保存+显示图像
+        cv2.imwrite(output_img_path, img_bgr)
+        print(f"渲染结果已保存到：{output_img_path}")
+    
+        # 10. 清理资源
+        renderer.scene.remove_geometry("point_cloud")
+        #renderer.scene.remove_geometry("aabb_box")
+        renderer.scene.remove_geometry("obb_box")
+        del renderer
+
+    def visualize_results(self, target_pcd, aabb, obb):
         
-        cv2.imwrite("2d_detection_result.jpg", rgb_image_with_bbox)
 
         # 2. 3D可视化（Open3D窗口，复用窗口）
         if not self.vis_3d_init:

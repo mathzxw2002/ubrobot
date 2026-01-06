@@ -87,3 +87,13 @@ python src/lerobot/processor/migrate_policy_normalization.py --pretrained-path /
     year = {2025}
 }
 ```
+
+【Jetson安装PyTorch&Torchvision极简方式】
+
+https://blog.csdn.net/python_yjys/article/details/145451271
+
+
+
+python39 gradio启动 报错 TypeError: argument of type ‘bool‘ is not iterable
+https://blog.csdn.net/qq_63234089/article/details/146914002
+

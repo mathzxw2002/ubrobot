@@ -35,8 +35,174 @@ from thread_utils import ReadWriteLock
 from PIL import Image as PIL_Image
 
 import cv2
+import open3d as o3d
 from ultralytics import YOLO
 
+from scipy.linalg import qr
+import transforms3d.quaternions as tfq
+
+class GraspPoseCalculator:
+    def __init__(self):
+        """初始化抓取姿态计算器"""
+        pass
+
+    def select_grasp_axis(self, aabb_dimensions, gripper_max_opening):
+        """
+        夹持方向筛选 + 可抓取性判断（对应C++第4部分）
+        :param aabb_dimensions: AABB盒尺寸 [x_length, y_length, z_length]（物体真实长、宽、高，PCA坐标系下）
+        :param gripper_max_opening: 机械爪最大张开距离（米）
+        :return: (grasp_axis, is_graspable, min_dimension)
+                 grasp_axis: 夹持轴索引（0=X,1=Y,2=Z），-1表示不可抓取
+                 is_graspable: 是否可抓取（bool）
+                 min_dimension: 物体最短边长度（米）
+        """
+        aabb_length_x, aabb_width_y, aabb_height_z = aabb_dimensions
+        # 找到最短边（最优夹持方向）
+        min_dimension = min(aabb_length_x, aabb_width_y, aabb_height_z)
+        grasp_axis = -1
+
+        # 可抓取性判断：最短边超过机械爪最大张开距离则不可抓取
+        if min_dimension > gripper_max_opening:
+            print(f"警告：物体不可抓取！最短边={min_dimension:.3f}m > 机械爪最大张开={gripper_max_opening:.3f}m")
+            return grasp_axis, False, min_dimension
+
+        # 确定最短边对应的夹持轴
+        if min_dimension == aabb_length_x:
+            grasp_axis = 0  # X轴为夹持方向
+        elif min_dimension == aabb_width_y:
+            grasp_axis = 1  # Y轴为夹持方向
+        else:
+            grasp_axis = 2  # Z轴为夹持方向
+
+        print(f"可抓取！夹持轴={grasp_axis}（0=X,1=Y,2=Z），最短边={min_dimension:.3f}m")
+        return grasp_axis, True, min_dimension
+
+    def compute_grasp_pose(self, aabb_center_local, tm_inv, grasp_axis, frame_id="camera_color_optical_frame"):
+        """
+        抓取姿态计算（位置 + 旋转）（对应C++第5部分）
+        :param aabb_center_local: PCA局部坐标系下AABB盒中心 [x, y, z]（numpy数组）
+        :param tm_inv: 逆变换矩阵（4x4，numpy数组），用于将局部坐标转换为世界坐标
+        :param grasp_axis: 夹持轴索引（0=X,1=Y,2=Z）
+        :param frame_id: 坐标系ID（ROS兼容）
+        :return: grasp_pose（字典格式，兼容ROS PoseStamped）
+                 grasp_pose = {
+                     "header": {"frame_id": frame_id, "stamp": None},
+                     "pose": {
+                         "position": {"x": x, "y": y, "z": z},
+                         "orientation": {"x": x, "y": y, "z": z, "w": w}
+                     }
+                 }
+        """
+        grasp_pose = {
+            "header": {"frame_id": frame_id, "stamp": None},  # stamp可在发布时填充ROS时间
+            "pose": {"position": {}, "orientation": {}}
+        }
+
+        # ===================== 1. 计算抓取位置（AABB盒中心，转换到世界坐标系） =====================
+        aabb_center_local = np.array(aabb_center_local, dtype=np.float64).reshape(3, 1)
+        # 提取逆变换矩阵的旋转部分（3x3）和平移部分（3x1）
+        tm_inv_rot = tm_inv[:3, :3]
+        tm_inv_trans = tm_inv[:3, 3].reshape(3, 1)
+        # 局部坐标 -> 世界坐标：P_global = R * P_local + T
+        aabb_center_global = tm_inv_rot @ aabb_center_local + tm_inv_trans
+
+        # 填充抓取位置
+        grasp_pose["pose"]["position"]["x"] = float(aabb_center_global[0, 0])
+        grasp_pose["pose"]["position"]["y"] = float(aabb_center_global[1, 0])
+        grasp_pose["pose"]["position"]["z"] = float(aabb_center_global[2, 0])
+
+        # ===================== 2. 计算抓取旋转（基于PCA主方向，调整夹持轴） =====================
+        # 获取原始旋转矩阵（从逆变换矩阵中提取）
+        rotation_matrix = tm_inv_rot.copy()
+
+        # 根据夹持轴调整旋转矩阵（确保机械爪Z轴为夹持方向）
+        if grasp_axis == 0:
+            # 新X=原Y，新Y=原Z，新Z=原X（夹持方向）
+            adjusted_rot = np.zeros_like(rotation_matrix)
+            adjusted_rot[:, 0] = rotation_matrix[:, 1]
+            adjusted_rot[:, 1] = rotation_matrix[:, 2]
+            adjusted_rot[:, 2] = rotation_matrix[:, 0]
+            rotation_matrix = adjusted_rot
+        elif grasp_axis == 1:
+            # 新X=原Z，新Y=原X，新Z=原Y（夹持方向）
+            adjusted_rot = np.zeros_like(rotation_matrix)
+            adjusted_rot[:, 0] = rotation_matrix[:, 2]
+            adjusted_rot[:, 1] = rotation_matrix[:, 0]
+            adjusted_rot[:, 2] = rotation_matrix[:, 1]
+            rotation_matrix = adjusted_rot
+        # grasp_axis == 2 时，无需调整
+
+        # ===================== 3. 修正Z轴方向：朝向远离相机原点 =====================
+        z_axis = rotation_matrix[:, 2]
+        position_vector = aabb_center_global.reshape(3,)
+        # 计算Z轴与位置向量的点积
+        position_vector_normalized = position_vector / np.linalg.norm(position_vector)
+        dot_product = np.dot(z_axis, position_vector_normalized)
+
+        # 点积为负，翻转Z轴和X轴（保持右手坐标系）
+        if dot_product < 0:
+            print(f"翻转Z轴（点积={dot_product:.3f} < 0）")
+            rotation_matrix[:, 2] = -rotation_matrix[:, 2]
+            rotation_matrix[:, 0] = -rotation_matrix[:, 0]
+
+        # ===================== 4. 旋转矩阵正交化修正（消除计算误差） =====================
+        determinant = np.linalg.det(rotation_matrix)
+        if abs(determinant - 1.0) > 0.1:
+            print(f"旋转矩阵行列式异常（{determinant:.3f}），正交化修正...")
+            # QR分解正交化
+            Q, R = qr(rotation_matrix)
+            rotation_matrix = Q
+            # 确保右手坐标系（行列式>0）
+            if np.linalg.det(rotation_matrix) < 0:
+                rotation_matrix[:, 2] = -rotation_matrix[:, 2]
+
+        # ===================== 5. 旋转矩阵转四元数 =====================
+        # 方法1：使用transforms3d（简洁）
+        quat_w, quat_x, quat_y, quat_z = tfq.mat2quat(rotation_matrix)
+        # 方法2：手动计算（无需依赖transforms3d，注释备用）
+        # rot = rotation_matrix
+        # tr = rot[0,0] + rot[1,1] + rot[2,2]
+        # if tr > 0:
+        #     S = np.sqrt(tr + 1.0) * 2
+        #     quat_w = 0.25 * S
+        #     quat_x = (rot[2,1] - rot[1,2]) / S
+        #     quat_y = (rot[0,2] - rot[2,0]) / S
+        #     quat_z = (rot[1,0] - rot[0,1]) / S
+        # elif (rot[0,0] > rot[1,1]) and (rot[0,0] > rot[2,2]):
+        #     S = np.sqrt(1.0 + rot[0,0] - rot[1,1] - rot[2,2]) * 2
+        #     quat_w = (rot[2,1] - rot[1,2]) / S
+        #     quat_x = 0.25 * S
+        #     quat_y = (rot[0,1] + rot[1,0]) / S
+        #     quat_z = (rot[0,2] + rot[2,0]) / S
+        # elif rot[1,1] > rot[2,2]:
+        #     S = np.sqrt(1.0 + rot[1,1] - rot[0,0] - rot[2,2]) * 2
+        #     quat_w = (rot[0,2] - rot[2,0]) / S
+        #     quat_x = (rot[0,1] + rot[1,0]) / S
+        #     quat_y = 0.25 * S
+        #     quat_z = (rot[1,2] + rot[2,1]) / S
+        # else:
+        #     S = np.sqrt(1.0 + rot[2,2] - rot[0,0] - rot[1,1]) * 2
+        #     quat_w = (rot[1,0] - rot[0,1]) / S
+        #     quat_x = (rot[0,2] + rot[2,0]) / S
+        #     quat_y = (rot[1,2] + rot[2,1]) / S
+        #     quat_z = 0.25 * S
+
+        # 归一化四元数
+        quat_norm = np.sqrt(quat_x**2 + quat_y**2 + quat_z**2 + quat_w**2)
+        quat_x /= quat_norm
+        quat_y /= quat_norm
+        quat_z /= quat_norm
+        quat_w /= quat_norm
+
+        # 填充抓取姿态（注意：ROS四元数顺序是x,y,z,w）
+        grasp_pose["pose"]["orientation"]["x"] = float(quat_x)
+        grasp_pose["pose"]["orientation"]["y"] = float(quat_y)
+        grasp_pose["pose"]["orientation"]["z"] = float(quat_z)
+        grasp_pose["pose"]["orientation"]["w"] = float(quat_w)
+
+        print(f"抓取位置：x={grasp_pose['pose']['position']['x']:.3f}, y={grasp_pose['pose']['position']['y']:.3f}, z={grasp_pose['pose']['position']['z']:.3f}")
+        print(f"抓取四元数：x={quat_x:.3f}, y={quat_y:.3f}, z={quat_z:.3f}, w={quat_w:.3f}")
+        return grasp_pose
 
 class RobotState(Enum):
     IDLE = 0
@@ -220,6 +386,8 @@ class PoseTransformer:
         self.depth_sub = Subscriber("/cam_arm/camera/aligned_depth_to_color/image_raw", Image)
         self.camera_info_sub = Subscriber("/cam_arm/camera/aligned_depth_to_color/camera_info", CameraInfo)
 
+        self.camera_info_sub.registerCallback(self.camera_info_callback)
+
         self.syncronizer = ApproximateTimeSynchronizer([self.image_sub, self.depth_sub], 1, 0.1)
         self.syncronizer.registerCallback(self.rgb_depth_down_callback)
         
@@ -237,7 +405,17 @@ class PoseTransformer:
         self.new_image_arrived = False
         self.rgb_time = 0.0
 
-        self.seg_model = YOLO('./yolo11n-seg.pt')
+        # 相机内参存储（关键：用于2D转3D）
+        self.fx = None
+        self.fy = None
+        self.ppx = None
+        self.ppy = None
+
+        # 3D可视化相关（复用窗口，提升实时性）
+        self.vis_3d_init = False
+        self.vis = o3d.visualization.VisualizerWithKeyCallback()
+
+        self.yolo_model = YOLO('./yolo11n-seg.pt')
         
         # 状态管理
         self.original_pose = None
@@ -367,6 +545,18 @@ class PoseTransformer:
             rospy.logwarn("坐标变换失败: %s", str(e))
             return None
 
+    def camera_info_callback(self, camera_info_msg):
+        """
+        解析相机内参（从CameraInfo消息提取fx, fy, ppx, ppy）
+        内参矩阵K：[fx, 0, ppx; 0, fy, ppy; 0, 0, 1]
+        """
+        self.fx = camera_info_msg.K[0]
+        self.fy = camera_info_msg.K[4]
+        self.ppx = camera_info_msg.K[2]
+        self.ppy = camera_info_msg.K[5]
+        rospy.loginfo("已获取相机内参：fx=%.2f, fy=%.2f, ppx=%.2f, ppy=%.2f",
+                      self.fx, self.fy, self.ppx, self.ppy)
+    
     def rgb_depth_down_callback(self, rgb_msg, depth_msg):
         """处理下视彩色图像和对齐后的深度图像消息"""
         # 处理彩色图像
@@ -402,6 +592,199 @@ class PoseTransformer:
 
         # 标记图像更新
         self.new_image_arrived = True
+
+        # TODO double check
+        self.process_object_3d_data()
+
+    def pixel_to_3d(self, u, v, z):
+        """
+        2D像素坐标转3D世界坐标（适配你的depth_image已为米单位）
+        :param u: 像素横坐标（列）
+        :param v: 像素纵坐标（行）
+        :param z: 深度值（米，已由self.depth_image提供）
+        :return: (x, y, z) 世界坐标（米）
+        """
+        if self.fx is None or self.fy is None or self.ppx is None or self.ppy is None:
+            rospy.logwarn("相机内参未初始化，无法转换3D坐标")
+            return 0, 0, 0
+        # 针孔相机模型逆运算
+        x = (u - self.ppx) * z / self.fx
+        y = (v - self.ppy) * z / self.fy
+        return x, y, z
+    
+    def yolo_segmentation(self, rgb_image):
+        """
+        基于Ultralytics YOLO进行真实物体分割，替代原模拟检测
+        :param rgb_image: RGB图像（rgb8格式，numpy数组，形状[H, W, 3]）
+        :return: 
+            bbox: 目标2D矩形框 [x1, y1, x2, y2]（取置信度最高的目标）
+            mask: 目标2D掩码（与图像同尺寸，0=背景，255=目标）
+            rgb_image_with_bbox: 绘制了bbox和掩码的可视化RGB图像
+        """
+        # 1. YOLO模型推理（传入RGB图像，返回分割结果）
+        # conf: 置信度阈值，iou: IOU阈值，classes: 指定检测类别
+        results = self.yolo_model(
+            rgb_image,
+            conf=0.5,  # 过滤置信度<0.5的结果，可调整
+            iou=0.45,
+            classes=self.target_classes
+        )
+
+        # 2. 处理推理结果（优先取置信度最高的目标）
+        if len(results[0].masks) == 0:  # 无目标检测到
+            rospy.logwarn("YOLO未检测到任何目标")
+            h, w, _ = rgb_image.shape
+            return None, np.zeros((h, w), dtype=np.uint8), rgb_image.copy()
+
+        # 获取第一个结果（或置信度最高的结果）
+        result = results[0]
+        # 提取所有目标的置信度
+        confidences = result.boxes.conf.cpu().numpy()
+        max_conf_idx = np.argmax(confidences)  # 置信度最高目标的索引
+
+        # 3. 提取目标bbox（xyxy格式：[x1, y1, x2, y2]）
+        bbox = result.boxes.xyxy[max_conf_idx].cpu().numpy().astype(int)  # 转为整数像素坐标
+
+        # 4. 提取目标mask（归一化mask转为图像尺寸）
+        mask = result.masks.data[max_conf_idx].cpu().numpy()  # 原始mask形状[H_model, W_model]
+        mask = cv2.resize(mask, (rgb_image.shape[1], rgb_image.shape[0]))  # 缩放到图像尺寸
+        mask = (mask > 0.5).astype(np.uint8) * 255  # 二值化：0/255
+
+        # 5. 绘制bbox和mask到RGB图像（可视化）
+        rgb_image_with_bbox = rgb_image.copy()
+        # 绘制矩形框（绿色，线宽2）
+        x1, y1, x2, y2 = bbox
+        cv2.rectangle(rgb_image_with_bbox, (x1, y1), (x2, y2), (0, 255, 0), 2)
+        # 绘制掩码（半透明红色，便于观察）
+        mask_color = np.zeros_like(rgb_image_with_bbox)
+        mask_color[:, :, 0] = mask  # 红色通道赋值
+        rgb_image_with_bbox = cv2.addWeighted(rgb_image_with_bbox, 1.0, mask_color, 0.3, 0)
+        # 绘制类别名称和置信度
+        class_id = int(result.boxes.cls[max_conf_idx].cpu().numpy())
+        class_name = self.yolo_model.names[class_id]
+        conf_text = f"{class_name}: {confidences[max_conf_idx]:.2f}"
+        cv2.putText(rgb_image_with_bbox, conf_text, (x1, y1-10), 
+                    cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 255, 0), 2)
+
+        return bbox, mask, rgb_image_with_bbox
+    
+    def get_object_3d_data(self, bbox, mask):
+        """
+        从2D检测结果提取目标3D点云、3D包围框
+        :param bbox: 2D矩形框 [x1, y1, x2, y2]
+        :param mask: 2D目标掩码
+        :return: target_pcd（3D点云）、aabb（轴对齐3D包围框）、obb（定向3D包围框）
+        """
+        # 检查必要数据是否有效
+        if self.rgb_image is None or self.depth_image is None:
+            rospy.logwarn("RGB/深度图像无效，无法提取3D数据")
+            return None, None, None
+        if bbox is None or mask is None:
+            rospy.logwarn("2D检测结果无效，无法提取3D数据")
+            return None, None, None
+
+        x1, y1, x2, y2 = map(int, bbox)
+        # 裁剪ROI区域（提升计算效率，仅处理目标区域）
+        roi_mask = mask[y1:y2, x1:x2]
+        roi_depth = self.depth_image[y1:y2, x1:x2]
+        roi_rgb = self.rgb_image[y1:y2, x1:x2]
+
+        # 获取ROI内目标像素的坐标（行、列）
+        u_roi, v_roi = np.where(roi_mask > 0)
+        # 转换为原始图像的像素坐标
+        u = u_roi + y1  # 原始图像纵坐标（行）
+        v = v_roi + x1  # 原始图像横坐标（列）
+
+        # 提取对应深度值（米单位）和RGB颜色
+        z_values = self.depth_image[u, v]
+        rgb_values = roi_rgb[u_roi, v_roi]
+
+        # 过滤无效数据（深度<=0为无效）
+        valid_mask = z_values > 0
+        u_valid = u[valid_mask]
+        v_valid = v[valid_mask]
+        z_valid = z_values[valid_mask]
+        rgb_valid = rgb_values[valid_mask]
+
+        if len(z_valid) == 0:
+            rospy.logwarn("目标区域无有效深度值，无法生成3D点云")
+            return None, None, None
+
+        # 批量转换2D像素到3D世界坐标
+        num_points = len(z_valid)
+        point_3d = np.zeros((num_points, 3), dtype=np.float64)
+        for i in range(num_points):
+            x, y, z = self.pixel_to_3d(v_valid[i], u_valid[i], z_valid[i])
+            point_3d[i] = [x, y, z]
+
+        # 构建Open3D点云
+        target_pcd = o3d.geometry.PointCloud()
+        target_pcd.points = o3d.utility.Vector3dVector(point_3d)
+        # 设置点云颜色（rgb8格式归一化到0-1）
+        target_pcd.colors = o3d.utility.Vector3dVector(rgb_valid / 255.0)
+
+        # 计算3D包围框
+        aabb = target_pcd.get_axis_aligned_bounding_box()
+        aabb.color = (1, 0, 0)  # 红色：轴对齐包围框
+        obb = target_pcd.get_oriented_bounding_box()
+        obb.color = (0, 1, 0)  # 绿色：定向包围框
+
+        return target_pcd, aabb, obb
+
+    def process_object_3d_data(self):
+        """
+        核心处理函数：串联2D检测->3D数据提取->可视化
+        """
+        # 检查前置条件
+        if not self.new_image_arrived:
+            return
+        if self.fx is None or self.fy is None or self.ppx is None or self.ppy is None:
+            rospy.logwarn("相机内参未就绪，跳过3D处理")
+            return
+        if self.rgb_image is None or self.depth_image is None:
+            rospy.logwarn("RGB/深度图像未就绪，跳过3D处理")
+            return
+
+        # 1. 获取2D检测结果
+        bbox, mask, rgb_image_with_bbox = self.yolo_segmentation(self.rgb_image)
+
+        # 2. 提取3D目标数据
+        target_pcd, aabb, obb = self.get_object_3d_data(bbox, mask)
+        if target_pcd is None:
+            return
+
+        # 3. 可视化2D和3D结果
+        self.visualize_results(rgb_image_with_bbox, target_pcd, aabb, obb)
+
+    def visualize_results(self, rgb_image_with_bbox, target_pcd, aabb, obb):
+        """
+        可视化2D图像（带bbox）和3D点云（带3D包围框）
+        """
+        # 1. 2D可视化（OpenCV窗口）
+        cv2.imshow("RGB Image with 2D BBox", rgb_image_with_bbox)
+        cv2.waitKey(1)  # 刷新窗口，不阻塞
+
+        # 2. 3D可视化（Open3D窗口，复用窗口）
+        if not self.vis_3d_init:
+            # 首次初始化窗口
+            self.vis.create_window(window_name="3D Object Visualization", width=800, height=600)
+            # 添加相机坐标系（原点为相机光心，尺寸0.5米）
+            coord_frame = o3d.geometry.TriangleMesh.create_coordinate_frame(size=0.5, origin=[0, 0, 0])
+            self.vis.add_geometry(coord_frame)
+            # 添加初始3D几何
+            self.vis.add_geometry(target_pcd)
+            self.vis.add_geometry(aabb)
+            self.vis.add_geometry(obb)
+            self.vis_3d_init = True
+        else:
+            # 更新已有3D几何数据（避免重复创建）
+            self.vis.update_geometry(target_pcd)
+            self.vis.update_geometry(aabb)
+            self.vis.update_geometry(obb)
+
+        # 刷新3D窗口
+        self.vis.poll_events()
+        self.vis.update_renderer()
 
     def pose_callback(self, msg):
         """PoseStamped消息回调"""
@@ -591,7 +974,7 @@ class PoseTransformer:
         self.task_reslut = 2'''
         print("======================== test...")
         image = PIL_Image.fromarray(self.rgb_image).convert('RGB')
-        results = self.seg_model(image)
+        results = self.yolo_model(image)
 
         res_plotted = results[0].plot()
         #res_plotted_bgr = cv2.cvtColor(res_plotted, cv2.COLOR_RGB2BGR)
@@ -600,6 +983,8 @@ class PoseTransformer:
 
         seg_vis_pil = PIL_Image.fromarray(res_plotted).convert('RGB')
         seg_vis_pil.save("./vis_img.png")
+
+
 
 
 

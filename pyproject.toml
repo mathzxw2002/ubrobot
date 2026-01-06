@@ -63,6 +63,8 @@ dependencies = [
 	"PyQt5-sip",
 	"empy",
 	"ultralytics",
+	"transforms3d",
+	"eigenpy",
 
 
 	# remote git resource

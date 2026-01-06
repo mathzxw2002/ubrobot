@@ -53,7 +53,7 @@ class GraspPoseCalculator:
 
     def select_grasp_axis(self, aabb_dimensions, gripper_max_opening):
         """
-        夹持方向筛选 + 可抓取性判断（对应C++第4部分）
+        夹持方向筛选 + 可抓取性判断
         :param aabb_dimensions: AABB盒尺寸 [x_length, y_length, z_length]（物体真实长、宽、高，PCA坐标系下）
         :param gripper_max_opening: 机械爪最大张开距离（米）
         :return: (grasp_axis, is_graspable, min_dimension)
@@ -84,7 +84,7 @@ class GraspPoseCalculator:
 
     def compute_grasp_pose(self, aabb_center_local, tm_inv, grasp_axis, frame_id="camera_color_optical_frame"):
         """
-        抓取姿态计算（位置 + 旋转）（对应C++第5部分）
+        抓取姿态计算（位置 + 旋转）
         :param aabb_center_local: PCA局部坐标系下AABB盒中心 [x, y, z]（numpy数组）
         :param tm_inv: 逆变换矩阵（4x4，numpy数组），用于将局部坐标转换为世界坐标
         :param grasp_axis: 夹持轴索引（0=X,1=Y,2=Z）
@@ -600,8 +600,7 @@ class PoseTransformer:
         # 标记图像更新
         self.new_image_arrived = True
 
-        # TODO double check
-        self.process_object_3d_data()
+        #self.process_object_3d_data()
 
     def pixel_to_3d(self, u, v, z):
         """
@@ -763,6 +762,48 @@ class PoseTransformer:
 
         # 3. 可视化2D和3D结果
         self.visualize_results(rgb_image_with_bbox, target_pcd, aabb, obb)
+
+        # ================== 3. 关键：从OBB提取PCA相关参数（核心步骤） ===========
+        # OBB包含了PCA主方向、局部AABB中心、变换矩阵等关键信息，直接从obb中提取
+        # 3.1 提取PCA局部坐标系下的AABB盒尺寸（对应C++中的aabb_length_x/y/z）
+        aabb_dimensions = [
+            obb.extent[0],  # X轴长度（局部坐标系）
+            obb.extent[1],  # Y轴长度（局部坐标系）
+            obb.extent[2]   # Z轴长度（局部坐标系）
+        ]
+
+        aabb_center_local = obb.center ## 3.2 提取PCA局部坐标系下的AABB盒中心（对应C++中的aabb_center_local）,  OBB的中心就是PCA局部坐标系下的AABB中心
+
+        # 3.3 构建逆变换矩阵tm_inv（4x4，对应C++中的tm_inv）
+        # OBB的旋转矩阵（3x3）+ 平移向量（3x1）→ 4x4变换矩阵
+        tm_inv = np.eye(4, dtype=np.float64)
+        tm_inv[:3, :3] = np.array(obb.R)  # OBB的旋转矩阵（PCA主方向）
+        tm_inv[:3, 3] = np.array(obb.center)  # OBB的中心（平移向量）
+
+        # ===================== 4. 机械爪参数配置 =====================
+        gripper_max_opening = 0.05  # 机械爪最大张开距离（米），根据实际硬件调整（如0.1米）
+        frame_id = "camera_color_optical_frame"  # 坐标系ID（与你的点云坐标系一致）
+
+        # ===================== 5. 夹持方向筛选 + 可抓取性判断 =====================
+        grasp_axis, is_graspable, min_dim = self.grasp_calc.select_grasp_axis(
+            aabb_dimensions=aabb_dimensions,
+            gripper_max_opening=gripper_max_opening
+        )
+
+        # ===================== 6. 若可抓取，计算最终抓取姿态 =====================
+        if is_graspable:
+            # 计算抓取姿态（位置+旋转）
+            grasp_pose = self.grasp_calc.compute_grasp_pose(
+                aabb_center_local=aabb_center_local,
+                tm_inv=tm_inv,
+                grasp_axis=grasp_axis,
+                frame_id=frame_id
+        )
+
+        print("\n===== 最终抓取姿态 =====")
+        print(f"坐标系：{grasp_pose['header']['frame_id']}")
+        print(f"抓取位置：x={grasp_pose['pose']['position']['x']:.3f}m, y={grasp_pose['pose']['position']['y']:.3f}m, z={grasp_pose['pose']['position']['z']:.3f}m")
+        print(f"抓取四元数：x={grasp_pose['pose']['orientation']['x']:.3f}, y={grasp_pose['pose']['orientation']['y']:.3f}, z={grasp_pose['pose']['orientation']['z']:.3f}, w={grasp_pose['pose']['orientation']['w']:.3f}")
 
     def visualize_results(self, rgb_image_with_bbox, target_pcd, aabb, obb):
         
@@ -1060,7 +1101,7 @@ class PoseTransformer:
         self.task_cmd = 0
         self.task_reslut = 2'''
         print("======================== test...")
-        image = PIL_Image.fromarray(self.rgb_image).convert('RGB')
+        '''image = PIL_Image.fromarray(self.rgb_image).convert('RGB')
         results = self.yolo_model(image)
 
         res_plotted = results[0].plot()
@@ -1069,51 +1110,9 @@ class PoseTransformer:
         image.save("./input_img.png")
 
         seg_vis_pil = PIL_Image.fromarray(res_plotted).convert('RGB')
-        seg_vis_pil.save("./vis_img.png")
-        
+        seg_vis_pil.save("./vis_img.png")'''
 
-        # ================== 3. 关键：从OBB提取PCA相关参数（核心步骤） ===========
-        # OBB包含了PCA主方向、局部AABB中心、变换矩阵等关键信息，直接从obb中提取
-        # 3.1 提取PCA局部坐标系下的AABB盒尺寸（对应C++中的aabb_length_x/y/z）
-        aabb_dimensions = [
-            obb.extent[0],  # X轴长度（局部坐标系）
-            obb.extent[1],  # Y轴长度（局部坐标系）
-            obb.extent[2]   # Z轴长度（局部坐标系）
-        ]
-
-        aabb_center_local = obb.center ## 3.2 提取PCA局部坐标系下的AABB盒中心（对应C++中的aabb_center_local）,  OBB的中心就是PCA局部坐标系下的AABB中心
-
-        # 3.3 构建逆变换矩阵tm_inv（4x4，对应C++中的tm_inv）
-        # OBB的旋转矩阵（3x3）+ 平移向量（3x1）→ 4x4变换矩阵
-        tm_inv = np.eye(4, dtype=np.float64)
-        tm_inv[:3, :3] = np.array(obb.R)  # OBB的旋转矩阵（PCA主方向）
-        tm_inv[:3, 3] = np.array(obb.center)  # OBB的中心（平移向量）
-
-        # ===================== 4. 机械爪参数配置 =====================
-        gripper_max_opening = 0.05  # 机械爪最大张开距离（米），根据实际硬件调整（如0.1米）
-        frame_id = "camera_color_optical_frame"  # 坐标系ID（与你的点云坐标系一致）
-
-        # ===================== 5. 夹持方向筛选 + 可抓取性判断 =====================
-        grasp_axis, is_graspable, min_dim = grasp_calc.select_grasp_axis(
-            aabb_dimensions=aabb_dimensions,
-            gripper_max_opening=gripper_max_opening
-        )
-
-        # ===================== 6. 若可抓取，计算最终抓取姿态 =====================
-        if is_graspable:
-            # 计算抓取姿态（位置+旋转）
-            grasp_pose = grasp_calc.compute_grasp_pose(
-                aabb_center_local=aabb_center_local,
-                tm_inv=tm_inv,
-                grasp_axis=grasp_axis,
-                frame_id=frame_id
-        )
-
-        # ===================== 7. 结果输出/使用 =====================
-        print("\n===== 最终抓取姿态 =====")
-        print(f"坐标系：{grasp_pose['header']['frame_id']}")
-        print(f"抓取位置：x={grasp_pose['pose']['position']['x']:.3f}m, y={grasp_pose['pose']['position']['y']:.3f}m, z={grasp_pose['pose']['position']['z']:.3f}m")
-        print(f"抓取四元数：x={grasp_pose['pose']['orientation']['x']:.3f}, y={grasp_pose['pose']['orientation']['y']:.3f}, z={grasp_pose['pose']['orientation']['z']:.3f}, w={grasp_pose['pose']['orientation']['w']:.3f}")
+        self.process_object_3d_data()
 
     def record_search_route(self):
         """记录搜索路径"""

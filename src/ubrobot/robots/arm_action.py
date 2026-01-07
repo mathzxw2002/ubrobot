@@ -637,8 +637,7 @@ class PoseTransformer:
         single_result = results[0] # get result for the 1st image
         if single_result.masks is None or len(single_result.masks) == 0:
             rospy.logwarn("YOLO No Object Found!")
-            h, w, _ = rgb_image.shape
-            return None, np.zeros((h, w), dtype=np.uint8)
+            return None, None, None, None
 
         confs = single_result.boxes.conf.cpu().numpy()
         boxes = single_result.boxes.xyxy.cpu().numpy().astype(int)
@@ -658,10 +657,6 @@ class PoseTransformer:
         sorted_boxes = boxes[sorted_indices]
         sorted_cls_ids = cls_ids[sorted_indices]
         sorted_masks = masks[sorted_indices] if masks is not None else None
-
-        # 4. 提取目标mask（归一化mask转为图像尺寸）
-        #mask = cv2.resize(mask, (rgb_image.shape[1], rgb_image.shape[0]))  # 缩放到图像尺寸
-        #mask = (mask > 0.5).astype(np.uint8) * 255
 
         vis_image = single_result.plot()
         save_path = "./segment_result.jpg"
@@ -744,61 +739,105 @@ class PoseTransformer:
             rospy.logwarn("RGB/深度图像未就绪，跳过3D处理")
             return
 
-        sorted_boxes, sorted_confs, sorted_cls_ids, sorted_masks = self.yolo_segmentation(self.rgb_image)
-
-        bbox = sorted_boxes[0]
-        mask = sorted_masks[0]
-        target_pcd, aabb, obb = self.get_object_3d_data(bbox, mask, self.rgb_image, self.depth_image)
-        if target_pcd is None:
-            return
-
-        print("++++++++++++++++++++++++++++", type(target_pcd))
-        self.visualize_pcd_with_boxes_offline(target_pcd, aabb, obb)
-        #self.visualize_results(target_pcd, aabb, obb)
-
-        # ================== 3. 关键：从OBB提取PCA相关参数（核心步骤） ===========
-        # OBB包含了PCA主方向、局部AABB中心、变换矩阵等关键信息，直接从obb中提取
-        aabb_dimensions = [
-            obb.extent[0],  # X轴长度（局部坐标系）
-            obb.extent[1],  # Y轴长度（局部坐标系）
-            obb.extent[2]   # Z轴长度（局部坐标系）
-        ]
-
-        # 3.3 构建逆变换矩阵tm_inv（4x4)
-        # OBB的旋转矩阵（3x3）+ 平移向量（3x1）→ 4x4变换矩阵
-        tm_inv = np.eye(4, dtype=np.float64)
-        tm_inv[:3, :3] = np.array(obb.R)  # OBB的旋转矩阵（PCA主方向）
-        tm_inv[:3, 3] = np.array(obb.center)  # OBB的中心（平移向量）
-
-        # ===================== 4. 机械爪参数配置 =====================
-        gripper_max_opening = 0.05  # 机械爪最大张开距离（米），根据实际硬件调整（如0.1米）
-        frame_id = "camera_color_optical_frame"  # 坐标系ID（与你的点云坐标系一致）
-
-        # ===================== 5. 夹持方向筛选 + 可抓取性判断 =====================
-        grasp_axis, is_graspable, min_dim = self.grasp_calc.select_grasp_axis(
-            aabb_dimensions=aabb_dimensions,
-            gripper_max_opening=gripper_max_opening
+        # save 创建 RGBD 图像（Open3D 格式）, convert_rgb_to_intensity=False：保留彩色信息（否则转为灰度图）
+        rgb_o3d = o3d.geometry.Image(self.rgb_image)
+        depth_o3d = o3d.geometry.Image(self.depth_image.astype(np.float32))
+        rgbd_image = o3d.geometry.RGBDImage.create_from_color_and_depth(
+            rgb_o3d,
+            depth_o3d,
+            depth_scale=1.0,    # 深度值缩放（mm → m）
+            depth_trunc=3.0,    # 深度截断
+            convert_rgb_to_intensity=False
         )
 
-        if is_graspable:
-            grasp_pose = self.grasp_calc.compute_grasp_pose(
-                aabb_center_local=obb.center,
-                tm_inv=tm_inv,
-                grasp_axis=grasp_axis,
-                frame_id=frame_id
+        # 3. 定义相机内参（Open3D 格式）
+        intrinsic = o3d.camera.PinholeCameraIntrinsic()
+        # 内参赋值：w, h, fx, fy, cx, cy
+        h, w = self.rgb_image.shape[:2]
+        intrinsic.set_intrinsics(w, h, self.fx, self.fy, self.ppx, self.ppy)
+
+        orig_pcd = o3d.geometry.PointCloud.create_from_rgbd_image(
+            rgbd_image,
+            intrinsic
+        )
+
+        # 5. 坐标系翻转（可选，适配 Open3D 可视化视角）
+        # Open3D 默认相机坐标系与视觉习惯略有差异，翻转后更直观
+        #orig_pcd.transform([[1, 0, 0, 0],
+        #            [0, -1, 0, 0],
+        #            [0, 0, -1, 0],
+        #            [0, 0, 0, 1]])
+
+        o3d.io.write_point_cloud("rgbd_point_cloud.ply", orig_pcd)
+
+        # object detection and segmentation
+        sorted_boxes, sorted_confs, sorted_cls_ids, sorted_masks = self.yolo_segmentation(self.rgb_image)
+
+        if sorted_boxes is None or sorted_masks is None:
+            return
+        else:
+            target_pcd_list = []
+            aabb_list = []
+            obb_list = []
+            for idx in range(len(sorted_boxes)):
+                bbox = sorted_boxes[idx]
+                mask = sorted_masks[idx]
+                target_pcd, aabb, obb = self.get_object_3d_data(bbox, mask, self.rgb_image, self.depth_image)
+                if target_pcd is None:
+                    continue
+                else:
+                    target_pcd_list.append(target_pcd)
+                    aabb_list.append(aabb)
+                    obb_list.append(obb)
+
+            #self.visualize_pcd_with_boxes_offline(target_pcd, aabb, obb)
+            h, w = self.rgb_image.shape[:2]
+            self.visualize_pcd_with_boxes_offline(orig_pcd, aabb_list, obb_list, w, h)
+            #self.visualize_results(target_pcd, aabb, obb)
+
+            # ================== 3. 关键：从OBB提取PCA相关参数（核心步骤） ===========
+            # OBB包含了PCA主方向、局部AABB中心、变换矩阵等关键信息，直接从obb中提取
+            aabb_dimensions = [
+                obb.extent[0],  # X轴长度（局部坐标系）
+                obb.extent[1],  # Y轴长度（局部坐标系）
+                obb.extent[2]   # Z轴长度（局部坐标系）
+            ]
+
+            # 3.3 构建逆变换矩阵tm_inv（4x4)
+            # OBB的旋转矩阵（3x3）+ 平移向量（3x1）→ 4x4变换矩阵
+            tm_inv = np.eye(4, dtype=np.float64)
+            tm_inv[:3, :3] = np.array(obb.R)  # OBB的旋转矩阵（PCA主方向）
+            tm_inv[:3, 3] = np.array(obb.center)  # OBB的中心（平移向量）
+
+            # ===================== 4. 机械爪参数配置 =====================
+            gripper_max_opening = 0.05  # 机械爪最大张开距离（米），根据实际硬件调整（如0.1米）
+            frame_id = "camera_color_optical_frame"  # 坐标系ID（与你的点云坐标系一致）
+
+            # ===================== 5. 夹持方向筛选 + 可抓取性判断 =====================
+            grasp_axis, is_graspable, min_dim = self.grasp_calc.select_grasp_axis(
+                aabb_dimensions=aabb_dimensions,
+                gripper_max_opening=gripper_max_opening
             )
 
-            print("\n===== 最终抓取姿态 =====")
-            print(f"坐标系：{grasp_pose['header']['frame_id']}")
-            print(f"抓取位置：x={grasp_pose['pose']['position']['x']:.3f}m, y={grasp_pose['pose']['position']['y']:.3f}m, z={grasp_pose['pose']['position']['z']:.3f}m")
-            print(f"抓取四元数：x={grasp_pose['pose']['orientation']['x']:.3f}, y={grasp_pose['pose']['orientation']['y']:.3f}, z={grasp_pose['pose']['orientation']['z']:.3f}, w={grasp_pose['pose']['orientation']['w']:.3f}")
+            if is_graspable:
+                grasp_pose = self.grasp_calc.compute_grasp_pose(
+                    aabb_center_local=obb.center,
+                    tm_inv=tm_inv,
+                    grasp_axis=grasp_axis,
+                    frame_id=frame_id
+                )
 
-    def visualize_pcd_with_boxes_offline(self, pcd, aabb, obb,
-        output_img_path: str = "pcd_boxes_render.png",
+                print("\n===== 最终抓取姿态 =====")
+                print(f"坐标系：{grasp_pose['header']['frame_id']}")
+                print(f"抓取位置：x={grasp_pose['pose']['position']['x']:.3f}m, y={grasp_pose['pose']['position']['y']:.3f}m, z={grasp_pose['pose']['position']['z']:.3f}m")
+                print(f"抓取四元数：x={grasp_pose['pose']['orientation']['x']:.3f}, y={grasp_pose['pose']['orientation']['y']:.3f}, z={grasp_pose['pose']['orientation']['z']:.3f}, w={grasp_pose['pose']['orientation']['w']:.3f}")
+
+    def visualize_pcd_with_boxes_offline(self, pcd, aabb_list, obb_list,
         img_width: int = 800,
         img_height: int = 600,
         camera_position: tuple = (2.0, 2.0, 2.0),
-        lookat: tuple = (0.0, 0.0, 0.0)
+        lookat: tuple = (0.0, 0.0, 0.0),
+        output_img_path: str = "pcd_boxes_render.png"
     ):
         """
         离线渲染点云+AABB+OBB包围盒（不依赖OpenGL窗口）
@@ -809,7 +848,6 @@ class PoseTransformer:
         :param camera_position: 相机位置
         :param lookat: 相机看向的中心点
         """
-
         renderer = o3d.visualization.rendering.OffscreenRenderer(img_width, img_height)
         renderer.scene.set_background([1.0, 1.0, 1.0, 1.0]) 
         renderer.scene.scene.set_sun_light(
@@ -817,77 +855,71 @@ class PoseTransformer:
             [1.0, 1.0, 1.0],
             100000
         )
-        renderer.scene.scene.enable_sun_light(True)
+        renderer.scene.scene.enable_sun_light(False)
 
         material = o3d.visualization.rendering.MaterialRecord()
         material.shader = "defaultUnlit"  # 无光照着色器（点云更清晰）
-        material.point_size = 2.0  # 点云大小
-        print("check type...", type(pcd))
+        material.point_size = 2.0
+        # 补充点云默认颜色（避免点云透明）
+        material.base_color = [0.5, 0.5, 0.5, 1.0]  # 灰色点云，不透明
         renderer.scene.add_geometry("point_cloud", pcd, material)
 
         box_material = o3d.visualization.rendering.MaterialRecord()
-        box_material.shader = "defaultUnlit"
-        box_material.line_width = 5.0  # 包围盒线宽
-        #renderer.scene.add_geometry("aabb_box", aabb, box_material)
-        renderer.scene.add_geometry("obb_box", obb, box_material)
+        box_material.shader = "unlitLine"
+        box_material.line_width = 5.0
 
-        # 7. 设置相机视角
-        renderer.setup_camera(
-            60.0,  # 视角FOV
-            camera_position,  # 相机位置
-            lookat,  # 看向的点
-            [0.0, 1.0, 0.0]  # 相机上方向
+        # 关键：配置线框颜色（RGBA，避免透明）
+        box_material.base_color = [1.0, 0.0, 0.0, 1.0]  # 红色线框，不透明
+        # 兼容Open3D 0.17+：添加line_color属性
+        if hasattr(box_material, "line_color"):
+            box_material.line_color = [1.0, 0.0, 0.0]
+
+        print("======= appending ", len(aabb_list))
+        for idx in range(len(aabb_list)):
+            aabb = aabb_list[idx]
+            obb = obb_list[idx]
+            aabb_name = f"aabb_box_{idx}"
+            obb_name = f"obb_box_{idx}"
+
+            aabb_lines = o3d.geometry.LineSet.create_from_axis_aligned_bounding_box(aabb)
+            # OBB 转 LineSet
+            obb_lines = o3d.geometry.LineSet.create_from_oriented_bounding_box(obb)
+            renderer.scene.add_geometry(aabb_name, aabb_lines, box_material)
+            renderer.scene.add_geometry(obb_name, obb_lines, box_material)
+
+        bounding_box = pcd.get_axis_aligned_bounding_box()
+        center = bounding_box.get_center()
+        extent = bounding_box.get_extent()
+        max_extent = np.max(extent)  # 点云最大尺寸
+
+        camera = renderer.scene.camera
+        camera.look_at(
+            center,  # 目标点（点云中心）
+            center + [0, -max_extent*2, max_extent*1.5],  # 眼点（斜上方）
+            [0, 1, 0]  # 上方向
+        )
+        # 调整相机焦距（适配分辨率）
+
+        fov_type = o3d.visualization.rendering.Camera.FovType.Horizontal
+        camera.set_projection(
+            60,                # 水平视野角度（°）
+            img_width/img_height,  # 宽高比
+            0.1,               # 近裁剪面（最近可见距离）
+            1000.0,            # 远裁剪面（最远可见距离）
+            fov_type           # 视野类型（补充的关键参数）
         )
 
         # 8. 渲染图像（返回RGBA格式）
         img_rgba = renderer.render_to_image()
-        # 转换为numpy数组（H×W×4）→ 转BGR（用于OpenCV显示/保存）
         img_rgb = np.asarray(img_rgba)[:, :, :3]
         img_bgr = cv2.cvtColor(img_rgb, cv2.COLOR_RGB2BGR)
-
-        # 9. 保存+显示图像
         cv2.imwrite(output_img_path, img_bgr)
         print(f"渲染结果已保存到：{output_img_path}")
     
-        # 10. 清理资源
         renderer.scene.remove_geometry("point_cloud")
-        #renderer.scene.remove_geometry("aabb_box")
+        renderer.scene.remove_geometry("aabb_box")
         renderer.scene.remove_geometry("obb_box")
         del renderer
-
-    def visualize_results(self, target_pcd, aabb, obb):
-        
-
-        # 2. 3D可视化（Open3D窗口，复用窗口）
-        if not self.vis_3d_init:
-            # 首次初始化窗口
-            self.vis.create_window(visible=False, width=800, height=600)
-
-            # 添加相机坐标系（原点为相机光心，尺寸0.5米）
-            coord_frame = o3d.geometry.TriangleMesh.create_coordinate_frame(size=0.5, origin=[0, 0, 0])
-            self.vis.add_geometry(coord_frame)
-            # 添加初始3D几何
-            self.vis.add_geometry(target_pcd)
-            self.vis.add_geometry(aabb)
-            self.vis.add_geometry(obb)
-            self.vis_3d_init = True
-        else:
-            # 更新已有3D几何数据（避免重复创建）
-            self.vis.update_geometry(target_pcd)
-            self.vis.update_geometry(aabb)
-            self.vis.update_geometry(obb)
-            print("----------------", target_pcd, aabb, obb)
-
-        self.vis.poll_events()
-        self.vis.update_renderer()
-        #self.vis.capture_screen_image("3d_detection_result.jpg")
-        self.vis.destroy_window()
-
-        o3d.io.write_point_cloud("./target_pcd.pcd", target_pcd)
-        #aabb_mesh = o3d.geometry.TriangleMesh.create_from_oriented_bounding_box(aabb)
-        obb_mesh = o3d.geometry.TriangleMesh.create_from_oriented_bounding_box(obb)
-        #o3d.io.write_triangle_mesh("./aabb_mesh.ply", aabb_mesh)
-        o3d.io.write_triangle_mesh("./obb_mesh.ply", obb_mesh)
 
     def visualize_results_plot(self, rgb_image_with_bbox, target_pcd, aabb, obb):
         try:

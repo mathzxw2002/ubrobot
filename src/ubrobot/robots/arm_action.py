@@ -12,6 +12,7 @@ from enum import Enum
 from collections import deque
 import io
 
+import json
 # ROS消息导入
 from sensor_msgs.msg import PointCloud2
 import sensor_msgs.point_cloud2 as pc2
@@ -894,6 +895,7 @@ class PoseTransformer:
             renderer.scene.add_geometry(aabb_name, aabb_lines, box_material)
             renderer.scene.add_geometry(obb_name, obb_lines, box_material)
 
+            axis_xyz = [(obb.R[:,i] * obb.extent[i]).tolist() for i in range(3)]
             box_annotations.append({
                 "index": idx,
                 # AABB参数：中心点、最小/最大边界、尺寸
@@ -908,8 +910,8 @@ class PoseTransformer:
                 "obb": {
                     "center": obb.get_center().tolist(),
                     "R": obb.R.tolist(),  # 旋转矩阵
-                    "extent": obb.get_extent().tolist(),
-                    "axis_xyz": [obb.axis_xyz[i].tolist() for i in range(3)],  # 三个轴
+                    "extent": obb.extent.tolist(),
+                    "axis_xyz": axis_xyz,  # 三个轴
                     "color": line_color
                 }
             })
@@ -950,7 +952,22 @@ class PoseTransformer:
 
         # ========== （可选）保存包含包围盒线框的组合点云 ==========
         # 合并原始点云 + 所有包围盒线框，保存为一个文件
-        combined_geometry = orig_pcd.clone()
+        combined_geometry = o3d.geometry.PointCloud()  # 新建空点云
+
+        # 1. 复制原始点云的坐标（核心）
+        pcd_points = np.asarray(pcd.points)  # 转为numpy数组
+        combined_geometry.points = o3d.utility.Vector3dVector(pcd_points)
+
+        # 2. 可选：复制点云颜色（如果原始点云有颜色）
+        if pcd.has_colors():
+            pcd_colors = np.asarray(pcd.colors)
+            combined_geometry.colors = o3d.utility.Vector3dVector(pcd_colors)
+
+        # 3. 可选：复制点云法线（如果原始点云有法线）
+        if pcd.has_normals():
+            pcd_normals = np.asarray(pcd.normals)
+            combined_geometry.normals = o3d.utility.Vector3dVector(pcd_normals)
+
         for idx in range(len(aabb_list)):
             aabb = aabb_list[idx]
             obb = obb_list[idx]

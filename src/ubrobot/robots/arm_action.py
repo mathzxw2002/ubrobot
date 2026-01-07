@@ -83,7 +83,7 @@ class GraspPoseCalculator:
         print(f"可抓取！夹持轴={grasp_axis}（0=X,1=Y,2=Z），最短边={min_dimension:.3f}m")
         return grasp_axis, True, min_dimension
 
-    def compute_grasp_pose(self, aabb_center_local, tm_inv, grasp_axis, frame_id="camera_color_optical_frame"):
+    def compute_grasp_pose(self, obb, gripper_max_opening, frame_id="camera_color_optical_frame"):
         """
         抓取姿态计算（位置 + 旋转）
         :param aabb_center_local: PCA局部坐标系下AABB盒中心 [x, y, z]（numpy数组）
@@ -99,11 +99,34 @@ class GraspPoseCalculator:
                      }
                  }
         """
+        # ================== 3. 关键：从OBB提取PCA相关参数（核心步骤） ===========
+        # OBB包含了PCA主方向、局部AABB中心、变换矩阵等关键信息，直接从obb中提取
+        aabb_dimensions = [
+            obb.extent[0],  # X轴长度（局部坐标系）
+            obb.extent[1],  # Y轴长度（局部坐标系）
+            obb.extent[2]   # Z轴长度（局部坐标系）
+        ]
+
+        grasp_axis, is_graspable, min_dim = self.select_grasp_axis(
+            aabb_dimensions=aabb_dimensions,
+            gripper_max_opening=gripper_max_opening
+        )
+
+        if not is_graspable:
+            return None
+
+        # 3.3 构建逆变换矩阵tm_inv（4x4)
+        # OBB的旋转矩阵（3x3）+ 平移向量（3x1）→ 4x4变换矩阵
+        tm_inv = np.eye(4, dtype=np.float64)
+        tm_inv[:3, :3] = np.array(obb.R)  # OBB的旋转矩阵（PCA主方向）
+        tm_inv[:3, 3] = np.array(obb.center)  # OBB的中心（平移向量）        
+
         grasp_pose = {
             "header": {"frame_id": frame_id, "stamp": None},  # stamp可在发布时填充ROS时间
             "pose": {"position": {}, "orientation": {}}
         }
 
+        aabb_center_local=obb.center
         # ===================== 1. 计算抓取位置（AABB盒中心，转换到世界坐标系） =====================
         aabb_center_local = np.array(aabb_center_local, dtype=np.float64).reshape(3, 1)
         # 提取逆变换矩阵的旋转部分（3x3）和平移部分（3x1）
@@ -163,35 +186,7 @@ class GraspPoseCalculator:
                 rotation_matrix[:, 2] = -rotation_matrix[:, 2]
 
         # ===================== 5. 旋转矩阵转四元数 =====================
-        # 方法1：使用transforms3d（简洁）
         quat_w, quat_x, quat_y, quat_z = tfq.mat2quat(rotation_matrix)
-        # 方法2：手动计算（无需依赖transforms3d，注释备用）
-        # rot = rotation_matrix
-        # tr = rot[0,0] + rot[1,1] + rot[2,2]
-        # if tr > 0:
-        #     S = np.sqrt(tr + 1.0) * 2
-        #     quat_w = 0.25 * S
-        #     quat_x = (rot[2,1] - rot[1,2]) / S
-        #     quat_y = (rot[0,2] - rot[2,0]) / S
-        #     quat_z = (rot[1,0] - rot[0,1]) / S
-        # elif (rot[0,0] > rot[1,1]) and (rot[0,0] > rot[2,2]):
-        #     S = np.sqrt(1.0 + rot[0,0] - rot[1,1] - rot[2,2]) * 2
-        #     quat_w = (rot[2,1] - rot[1,2]) / S
-        #     quat_x = 0.25 * S
-        #     quat_y = (rot[0,1] + rot[1,0]) / S
-        #     quat_z = (rot[0,2] + rot[2,0]) / S
-        # elif rot[1,1] > rot[2,2]:
-        #     S = np.sqrt(1.0 + rot[1,1] - rot[0,0] - rot[2,2]) * 2
-        #     quat_w = (rot[0,2] - rot[2,0]) / S
-        #     quat_x = (rot[0,1] + rot[1,0]) / S
-        #     quat_y = 0.25 * S
-        #     quat_z = (rot[1,2] + rot[2,1]) / S
-        # else:
-        #     S = np.sqrt(1.0 + rot[2,2] - rot[0,0] - rot[1,1]) * 2
-        #     quat_w = (rot[1,0] - rot[0,1]) / S
-        #     quat_x = (rot[0,2] + rot[2,0]) / S
-        #     quat_y = (rot[1,2] + rot[2,1]) / S
-        #     quat_z = 0.25 * S
 
         # 归一化四元数
         quat_norm = np.sqrt(quat_x**2 + quat_y**2 + quat_z**2 + quat_w**2)
@@ -416,10 +411,6 @@ class PoseTransformer:
         self.fy = None
         self.ppx = None
         self.ppy = None
-
-        # 3D可视化相关（复用窗口，提升实时性）
-        self.vis_3d_init = False
-        self.vis = o3d.visualization.VisualizerWithKeyCallback()
 
         self.yolo_model = YOLO('./yolo11n-seg.pt')
 
@@ -791,47 +782,25 @@ class PoseTransformer:
                     aabb_list.append(aabb)
                     obb_list.append(obb)
 
-            #self.visualize_pcd_with_boxes_offline(target_pcd, aabb, obb)
             h, w = self.rgb_image.shape[:2]
             self.visualize_pcd_with_boxes_offline(orig_pcd, aabb_list, obb_list, w, h)
             #self.visualize_results(target_pcd, aabb, obb)
 
-            # ================== 3. 关键：从OBB提取PCA相关参数（核心步骤） ===========
-            # OBB包含了PCA主方向、局部AABB中心、变换矩阵等关键信息，直接从obb中提取
-            aabb_dimensions = [
-                obb.extent[0],  # X轴长度（局部坐标系）
-                obb.extent[1],  # Y轴长度（局部坐标系）
-                obb.extent[2]   # Z轴长度（局部坐标系）
-            ]
-
-            # 3.3 构建逆变换矩阵tm_inv（4x4)
-            # OBB的旋转矩阵（3x3）+ 平移向量（3x1）→ 4x4变换矩阵
-            tm_inv = np.eye(4, dtype=np.float64)
-            tm_inv[:3, :3] = np.array(obb.R)  # OBB的旋转矩阵（PCA主方向）
-            tm_inv[:3, 3] = np.array(obb.center)  # OBB的中心（平移向量）
-
-            # ===================== 4. 机械爪参数配置 =====================
             gripper_max_opening = 0.05  # 机械爪最大张开距离（米），根据实际硬件调整（如0.1米）
             frame_id = "camera_color_optical_frame"  # 坐标系ID（与你的点云坐标系一致）
-
-            # ===================== 5. 夹持方向筛选 + 可抓取性判断 =====================
-            grasp_axis, is_graspable, min_dim = self.grasp_calc.select_grasp_axis(
-                aabb_dimensions=aabb_dimensions,
-                gripper_max_opening=gripper_max_opening
+            grasp_pose = self.grasp_calc.compute_grasp_pose(
+                obb,
+                gripper_max_opening=gripper_max_opening,
+                frame_id=frame_id
             )
 
-            if is_graspable:
-                grasp_pose = self.grasp_calc.compute_grasp_pose(
-                    aabb_center_local=obb.center,
-                    tm_inv=tm_inv,
-                    grasp_axis=grasp_axis,
-                    frame_id=frame_id
-                )
-
+            if grasp_pose is not None:
                 print("\n===== 最终抓取姿态 =====")
                 print(f"坐标系：{grasp_pose['header']['frame_id']}")
                 print(f"抓取位置：x={grasp_pose['pose']['position']['x']:.3f}m, y={grasp_pose['pose']['position']['y']:.3f}m, z={grasp_pose['pose']['position']['z']:.3f}m")
                 print(f"抓取四元数：x={grasp_pose['pose']['orientation']['x']:.3f}, y={grasp_pose['pose']['orientation']['y']:.3f}, z={grasp_pose['pose']['orientation']['z']:.3f}, w={grasp_pose['pose']['orientation']['w']:.3f}")
+
+                self.export_grasp_visualization_to_ply(orig_pcd, grasp_pose, "./grasp_visualization.ply", aabb_list, obb_list, 0.005)
 
     def visualize_pcd_with_boxes_offline(self, pcd, aabb_list, obb_list,
         img_width: int = 800,
@@ -988,79 +957,107 @@ class PoseTransformer:
         renderer.scene.remove_geometry("obb_box")
         del renderer
 
-    def visualize_results_plot(self, rgb_image_with_bbox, target_pcd, aabb, obb):
+    def export_grasp_visualization_to_ply(pcd, grasp_pose, output_ply_path="grasp_visualization.ply",
+                                        aabb=None, obb=None, axis_point_size=0.005):
+        """
+        将点云、AABB/OBB包围盒、抓取姿态坐标系整合为单个PLY文件（适配CloudCompare查看）
+        
+        参数说明：
+        - pcd: open3d.geometry.PointCloud 对象（原始点云）
+        - grasp_pose: 抓取姿态，支持字典/ROS PoseStamped 格式
+        - output_ply_path: 输出PLY文件路径（CloudCompare可直接打开）
+        - aabb: open3d.geometry.AxisAlignedBoundingBox 对象（可选）
+        - obb: open3d.geometry.OrientedBoundingBox 对象（可选）
+        - axis_point_size: 坐标系轴的点大小（默认0.005米，CloudCompare中可见）
+        """
+        # 1. 输入校验
+        if not isinstance(pcd, o3d.geometry.PointCloud) or len(pcd.points) == 0:
+            print("错误：输入点云不合法（非Open3D PointCloud或为空）")
+            return
+        
+        # 2. 解析抓取姿态的位置和旋转
         try:
-            # 存储2D检测结果
-            cv2.imwrite("/home/unitree/ubrobot/results/2d_result.jpg", rgb_image_with_bbox)
-
-            # 存储3D点云+包围框（matplotlib离线绘图）
-            fig = plt.figure(figsize=(8,6))
-            ax = fig.add_subplot(111, projection='3d')
-
-            # 绘制点云（转换为numpy数组）
-            pcd_np = np.asarray(target_pcd.points)
-            ax.scatter(pcd_np[:,0], pcd_np[:,1], pcd_np[:,2], s=1, alpha=0.5, c='blue')
-
-            # 绘制AABB包围框
-            aabb_points = np.asarray(aabb.get_box_points())
-            # 绘制包围框的12条边
-            edges = [
-                [0,1], [1,2], [2,3], [3,0],
-                [4,5], [5,6], [6,7], [7,4],
-                [0,4], [1,5], [2,6], [3,7]
-            ]
-            for edge in edges:
-                ax.plot3D(
-                    [aabb_points[edge[0],0], aabb_points[edge[1],0]],
-                    [aabb_points[edge[0],1], aabb_points[edge[1],1]],
-                    [aabb_points[edge[0],2], aabb_points[edge[1],2]],
-                    'r-'
-                )
-
-            # 绘制OBB包围框
-            obb_points = np.asarray(obb.get_box_points())
-            for edge in edges:
-                ax.plot3D(
-                    [obb_points[edge[0],0], obb_points[edge[1],0]],
-                    [obb_points[edge[0],1], obb_points[edge[1],1]],
-                    [obb_points[edge[0],2], obb_points[edge[1],2]],
-                    'g-'
-                )
-
-            # 设置坐标轴标签
-            ax.set_xlabel('X')
-            ax.set_ylabel('Y')
-            ax.set_zlabel('Z')
-            ax.set_title('3D Detection Result')
-
-            # 保存3D结果（指定可写路径，避免权限问题）
-            plt.savefig("./3d_result.jpg")
-            plt.close(fig)  # 关闭画布，释放内存
-
+            if isinstance(grasp_pose, dict):
+                pos = grasp_pose["pose"]["position"]
+                ori = grasp_pose["pose"]["orientation"]
+                pos_list = np.array([pos["x"], pos["y"], pos["z"]])
+                quat_list = [ori["x"], ori["y"], ori["z"], ori["w"]]
+            else:
+                pos = grasp_pose.pose.position
+                ori = grasp_pose.pose.orientation
+                pos_list = np.array([pos.x, pos.y, pos.z])
+                quat_list = [ori.x, ori.y, ori.z, ori.w]
         except Exception as e:
-            # 捕获异常并打印，避免ROS回调崩溃
-            print(f"可视化存储失败: {str(e)}")
-
-    def visualize_grasp_pose(pcd, grasp_pose):
-        """在Open3D可视化窗口中叠加显示抓取姿态（坐标系）"""
-        # 创建抓取姿态的坐标系（轴长0.1米）
-        grasp_frame = o3d.geometry.TriangleMesh.create_coordinate_frame(size=0.1)
-        # 提取抓取姿态的位置和旋转
-        pos = grasp_pose["pose"]["position"]
-        ori = grasp_pose["pose"]["orientation"]
-        # 转换四元数为旋转矩阵
-        rot_mat = o3d.geometry.get_rotation_matrix_from_quaternion(
-            [ori["x"], ori["y"], ori["z"], ori["w"]]
-        )
-        # 应用位置和旋转
-        grasp_frame.rotate(rot_mat, center=(0,0,0))
-        grasp_frame.translate([pos["x"], pos["y"], pos["z"]])
-    
-        # 可视化点云+包围框+抓取姿态
-        o3d.visualization.draw_geometries([
-            pcd, aabb, obb, grasp_frame,
-            o3d.geometry.TriangleMesh.create_coordinate_frame(size=0.5)  # 全局坐标系
-        ], window_name="抓取姿态可视化")
+            print(f"错误：解析抓取姿态失败 - {e}")
+            return
+        
+        # 3. 创建合并后的点云（原始点云 + 所有可视化元素）
+        combined_pcd = o3d.geometry.PointCloud()
+        
+        # 3.1 复制原始点云（保留原始颜色/坐标）
+        combined_pcd.points = o3d.utility.Vector3dVector(np.asarray(pcd.points))
+        if pcd.has_colors():
+            combined_pcd.colors = o3d.utility.Vector3dVector(np.asarray(pcd.colors))
+        else:
+            # 原始点云默认设为灰色
+            combined_pcd.colors = o3d.utility.Vector3dVector(
+                np.ones((len(pcd.points), 3)) * 0.5
+            )
+        
+        # 3.2 添加AABB包围盒顶点（红色）
+        if aabb is not None and isinstance(aabb, o3d.geometry.AxisAlignedBoundingBox):
+            aabb_points = np.asarray(aabb.get_box_points())  # 获取AABB8个顶点
+            aabb_colors = np.tile([1.0, 0.0, 0.0], (len(aabb_points), 1))  # 红色
+            # 添加到合并点云
+            combined_pcd.points.extend(o3d.utility.Vector3dVector(aabb_points))
+            combined_pcd.colors.extend(o3d.utility.Vector3dVector(aabb_colors))
+        
+        # 3.3 添加OBB包围盒顶点（绿色）
+        if obb is not None and isinstance(obb, o3d.geometry.OrientedBoundingBox):
+            obb_points = np.asarray(obb.get_box_points())  # 获取OBB8个顶点
+            obb_colors = np.tile([0.0, 1.0, 0.0], (len(obb_points), 1))  # 绿色
+            # 添加到合并点云
+            combined_pcd.points.extend(o3d.utility.Vector3dVector(obb_points))
+            combined_pcd.colors.extend(o3d.utility.Vector3dVector(obb_colors))
+        
+        # 3.4 添加抓取姿态坐标系（轴长0.1米，X红/Y绿/Z蓝）
+        axis_length = 0.1
+        # 生成坐标系轴的点（从原点到轴端点，密集点保证CloudCompare中可见）
+        num_points_per_axis = 50  # 每个轴生成50个点，避免轴显示为单个点
+        # 旋转矩阵：将局部坐标系转为世界坐标系
+        rot_mat = o3d.geometry.get_rotation_matrix_from_quaternion(quat_list)
+        
+        # X轴（红色）：从抓取位置沿X轴延伸axis_length
+        x_axis_points = np.linspace(pos_list, pos_list + rot_mat[:, 0] * axis_length, num_points_per_axis)
+        x_axis_colors = np.tile([1.0, 0.0, 0.0], (num_points_per_axis, 1))
+        combined_pcd.points.extend(o3d.utility.Vector3dVector(x_axis_points))
+        combined_pcd.colors.extend(o3d.utility.Vector3dVector(x_axis_colors))
+        
+        # Y轴（绿色）：从抓取位置沿Y轴延伸axis_length
+        y_axis_points = np.linspace(pos_list, pos_list + rot_mat[:, 1] * axis_length, num_points_per_axis)
+        y_axis_colors = np.tile([0.0, 1.0, 0.0], (num_points_per_axis, 1))
+        combined_pcd.points.extend(o3d.utility.Vector3dVector(y_axis_points))
+        combined_pcd.colors.extend(o3d.utility.Vector3dVector(y_axis_colors))
+        
+        # Z轴（蓝色）：从抓取位置沿Z轴延伸axis_length
+        z_axis_points = np.linspace(pos_list, pos_list + rot_mat[:, 2] * axis_length, num_points_per_axis)
+        z_axis_colors = np.tile([0.0, 0.0, 1.0], (num_points_per_axis, 1))
+        combined_pcd.points.extend(o3d.utility.Vector3dVector(z_axis_points))
+        combined_pcd.colors.extend(o3d.utility.Vector3dVector(z_axis_colors))
+        
+        # 3.5 添加抓取位置中心点（黄色）
+        center_point = np.array([pos_list])
+        center_color = np.array([[1.0, 1.0, 0.0]])  # 黄色
+        combined_pcd.points.extend(o3d.utility.Vector3dVector(center_point))
+        combined_pcd.colors.extend(o3d.utility.Vector3dVector(center_color))
+        
+        # 4. 保存为PLY文件（CloudCompare原生支持）
+        o3d.io.write_point_cloud(output_ply_path, combined_pcd, write_ascii=True)
+        # 补充：可选保存为PCD格式（CloudCompare也支持）
+        # o3d.io.write_point_cloud(output_ply_path.replace(".ply", ".pcd"), combined_pcd)
+        
+        print(f"3D可视化文件已生成：{output_ply_path}")
+        print("提示：可用CloudCompare打开该文件，查看点云+包围盒+抓取姿态坐标系")
     
     def pose_callback(self, msg):
         """PoseStamped消息回调"""

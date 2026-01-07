@@ -857,24 +857,24 @@ class PoseTransformer:
         )
         renderer.scene.scene.enable_sun_light(False)
 
+        # 点云材质
         material = o3d.visualization.rendering.MaterialRecord()
-        material.shader = "defaultUnlit"  # 无光照着色器（点云更清晰）
+        material.shader = "defaultUnlit"
         material.point_size = 2.0
         # 补充点云默认颜色（避免点云透明）
         material.base_color = [0.5, 0.5, 0.5, 1.0]  # 灰色点云，不透明
         renderer.scene.add_geometry("point_cloud", pcd, material)
 
+        # 包围盒线框材质
         box_material = o3d.visualization.rendering.MaterialRecord()
         box_material.shader = "unlitLine"
         box_material.line_width = 5.0
-
         # 关键：配置线框颜色（RGBA，避免透明）
         box_material.base_color = [1.0, 0.0, 0.0, 1.0]  # 红色线框，不透明
-        # 兼容Open3D 0.17+：添加line_color属性
-        if hasattr(box_material, "line_color"):
-            box_material.line_color = [1.0, 0.0, 0.0]
 
         print("======= appending ", len(aabb_list))
+        # 添加包围盒线框
+        box_annotations = []  # 存储包围盒标注信息
         for idx in range(len(aabb_list)):
             aabb = aabb_list[idx]
             obb = obb_list[idx]
@@ -882,28 +882,53 @@ class PoseTransformer:
             obb_name = f"obb_box_{idx}"
 
             aabb_lines = o3d.geometry.LineSet.create_from_axis_aligned_bounding_box(aabb)
-            # OBB 转 LineSet
             obb_lines = o3d.geometry.LineSet.create_from_oriented_bounding_box(obb)
+
+            # 线框颜色
+            colors = [[1,0,0], [0,1,0], [0,0,1], [1,1,0]]
+            line_color = colors[idx % len(colors)]
+            aabb_lines.colors = o3d.utility.Vector3dVector([line_color for _ in aabb_lines.lines])
+            obb_lines.colors = o3d.utility.Vector3dVector([line_color for _ in obb_lines.lines])
+
+            # 添加到渲染场景
             renderer.scene.add_geometry(aabb_name, aabb_lines, box_material)
             renderer.scene.add_geometry(obb_name, obb_lines, box_material)
 
+            box_annotations.append({
+                "index": idx,
+                # AABB参数：中心点、最小/最大边界、尺寸
+                "aabb": {
+                    "center": aabb.get_center().tolist(),
+                    "min_bound": aabb.min_bound.tolist(),
+                    "max_bound": aabb.max_bound.tolist(),
+                    "extent": aabb.get_extent().tolist(),
+                    "color": line_color
+                },
+                # OBB参数：中心点、旋转矩阵、尺寸、轴
+                "obb": {
+                    "center": obb.get_center().tolist(),
+                    "R": obb.R.tolist(),  # 旋转矩阵
+                    "extent": obb.get_extent().tolist(),
+                    "axis_xyz": [obb.axis_xyz[i].tolist() for i in range(3)],  # 三个轴
+                    "color": line_color
+                }
+            })
+
+        # 相机配置（修复后的参数）
         bounding_box = pcd.get_axis_aligned_bounding_box()
         center = bounding_box.get_center()
         extent = bounding_box.get_extent()
         max_extent = np.max(extent)  # 点云最大尺寸
-
         camera = renderer.scene.camera
         camera.look_at(
             center,  # 目标点（点云中心）
             center + [0, -max_extent*2, max_extent*1.5],  # 眼点（斜上方）
             [0, 1, 0]  # 上方向
         )
-        # 调整相机焦距（适配分辨率）
-
         fov_type = o3d.visualization.rendering.Camera.FovType.Horizontal
         camera.set_projection(
             60,                # 水平视野角度（°）
-            img_width/img_height,  # 宽高比
+            (1.0*img_width)/img_height,  # 宽高比
             0.1,               # 近裁剪面（最近可见距离）
             1000.0,            # 远裁剪面（最远可见距离）
             fov_type           # 视野类型（补充的关键参数）
@@ -915,7 +940,32 @@ class PoseTransformer:
         img_bgr = cv2.cvtColor(img_rgb, cv2.COLOR_RGB2BGR)
         cv2.imwrite(output_img_path, img_bgr)
         print(f"渲染结果已保存到：{output_img_path}")
-    
+   
+        output_json_path = "./ann.json"
+        output_pcd_path = "./pcd.ply"
+        # ========== 5. 保存AABB/OBB标注信息（JSON格式） ==========
+        with open(output_json_path, "w", encoding="utf-8") as f:
+            json.dump(box_annotations, f, indent=4)
+        print(f"包围盒标注信息已保存到：{output_json_path}")
+
+        # ========== （可选）保存包含包围盒线框的组合点云 ==========
+        # 合并原始点云 + 所有包围盒线框，保存为一个文件
+        combined_geometry = orig_pcd.clone()
+        for idx in range(len(aabb_list)):
+            aabb = aabb_list[idx]
+            obb = obb_list[idx]
+            aabb_lines = o3d.geometry.LineSet.create_from_axis_aligned_bounding_box(aabb)
+            obb_lines = o3d.geometry.LineSet.create_from_oriented_bounding_box(obb)
+            # 将线框的点添加到组合点云中（可选：给包围盒点赋颜色）
+            aabb_points = np.asarray(aabb_lines.points)
+            obb_points = np.asarray(obb_lines.points)
+            combined_points = np.vstack([np.asarray(combined_geometry.points), aabb_points, obb_points])
+            combined_geometry.points = o3d.utility.Vector3dVector(combined_points)
+        # 保存组合点云
+        combined_pcd_path = output_pcd_path.replace(".ply", "_with_boxes.ply")
+        o3d.io.write_point_cloud(combined_pcd_path, combined_geometry)
+        print(f"包含包围盒点的组合点云已保存到：{combined_pcd_path}")
+
         renderer.scene.remove_geometry("point_cloud")
         renderer.scene.remove_geometry("aabb_box")
         renderer.scene.remove_geometry("obb_box")

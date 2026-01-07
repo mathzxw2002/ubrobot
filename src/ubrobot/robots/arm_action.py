@@ -753,13 +753,6 @@ class PoseTransformer:
             intrinsic
         )
 
-        # 5. 坐标系翻转（可选，适配 Open3D 可视化视角）
-        # Open3D 默认相机坐标系与视觉习惯略有差异，翻转后更直观
-        #orig_pcd.transform([[1, 0, 0, 0],
-        #            [0, -1, 0, 0],
-        #            [0, 0, -1, 0],
-        #            [0, 0, 0, 1]])
-
         o3d.io.write_point_cloud("rgbd_point_cloud.ply", orig_pcd)
 
         # object detection and segmentation
@@ -1045,10 +1038,20 @@ class PoseTransformer:
         combined_pcd.colors.extend(o3d.utility.Vector3dVector(z_axis_colors))
         
         # 3.5 添加抓取位置中心点（黄色）
-        center_point = np.array([pos_list])
-        center_color = np.array([[1.0, 1.0, 0.0]])  # 黄色
-        combined_pcd.points.extend(o3d.utility.Vector3dVector(center_point))
-        combined_pcd.colors.extend(o3d.utility.Vector3dVector(center_color))
+        #center_point = np.array([pos_list])
+        #center_color = np.array([[1.0, 1.0, 0.0]])  # 黄色
+
+        print("================================,", pos_list)
+        center_point_radius = 0.01  # 点簇半径（0.01米=1厘米，可根据实际尺度调整）
+        num_center_points = 20      # 点簇内点的数量（越多越醒目）
+        # 生成围绕抓取中心的随机密集点（球形分布）
+        center_point_cluster = pos_list + np.random.normal(0, center_point_radius, (num_center_points, 3))
+        center_color_cluster = np.tile([1.0, 1.0, 0.0], (num_center_points, 1))  # 黄色
+        # 添加到合并点云
+        combined_pcd.points.extend(o3d.utility.Vector3dVector(center_point_cluster))
+        combined_pcd.colors.extend(o3d.utility.Vector3dVector(center_color_cluster))
+        #combined_pcd.points.extend(o3d.utility.Vector3dVector(center_point))
+        #combined_pcd.colors.extend(o3d.utility.Vector3dVector(center_color))
         
         # 4. 保存为PLY文件（CloudCompare原生支持）
         o3d.io.write_point_cloud(output_ply_path, combined_pcd, write_ascii=True)

@@ -802,8 +802,7 @@ class PoseTransformer:
     ):
         """
         离线渲染点云+AABB+OBB包围盒（不依赖OpenGL窗口）
-        :param pcd_path: 点云文件路径（.ply/.pcd等），若指定则忽略pcd_points
-        :param pcd_points: 点云数据（N×3的numpy数组），优先级低于pcd_path
+        :param pcd: 
         :param output_img_path: 渲染图像保存路径
         :param img_width/height: 渲染图像尺寸
         :param camera_position: 相机位置
@@ -854,6 +853,11 @@ class PoseTransformer:
         #renderer.scene.remove_geometry("aabb_box")
         renderer.scene.remove_geometry("obb_box")
         del renderer
+
+        # save coulds
+        '''o3d.io.write_point_cloud("./target_pcd.pcd", pcd)
+        obb_mesh = o3d.geometry.TriangleMesh.create_from_oriented_bounding_box(obb)
+        o3d.io.write_triangle_mesh("./obb_mesh.ply", obb_mesh)'''
 
     def visualize_results(self, target_pcd, aabb, obb):
         

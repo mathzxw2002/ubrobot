@@ -764,19 +764,19 @@ class PoseTransformer:
                     aabb_list.append(aabb)
                     obb_list.append(obb)
 
-            h, w = self.rgb_image.shape[:2]
-            self.visualize_pcd_with_boxes_offline(self.orig_pcd, aabb_list, obb_list, w, h)
+            #h, w = self.rgb_image.shape[:2]
+            #self.visualize_pcd_with_boxes_offline(self.orig_pcd, aabb_list, obb_list, w, h)
 
             gripper_max_opening = 0.5  # 机械爪最大张开距离（米），根据实际硬件调整（如0.1米）
             frame_id = "camera_color_optical_frame"  # 坐标系ID（与你的点云坐标系一致）
-            grasp_pose = self.grasp_calc.compute_grasp_pose(obb, gripper_max_opening, frame_id)
+            grasp_pose = self.grasp_calc.compute_grasp_pose(obb_list[0], gripper_max_opening, frame_id)
 
             if grasp_pose is not None:
                 print("\n===== 最终抓取姿态 =====")
                 print(f"坐标系：{grasp_pose['header']['frame_id']}")
                 print(f"抓取位置：x={grasp_pose['pose']['position']['x']:.3f}m, y={grasp_pose['pose']['position']['y']:.3f}m, z={grasp_pose['pose']['position']['z']:.3f}m")
                 print(f"抓取四元数：x={grasp_pose['pose']['orientation']['x']:.3f}, y={grasp_pose['pose']['orientation']['y']:.3f}, z={grasp_pose['pose']['orientation']['z']:.3f}, w={grasp_pose['pose']['orientation']['w']:.3f}")
-                self.export_grasp_visualization_to_ply(self.orig_pcd, grasp_pose, aabb_list, obb_list)
+                self.export_grasp_visualization_to_ply(self.orig_pcd, grasp_pose, aabb_list[0], obb_list[0])
 
     def visualize_pcd_with_boxes_offline(self, pcd, aabb_list, obb_list,
         img_width: int = 800,
@@ -960,7 +960,8 @@ class PoseTransformer:
         except Exception as e:
             print(f"错误：解析抓取姿态失败 - {e}")
             return
-        
+       
+
         # 3. 创建合并后的点云（原始点云 + 所有可视化元素）
         combined_pcd = o3d.geometry.PointCloud()
         
@@ -975,20 +976,51 @@ class PoseTransformer:
             )
         
         # 3.2 添加AABB包围盒顶点（红色）
-        if aabb is not None and isinstance(aabb, o3d.geometry.AxisAlignedBoundingBox):
+        print("=========================================================")
+        '''if aabb is not None and isinstance(aabb, o3d.geometry.AxisAlignedBoundingBox):
+            print("+++++++++++++++++++++++++++++++++++")
             aabb_points = np.asarray(aabb.get_box_points())  # 获取AABB8个顶点
+
+            print(aabb_points)
             aabb_colors = np.tile([1.0, 0.0, 0.0], (len(aabb_points), 1))  # 红色
             # 添加到合并点云
             combined_pcd.points.extend(o3d.utility.Vector3dVector(aabb_points))
-            combined_pcd.colors.extend(o3d.utility.Vector3dVector(aabb_colors))
+            combined_pcd.colors.extend(o3d.utility.Vector3dVector(aabb_colors))'''
         
         # 3.3 添加OBB包围盒顶点（绿色）
         if obb is not None and isinstance(obb, o3d.geometry.OrientedBoundingBox):
             obb_points = np.asarray(obb.get_box_points())  # 获取OBB8个顶点
+            print("obb ==============================,", obb_points)
             obb_colors = np.tile([0.0, 1.0, 0.0], (len(obb_points), 1))  # 绿色
             # 添加到合并点云
             combined_pcd.points.extend(o3d.utility.Vector3dVector(obb_points))
             combined_pcd.colors.extend(o3d.utility.Vector3dVector(obb_colors))
+
+            edge_pairs = [(0,1), (1,3), (3,2), (2,0),  # 底面
+                    (4,5), (5,7), (7,6), (6,4),  # 顶面
+                    (0,4), (2,6), (1,5), (3,7)   # 竖边
+            ]
+
+            # 3. 为每条棱生成密集采样点（连成线）
+            edge_samples = []
+            num_points_per_edge = 20
+            for (start_idx, end_idx) in edge_pairs:
+                start_point = obb_points[start_idx]
+                end_point = obb_points[end_idx]
+                # 线性插值生成采样点
+                t = np.linspace(0, 1, num_points_per_edge)
+                edge_line = start_point[None, :] * (1 - t[:, None]) + end_point[None, :] * t[:, None]
+                edge_samples.append(edge_line)
+
+            # 4. 合并所有棱的采样点
+            edge_samples = np.concatenate(edge_samples, axis=0)
+            # 生成棱边颜色（统一为指定颜色）
+            edge_color = [1.0, 0.0, 0.0]
+            edge_colors = np.tile(edge_color, (len(edge_samples), 1))
+
+            # 5. 添加到合并点云中
+            combined_pcd.points.extend(o3d.utility.Vector3dVector(edge_samples))
+            combined_pcd.colors.extend(o3d.utility.Vector3dVector(edge_colors))
         
         # 3.4 添加抓取姿态坐标系（轴长0.1米，X红/Y绿/Z蓝）
         axis_length = 0.1

@@ -786,7 +786,7 @@ class PoseTransformer:
             self.visualize_pcd_with_boxes_offline(orig_pcd, aabb_list, obb_list, w, h)
             #self.visualize_results(target_pcd, aabb, obb)
 
-            gripper_max_opening = 0.05  # 机械爪最大张开距离（米），根据实际硬件调整（如0.1米）
+            gripper_max_opening = 0.5  # 机械爪最大张开距离（米），根据实际硬件调整（如0.1米）
             frame_id = "camera_color_optical_frame"  # 坐标系ID（与你的点云坐标系一致）
             grasp_pose = self.grasp_calc.compute_grasp_pose(
                 obb,
@@ -800,7 +800,7 @@ class PoseTransformer:
                 print(f"抓取位置：x={grasp_pose['pose']['position']['x']:.3f}m, y={grasp_pose['pose']['position']['y']:.3f}m, z={grasp_pose['pose']['position']['z']:.3f}m")
                 print(f"抓取四元数：x={grasp_pose['pose']['orientation']['x']:.3f}, y={grasp_pose['pose']['orientation']['y']:.3f}, z={grasp_pose['pose']['orientation']['z']:.3f}, w={grasp_pose['pose']['orientation']['w']:.3f}")
 
-                self.export_grasp_visualization_to_ply(orig_pcd, grasp_pose, "./grasp_visualization.ply", aabb_list, obb_list, 0.005)
+                self.export_grasp_visualization_to_ply(orig_pcd, grasp_pose, aabb_list, obb_list)
 
     def visualize_pcd_with_boxes_offline(self, pcd, aabb_list, obb_list,
         img_width: int = 800,
@@ -957,8 +957,7 @@ class PoseTransformer:
         renderer.scene.remove_geometry("obb_box")
         del renderer
 
-    def export_grasp_visualization_to_ply(pcd, grasp_pose, output_ply_path="grasp_visualization.ply",
-                                        aabb=None, obb=None, axis_point_size=0.005):
+    def export_grasp_visualization_to_ply(self, pcd, grasp_pose, aabb=None, obb=None, output_ply_path="grasp_visualization.ply", axis_point_size=0.005):
         """
         将点云、AABB/OBB包围盒、抓取姿态坐标系整合为单个PLY文件（适配CloudCompare查看）
         

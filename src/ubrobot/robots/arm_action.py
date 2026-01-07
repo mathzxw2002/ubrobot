@@ -412,6 +412,9 @@ class PoseTransformer:
         self.ppx = None
         self.ppy = None
 
+        # Point Cloud from RealSense (RGBD)
+        self.orig_pcd = None
+
         self.yolo_model = YOLO('./yolo11n-seg.pt')
 
         self.grasp_calc = GraspPoseCalculator()
@@ -557,7 +560,6 @@ class PoseTransformer:
                       self.fx, self.fy, self.ppx, self.ppy)
     
     def rgb_depth_down_callback(self, rgb_msg, depth_msg):
-
         print("======================, rgb_depth_down_callback, ")
         """处理下视彩色图像和对齐后的深度图像消息"""
         # 处理彩色图像
@@ -594,9 +596,24 @@ class PoseTransformer:
         # 标记图像更新
         self.new_image_arrived = True
 
-        print("++++++++++++++++++++++++++++", self.new_image_arrived)
+        # get rgbd image and convert to poing cloud
+        rgb_o3d = o3d.geometry.Image(self.rgb_image)
+        depth_o3d = o3d.geometry.Image(self.depth_image.astype(np.float32))
+        rgbd_image = o3d.geometry.RGBDImage.create_from_color_and_depth(
+            rgb_o3d,
+            depth_o3d,
+            depth_scale=1.0,
+            depth_trunc=3.0,    # 深度截断
+            convert_rgb_to_intensity=False #convert_rgb_to_intensity=False：保留彩色信息（否则转为灰度图）
+        )
 
-        #self.process_object_3d_data()
+        if self.fx is None or self.fy is None or self.ppx is None or self.ppy is None:
+            print("Camera Intrinsic Not Received...")
+        else:
+            intrinsic = o3d.camera.PinholeCameraIntrinsic()
+            h, w = self.rgb_image.shape[:2]
+            intrinsic.set_intrinsics(w, h, self.fx, self.fy, self.ppx, self.ppy)
+            self.orig_pcd = o3d.geometry.PointCloud.create_from_rgbd_image(rgbd_image, intrinsic)
 
     def pixel_to_3d(self, u, v, z):
         """
@@ -664,10 +681,10 @@ class PoseTransformer:
         :return: target_pcd（3D点云）、aabb（轴对齐3D包围框）、obb（定向3D包围框）
         """
         if rgb_image is None or depth_image is None:
-            rospy.logwarn("RGB/深度图像无效，无法提取3D数据")
+            print("RGB/深度图像无效，无法提取3D数据")
             return None, None, None
         if bbox is None or mask is None:
-            rospy.logwarn("2D检测结果无效，无法提取3D数据")
+            print("2D检测结果无效，无法提取3D数据")
             return None, None, None
 
         x1, y1, x2, y2 = map(int, bbox)
@@ -694,7 +711,7 @@ class PoseTransformer:
         rgb_valid = rgb_values[valid_mask]
 
         if len(z_valid) == 0:
-            rospy.logwarn("目标区域无有效深度值，无法生成3D点云")
+            print("目标区域无有效深度值，无法生成3D点云")
             return None, None, None
 
         # 批量转换2D像素到3D世界坐标
@@ -719,41 +736,13 @@ class PoseTransformer:
 
     def process_object_3d_data(self):
         """
-        核心处理函数：串联2D检测->3D数据提取->可视化
+        串联2D检测->3D数据提取->可视化
         """
-        if not self.new_image_arrived:
-            print("self.new_image_arrived, ", self.new_image_arrived)
-            return
-        if self.fx is None or self.fy is None or self.ppx is None or self.ppy is None:
-            rospy.logwarn("相机内参未就绪，跳过3D处理")
-            return
-        if self.rgb_image is None or self.depth_image is None:
-            rospy.logwarn("RGB/深度图像未就绪，跳过3D处理")
+        if self.rgb_image is None or self.depth_image is None or self.orig_pcd is None:
+            print("RGB or Depth Image or Point Cloud is None...")
             return
 
-        # save 创建 RGBD 图像（Open3D 格式）, convert_rgb_to_intensity=False：保留彩色信息（否则转为灰度图）
-        rgb_o3d = o3d.geometry.Image(self.rgb_image)
-        depth_o3d = o3d.geometry.Image(self.depth_image.astype(np.float32))
-        rgbd_image = o3d.geometry.RGBDImage.create_from_color_and_depth(
-            rgb_o3d,
-            depth_o3d,
-            depth_scale=1.0,    # 深度值缩放（mm → m）
-            depth_trunc=3.0,    # 深度截断
-            convert_rgb_to_intensity=False
-        )
-
-        # 3. 定义相机内参（Open3D 格式）
-        intrinsic = o3d.camera.PinholeCameraIntrinsic()
-        # 内参赋值：w, h, fx, fy, cx, cy
-        h, w = self.rgb_image.shape[:2]
-        intrinsic.set_intrinsics(w, h, self.fx, self.fy, self.ppx, self.ppy)
-
-        orig_pcd = o3d.geometry.PointCloud.create_from_rgbd_image(
-            rgbd_image,
-            intrinsic
-        )
-
-        o3d.io.write_point_cloud("rgbd_point_cloud.ply", orig_pcd)
+        #o3d.io.write_point_cloud("rgbd_point_cloud.ply", self.orig_pcd)
 
         # object detection and segmentation
         sorted_boxes, sorted_confs, sorted_cls_ids, sorted_masks = self.yolo_segmentation(self.rgb_image)
@@ -776,24 +765,18 @@ class PoseTransformer:
                     obb_list.append(obb)
 
             h, w = self.rgb_image.shape[:2]
-            self.visualize_pcd_with_boxes_offline(orig_pcd, aabb_list, obb_list, w, h)
-            #self.visualize_results(target_pcd, aabb, obb)
+            self.visualize_pcd_with_boxes_offline(self.orig_pcd, aabb_list, obb_list, w, h)
 
             gripper_max_opening = 0.5  # 机械爪最大张开距离（米），根据实际硬件调整（如0.1米）
             frame_id = "camera_color_optical_frame"  # 坐标系ID（与你的点云坐标系一致）
-            grasp_pose = self.grasp_calc.compute_grasp_pose(
-                obb,
-                gripper_max_opening=gripper_max_opening,
-                frame_id=frame_id
-            )
+            grasp_pose = self.grasp_calc.compute_grasp_pose(obb, gripper_max_opening, frame_id)
 
             if grasp_pose is not None:
                 print("\n===== 最终抓取姿态 =====")
                 print(f"坐标系：{grasp_pose['header']['frame_id']}")
                 print(f"抓取位置：x={grasp_pose['pose']['position']['x']:.3f}m, y={grasp_pose['pose']['position']['y']:.3f}m, z={grasp_pose['pose']['position']['z']:.3f}m")
                 print(f"抓取四元数：x={grasp_pose['pose']['orientation']['x']:.3f}, y={grasp_pose['pose']['orientation']['y']:.3f}, z={grasp_pose['pose']['orientation']['z']:.3f}, w={grasp_pose['pose']['orientation']['w']:.3f}")
-
-                self.export_grasp_visualization_to_ply(orig_pcd, grasp_pose, aabb_list, obb_list)
+                self.export_grasp_visualization_to_ply(self.orig_pcd, grasp_pose, aabb_list, obb_list)
 
     def visualize_pcd_with_boxes_offline(self, pcd, aabb_list, obb_list,
         img_width: int = 800,
@@ -813,11 +796,6 @@ class PoseTransformer:
         """
         renderer = o3d.visualization.rendering.OffscreenRenderer(img_width, img_height)
         renderer.scene.set_background([1.0, 1.0, 1.0, 1.0]) 
-        renderer.scene.scene.set_sun_light(
-            [1.0, 1.0, 1.0],
-            [1.0, 1.0, 1.0],
-            100000
-        )
         renderer.scene.scene.enable_sun_light(False)
 
         # 点云材质
@@ -837,7 +815,7 @@ class PoseTransformer:
 
         print("======= appending ", len(aabb_list))
         # 添加包围盒线框
-        box_annotations = []  # 存储包围盒标注信息
+        #box_annotations = []  # 存储包围盒标注信息
         for idx in range(len(aabb_list)):
             aabb = aabb_list[idx]
             obb = obb_list[idx]
@@ -857,7 +835,7 @@ class PoseTransformer:
             renderer.scene.add_geometry(aabb_name, aabb_lines, box_material)
             renderer.scene.add_geometry(obb_name, obb_lines, box_material)
 
-            axis_xyz = [(obb.R[:,i] * obb.extent[i]).tolist() for i in range(3)]
+            '''axis_xyz = [(obb.R[:,i] * obb.extent[i]).tolist() for i in range(3)]
             box_annotations.append({
                 "index": idx,
                 # AABB参数：中心点、最小/最大边界、尺寸
@@ -876,7 +854,7 @@ class PoseTransformer:
                     "axis_xyz": axis_xyz,  # 三个轴
                     "color": line_color
                 }
-            })
+            })'''
 
         # 相机配置（修复后的参数）
         bounding_box = pcd.get_axis_aligned_bounding_box()
@@ -908,9 +886,9 @@ class PoseTransformer:
         output_json_path = "./ann.json"
         output_pcd_path = "./pcd.ply"
         # ========== 5. 保存AABB/OBB标注信息（JSON格式） ==========
-        with open(output_json_path, "w", encoding="utf-8") as f:
-            json.dump(box_annotations, f, indent=4)
-        print(f"包围盒标注信息已保存到：{output_json_path}")
+        #with open(output_json_path, "w", encoding="utf-8") as f:
+        #    json.dump(box_annotations, f, indent=4)
+        #print(f"包围盒标注信息已保存到：{output_json_path}")
 
         # ========== （可选）保存包含包围盒线框的组合点云 ==========
         # 合并原始点云 + 所有包围盒线框，保存为一个文件

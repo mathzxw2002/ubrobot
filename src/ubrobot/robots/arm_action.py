@@ -832,7 +832,7 @@ class PoseTransformer:
             obb_lines.colors = o3d.utility.Vector3dVector([line_color for _ in obb_lines.lines])
 
             # 添加到渲染场景
-            renderer.scene.add_geometry(aabb_name, aabb_lines, box_material)
+            #renderer.scene.add_geometry(aabb_name, aabb_lines, box_material)
             renderer.scene.add_geometry(obb_name, obb_lines, box_material)
 
             '''axis_xyz = [(obb.R[:,i] * obb.extent[i]).tolist() for i in range(3)]

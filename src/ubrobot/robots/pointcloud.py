@@ -51,8 +51,6 @@ class GraspPoseCalculator:
     def compute_grasp_pose(self, obb, gripper_max_opening, frame_id="camera_color_optical_frame"):
         """
         抓取姿态计算（位置 + 旋转）
-        :param aabb_center_local: PCA局部坐标系下AABB盒中心 [x, y, z]（numpy数组）
-        :param tm_inv: 逆变换矩阵（4x4，numpy数组），用于将局部坐标转换为世界坐标
         :param grasp_axis: 夹持轴索引（0=X,1=Y,2=Z）
         :param frame_id: 坐标系ID（ROS兼容）
         :return: grasp_pose（字典格式，兼容ROS PoseStamped）
@@ -80,34 +78,25 @@ class GraspPoseCalculator:
         if not is_graspable:
             return None
 
-        # 3.3 构建逆变换矩阵tm_inv（4x4)
-        # OBB的旋转矩阵（3x3）+ 平移向量（3x1）→ 4x4变换矩阵
-        tm_inv = np.eye(4, dtype=np.float64)
-        tm_inv[:3, :3] = np.array(obb.R)  # OBB的旋转矩阵（PCA主方向）
-        tm_inv[:3, 3] = np.array(obb.center)  # OBB的中心（平移向量）        
-
         grasp_pose = {
             "header": {"frame_id": frame_id, "stamp": None},  # stamp可在发布时填充ROS时间
             "pose": {"position": {}, "orientation": {}}
         }
+        grasp_pose["pose"]["position"]["x"] = float(obb.center[0])
+        grasp_pose["pose"]["position"]["y"] = float(obb.center[1])
+        grasp_pose["pose"]["position"]["z"] = float(obb.center[2])
 
-        aabb_center_local=obb.center
-        # ===================== 1. 计算抓取位置（AABB盒中心，转换到世界坐标系） =====================
-        aabb_center_local = np.array(aabb_center_local, dtype=np.float64).reshape(3, 1)
-        # 提取逆变换矩阵的旋转部分（3x3）和平移部分（3x1）
-        tm_inv_rot = tm_inv[:3, :3]
-        tm_inv_trans = tm_inv[:3, 3].reshape(3, 1)
-        # 局部坐标 -> 世界坐标：P_global = R * P_local + T
-        aabb_center_global = tm_inv_rot @ aabb_center_local + tm_inv_trans
-
-        # 填充抓取位置
-        grasp_pose["pose"]["position"]["x"] = float(aabb_center_global[0, 0])
-        grasp_pose["pose"]["position"]["y"] = float(aabb_center_global[1, 0])
-        grasp_pose["pose"]["position"]["z"] = float(aabb_center_global[2, 0])
-
-        # ===================== 2. 计算抓取旋转（基于PCA主方向，调整夹持轴） =====================
+        # ================计算抓取旋转（基于PCA主方向，调整夹持轴） =====================
         # 获取原始旋转矩阵（从逆变换矩阵中提取）
-        rotation_matrix = tm_inv_rot.copy()
+        # OBB的旋转矩阵（3x3）+ 平移向量（3x1）→ 4x4变换矩阵
+        tm_world2obb = np.eye(4, dtype=np.float64)
+        tm_world2obb[:3, :3] = np.array(obb.R)
+        tm_world2obb[:3, 3] = np.array(obb.center)
+       
+        R_world2obb = tm_world2obb[:3, :3]  # 世界→OBB的旋转矩阵
+        R_obb2world = R_world2obb.T  # 逆旋转 = 转置（核心！）
+
+        rotation_matrix = R_obb2world.copy()
 
         # 根据夹持轴调整旋转矩阵（确保机械爪Z轴为夹持方向）
         if grasp_axis == 0:
@@ -126,9 +115,9 @@ class GraspPoseCalculator:
             rotation_matrix = adjusted_rot
         # grasp_axis == 2 时，无需调整
 
-        # ===================== 3. 修正Z轴方向：朝向远离相机原点 =====================
+        # ===================== 修正Z轴方向：朝向远离相机原点 =====================
         z_axis = rotation_matrix[:, 2]
-        position_vector = aabb_center_global.reshape(3,)
+        position_vector = obb.center.reshape(3,)
         # 计算Z轴与位置向量的点积
         position_vector_normalized = position_vector / np.linalg.norm(position_vector)
         dot_product = np.dot(z_axis, position_vector_normalized)
@@ -139,7 +128,7 @@ class GraspPoseCalculator:
             rotation_matrix[:, 2] = -rotation_matrix[:, 2]
             rotation_matrix[:, 0] = -rotation_matrix[:, 0]
 
-        # ===================== 4. 旋转矩阵正交化修正（消除计算误差） =====================
+        # ===================== 旋转矩阵正交化修正（消除计算误差） =====================
         determinant = np.linalg.det(rotation_matrix)
         if abs(determinant - 1.0) > 0.1:
             print(f"旋转矩阵行列式异常（{determinant:.3f}），正交化修正...")
@@ -150,17 +139,13 @@ class GraspPoseCalculator:
             if np.linalg.det(rotation_matrix) < 0:
                 rotation_matrix[:, 2] = -rotation_matrix[:, 2]
 
-        # ===================== 5. 旋转矩阵转四元数 =====================
+        # ===================== 旋转矩阵转四元数 =====================
         quat_w, quat_x, quat_y, quat_z = tfq.mat2quat(rotation_matrix)
-
-        # 归一化四元数
         quat_norm = np.sqrt(quat_x**2 + quat_y**2 + quat_z**2 + quat_w**2)
         quat_x /= quat_norm
         quat_y /= quat_norm
         quat_z /= quat_norm
         quat_w /= quat_norm
-
-        # 填充抓取姿态（注意：ROS四元数顺序是x,y,z,w）
         grasp_pose["pose"]["orientation"]["x"] = float(quat_x)
         grasp_pose["pose"]["orientation"]["y"] = float(quat_y)
         grasp_pose["pose"]["orientation"]["z"] = float(quat_z)
@@ -169,7 +154,6 @@ class GraspPoseCalculator:
         print(f"抓取位置：x={grasp_pose['pose']['position']['x']:.3f}, y={grasp_pose['pose']['position']['y']:.3f}, z={grasp_pose['pose']['position']['z']:.3f}")
         print(f"抓取四元数：x={quat_x:.3f}, y={quat_y:.3f}, z={quat_z:.3f}, w={quat_w:.3f}")
         return grasp_pose
-
 
 class PointCloudPerception:
     def __init__(self):
@@ -420,18 +404,10 @@ class PointCloudPerception:
         
         # 2. 解析抓取姿态的位置和旋转                                                        
         try:                                                                                 
-            if isinstance(grasp_pose, dict):
-                print("++++++++++++++++++++++++++++ correct...")
-                pos = grasp_pose["pose"]["position"]                                         
-                ori = grasp_pose["pose"]["orientation"]                                      
-                pos_list = np.array([pos["x"], pos["y"], pos["z"]])                          
-                quat_list = [ori["x"], ori["y"], ori["z"], ori["w"]]                         
-            else: 
-                print("------------------------------")
-                pos = grasp_pose.pose.position                                               
-                ori = grasp_pose.pose.orientation                                            
-                pos_list = np.array([pos.x, pos.y, pos.z])                                   
-                quat_list = [ori.x, ori.y, ori.z, ori.w]                                     
+            pos = grasp_pose["pose"]["position"]                                         
+            ori = grasp_pose["pose"]["orientation"]                                      
+            pos_list = np.array([pos["x"], pos["y"], pos["z"]])                          
+            quat_list = [ori["x"], ori["y"], ori["z"], ori["w"]]                         
         except Exception as e:                                                               
             print(f"错误：解析抓取姿态失败 - {e}")                                           
             return

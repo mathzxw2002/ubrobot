@@ -678,6 +678,7 @@ class PoseTransformer:
         #self.get_manipulate_pose_camera_link()
         print(self.piper.GetArmJointMsgs())
         print(self.piper.GetArmGripperMsgs())
+        print(self.piper.GetArmEndPoseMsgs())
         time.sleep(0.005)
 
     def record_search_route(self):

@@ -451,8 +451,8 @@ class PoseTransformer:
             print("RGB or Depth Image or Point Cloud is None...")
             return
 
-        # object detection and segmentation
-        target_pcd_list, aabb_list, obb_list = self.pc.get_object_clouds(self.rgb_image, self.depth_image, self.fx, self.fy, self.ppx, self.ppy)
+        # 3d object detection and segmentation
+        target_pcd_list, aabb_list, obb_list = self.pc.object_3d_segmentation(self.rgb_image, self.depth_image, self.fx, self.fy, self.ppx, self.ppy)
 
         gripper_max_opening = 0.5  # 机械爪最大张开距离（米），根据实际硬件调整（如0.1米）
         frame_id = "camera_color_optical_frame"  # 坐标系ID（与你的点云坐标系一致）

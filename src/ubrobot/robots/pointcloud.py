@@ -197,7 +197,7 @@ class PointCloudPerception:
             h, w = rgb_image.shape[:2]
             intrinsic.set_intrinsics(w, h, fx, fy, ppx, ppy)
             orig_pcd = o3d.geometry.PointCloud.create_from_rgbd_image(rgbd_image, intrinsic)
-            #o3d.io.write_point_cloud("rgbd_point_cloud.ply", orig_pcd)
+            #o3d.io.write_point_cloud("./tmp/rgbd_point_cloud.ply", orig_pcd)
             return orig_pcd
 
     def pixel_to_3d(self, u, v, z, fx, fy, ppx, ppy):
@@ -253,7 +253,7 @@ class PointCloudPerception:
         sorted_masks = masks[sorted_indices] if masks is not None else None
 
         vis_image = single_result.plot()
-        save_path = "./segment_result.jpg"
+        save_path = "./tmp/segment_result.jpg"
         vis_image_bgr = cv2.cvtColor(vis_image, cv2.COLOR_RGB2BGR)
         cv2.imwrite(save_path, vis_image_bgr)
         return sorted_boxes, sorted_confs, sorted_cls_ids, sorted_masks
@@ -307,7 +307,8 @@ class PointCloudPerception:
             point_3d[i] = [x, y, z]
 
         # 仅保留Z轴（深度）在[depth_min, depth_max]范围内的点（若你的深度是X/Y轴，替换对应索引）
-        depth_min=0.1, depth_max=2.0
+        depth_min = 0.1
+        depth_max = 1.0
         valid_mask = (point_3d[:, 2] >= depth_min) & (point_3d[:, 2] <= depth_max)
         filtered_points = point_3d[valid_mask]
 
@@ -329,7 +330,7 @@ class PointCloudPerception:
         obb.color = (0, 1, 0)  # 绿色：定向包围框
         return target_pcd, aabb, obb
     
-    def get_object_clouds(self, rgb_image, depth_image, fx, fy, ppx, ppy):
+    def object_3d_segmentation(self, rgb_image, depth_image, fx, fy, ppx, ppy):
         sorted_boxes, sorted_confs, sorted_cls_ids, sorted_masks = self.yolo_segmentation(rgb_image)
 
         if sorted_boxes is None or sorted_masks is None:
@@ -350,7 +351,7 @@ class PointCloudPerception:
                     obb_list.append(obb)
             return target_pcd_list, aabb_list, obb_list
 
-    def export_grasp_visualization_to_ply(self, pcd, grasp_pose, aabb=None, obb=None, output_ply_path="grasp_visualization.ply", axis_point_size=0.005):
+    def export_grasp_visualization_to_ply(self, pcd, grasp_pose, aabb=None, obb=None, output_ply_path="./tmp/grasp_visualization.ply", axis_point_size=0.005):
         """
         将点云、AABB/OBB包围盒、抓取姿态坐标系整合为单个PLY文件（适配CloudCompare查看）
         
@@ -366,23 +367,6 @@ class PointCloudPerception:
             print("PointCloud NOT valid!")
             return
         
-        # 2. 解析抓取姿态的位置和旋转
-        try:
-            if isinstance(grasp_pose, dict):
-                pos = grasp_pose["pose"]["position"]
-                ori = grasp_pose["pose"]["orientation"]
-                pos_list = np.array([pos["x"], pos["y"], pos["z"]])
-                quat_list = [ori["x"], ori["y"], ori["z"], ori["w"]]
-            else:
-                pos = grasp_pose.pose.position
-                ori = grasp_pose.pose.orientation
-                pos_list = np.array([pos.x, pos.y, pos.z])
-                quat_list = [ori.x, ori.y, ori.z, ori.w]
-        except Exception as e:
-            print(f"错误：解析抓取姿态失败 - {e}")
-            return
-       
-
         combined_pcd = o3d.geometry.PointCloud()
         combined_pcd.points = o3d.utility.Vector3dVector(np.asarray(pcd.points))
         if pcd.has_colors():
@@ -414,8 +398,6 @@ class PointCloudPerception:
                     (4,5), (5,7), (7,6), (6,4),  # 顶面
                     (0,4), (2,6), (1,5), (3,7)   # 竖边
             ]
-
-            # 3. 为每条棱生成密集采样点（连成线）
             edge_samples = []
             num_points_per_edge = 40
             for (start_idx, end_idx) in edge_pairs:
@@ -424,30 +406,36 @@ class PointCloudPerception:
                 t = np.linspace(0, 1, num_points_per_edge)
                 edge_line = start_point[None, :] * (1 - t[:, None]) + end_point[None, :] * t[:, None]
                 edge_samples.append(edge_line)
-
             edge_samples = np.concatenate(edge_samples, axis=0)
             edge_color = [1.0, 0.0, 0.0]
             edge_colors = np.tile(edge_color, (len(edge_samples), 1))
-
-            # 5. 添加到合并点云中
             combined_pcd.points.extend(o3d.utility.Vector3dVector(edge_samples))
             combined_pcd.colors.extend(o3d.utility.Vector3dVector(edge_colors))
 
             obb_lines = o3d.geometry.LineSet.create_from_oriented_bounding_box(obb)
             obb_mesh = o3d.geometry.TriangleMesh.create_from_oriented_bounding_box(obb)
-            #obb_mesh = o3d.geometry.TriangleMesh.create_from_line_set(obb_lines, radius=0.005)
             
-            '''obb_mesh = o3d.geometry.TriangleMesh.create_from_oriented_bounding_box(obb)
-            # 设置OBB颜色（绿色）
-            obb_mesh.paint_uniform_color([0.0, 1.0, 0.0])
-            # 网格转点云（提取顶点+棱边采样，保证CloudCompare能看到）
-            obb_pcd = o3d.geometry.PointCloud()
-            obb_pcd.points = obb_mesh.vertices
-            obb_pcd.colors = obb_mesh.vertex_colors
-            # 添加到合并点云
-            combined_pcd += obb_pcd'''
-        o3d.io.write_line_set("scene_obb.ply", obb_lines)
-        o3d.io.write_triangle_mesh("scene_obb_mesh.ply", obb_mesh)
+        #o3d.io.write_line_set("./tmp/scene_obb.ply", obb_lines)
+        o3d.io.write_triangle_mesh("./tmp/scene_obb_mesh.ply", obb_mesh)
+        
+        # 2. 解析抓取姿态的位置和旋转                                                        
+        try:                                                                                 
+            if isinstance(grasp_pose, dict):
+                print("++++++++++++++++++++++++++++ correct...")
+                pos = grasp_pose["pose"]["position"]                                         
+                ori = grasp_pose["pose"]["orientation"]                                      
+                pos_list = np.array([pos["x"], pos["y"], pos["z"]])                          
+                quat_list = [ori["x"], ori["y"], ori["z"], ori["w"]]                         
+            else: 
+                print("------------------------------")
+                pos = grasp_pose.pose.position                                               
+                ori = grasp_pose.pose.orientation                                            
+                pos_list = np.array([pos.x, pos.y, pos.z])                                   
+                quat_list = [ori.x, ori.y, ori.z, ori.w]                                     
+        except Exception as e:                                                               
+            print(f"错误：解析抓取姿态失败 - {e}")                                           
+            return
+
         # 3.4 添加抓取姿态坐标系（轴长0.1米，X红/Y绿/Z蓝）
         axis_length = 0.1
         # 生成坐标系轴的点（从原点到轴端点，密集点保证CloudCompare中可见）
@@ -474,28 +462,15 @@ class PointCloudPerception:
         combined_pcd.colors.extend(o3d.utility.Vector3dVector(z_axis_colors))
         
         # 3.5 添加抓取位置中心点（黄色）
-        #center_point = np.array([pos_list])
-        #center_color = np.array([[1.0, 1.0, 0.0]])  # 黄色
+        center_point = np.array([pos_list])
+        center_color = np.array([[1.0, 1.0, 0.0]])  # 黄色
 
         print("================================,", pos_list)
-        center_point_radius = 0.01  # 点簇半径（0.01米=1厘米，可根据实际尺度调整）
-        num_center_points = 20      # 点簇内点的数量（越多越醒目）
-        # 生成围绕抓取中心的随机密集点（球形分布）
-        center_point_cluster = pos_list + np.random.normal(0, center_point_radius, (num_center_points, 3))
-        center_color_cluster = np.tile([1.0, 1.0, 0.0], (num_center_points, 1))  # 黄色
-        # 添加到合并点云
-        combined_pcd.points.extend(o3d.utility.Vector3dVector(center_point_cluster))
-        combined_pcd.colors.extend(o3d.utility.Vector3dVector(center_color_cluster))
-        #combined_pcd.points.extend(o3d.utility.Vector3dVector(center_point))
-        #combined_pcd.colors.extend(o3d.utility.Vector3dVector(center_color))
+        combined_pcd.points.extend(o3d.utility.Vector3dVector(center_point))
+        combined_pcd.colors.extend(o3d.utility.Vector3dVector(center_color))
         
-        # 4. 保存为PLY文件（CloudCompare原生支持）
         o3d.io.write_point_cloud(output_ply_path, combined_pcd, write_ascii=True)
-        # 补充：可选保存为PCD格式（CloudCompare也支持）
-        # o3d.io.write_point_cloud(output_ply_path.replace(".ply", ".pcd"), combined_pcd)
-        
         print(f"3D可视化文件已生成：{output_ply_path}")
-        print("提示：可用CloudCompare打开该文件，查看点云+包围盒+抓取姿态坐标系")
 
 if __name__ == "__main__":
     start_time = time.time()

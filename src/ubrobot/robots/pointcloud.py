@@ -306,11 +306,21 @@ class PointCloudPerception:
             x, y, z = self.pixel_to_3d(v_valid[i], u_valid[i], z_valid[i], fx, fy, ppx, ppy)
             point_3d[i] = [x, y, z]
 
+        # 仅保留Z轴（深度）在[depth_min, depth_max]范围内的点（若你的深度是X/Y轴，替换对应索引）
+        depth_min=0.1, depth_max=2.0
+        valid_mask = (point_3d[:, 2] >= depth_min) & (point_3d[:, 2] <= depth_max)
+        filtered_points = point_3d[valid_mask]
+
         # 构建Open3D点云
         target_pcd = o3d.geometry.PointCloud()
-        target_pcd.points = o3d.utility.Vector3dVector(point_3d)
+        target_pcd.points = o3d.utility.Vector3dVector(filtered_points)
         # 设置点云颜色（rgb8格式归一化到0-1）
         target_pcd.colors = o3d.utility.Vector3dVector(rgb_valid / 255.0)
+
+        # ========== 统计离群点移除（过滤孤立噪点） ==========
+        # nb_neighbors：邻域点数（越大过滤越严格，建议20~50）
+        # std_ratio：标准差阈值（越小过滤越严格，建议1.0~2.0）
+        target_pcd, _ = target_pcd.remove_statistical_outlier(nb_neighbors=20, std_ratio=1.5)
 
         # 计算3D包围框
         aabb = target_pcd.get_axis_aligned_bounding_box()

@@ -200,7 +200,7 @@ class PointCloudPerception:
             #o3d.io.write_point_cloud("rgbd_point_cloud.ply", orig_pcd)
             return orig_pcd
 
-    def pixel_to_3d(self, u, v, z):
+    def pixel_to_3d(self, u, v, z, fx, fy, ppx, ppy):
         """
         2D像素坐标转3D世界坐标（适配你的depth_image已为米单位）
         :param u: 像素横坐标（列）
@@ -208,12 +208,12 @@ class PointCloudPerception:
         :param z: 深度值（米，已由self.depth_image提供）
         :return: (x, y, z) 世界坐标（米）
         """
-        if self.fx is None or self.fy is None or self.ppx is None or self.ppy is None:
+        if fx is None or fy is None or ppx is None or ppy is None:
             print("相机内参未初始化，无法转换3D坐标")
             return 0, 0, 0
         # 针孔相机模型逆运算
-        x = (u - self.ppx) * z / self.fx
-        y = (v - self.ppy) * z / self.fy
+        x = (u - ppx) * z / fx
+        y = (v - ppy) * z / fy
         return x, y, z
     
     def yolo_segmentation(self, rgb_image):
@@ -258,7 +258,7 @@ class PointCloudPerception:
         cv2.imwrite(save_path, vis_image_bgr)
         return sorted_boxes, sorted_confs, sorted_cls_ids, sorted_masks
 
-    def calculate_obj_pointclouds_and_bboxs(self, bbox, mask, rgb_image, depth_image):
+    def calculate_obj_pointclouds_and_bboxs(self, bbox, mask, rgb_image, depth_image, fx, fy, ppx, ppy):
         """
         从2D检测结果提取目标3D点云、3D包围框
         :param bbox: 2D矩形框 [x1, y1, x2, y2]
@@ -303,7 +303,7 @@ class PointCloudPerception:
         num_points = len(z_valid)
         point_3d = np.zeros((num_points, 3), dtype=np.float64)
         for i in range(num_points):
-            x, y, z = self.pixel_to_3d(v_valid[i], u_valid[i], z_valid[i])
+            x, y, z = self.pixel_to_3d(v_valid[i], u_valid[i], z_valid[i], fx, fy, ppx, ppy)
             point_3d[i] = [x, y, z]
 
         # 构建Open3D点云
@@ -319,8 +319,8 @@ class PointCloudPerception:
         obb.color = (0, 1, 0)  # 绿色：定向包围框
         return target_pcd, aabb, obb
     
-    def get_object_clouds(self):
-        sorted_boxes, sorted_confs, sorted_cls_ids, sorted_masks = self.yolo_segmentation(self.rgb_image)
+    def get_object_clouds(self, rgb_image, depth_image, fx, fy, ppx, ppy):
+        sorted_boxes, sorted_confs, sorted_cls_ids, sorted_masks = self.yolo_segmentation(rgb_image)
 
         if sorted_boxes is None or sorted_masks is None:
             return
@@ -331,7 +331,7 @@ class PointCloudPerception:
             for idx in range(len(sorted_boxes)):
                 bbox = sorted_boxes[idx]
                 mask = sorted_masks[idx]
-                target_pcd, aabb, obb = self.calculate_obj_pointclouds_and_bboxs(bbox, mask, self.rgb_image, self.depth_image)
+                target_pcd, aabb, obb = self.calculate_obj_pointclouds_and_bboxs(bbox, mask, rgb_image, depth_image, fx, fy, ppx, ppy)
                 if target_pcd is None:
                     continue
                 else:
@@ -352,9 +352,8 @@ class PointCloudPerception:
         - obb: open3d.geometry.OrientedBoundingBox 对象（可选）
         - axis_point_size: 坐标系轴的点大小（默认0.005米，CloudCompare中可见）
         """
-        # 1. 输入校验
         if not isinstance(pcd, o3d.geometry.PointCloud) or len(pcd.points) == 0:
-            print("错误：输入点云不合法（非Open3D PointCloud或为空）")
+            print("PointCloud NOT valid!")
             return
         
         # 2. 解析抓取姿态的位置和旋转
@@ -374,37 +373,30 @@ class PointCloudPerception:
             return
        
 
-        # 3. 创建合并后的点云（原始点云 + 所有可视化元素）
         combined_pcd = o3d.geometry.PointCloud()
-        
-        # 3.1 复制原始点云（保留原始颜色/坐标）
         combined_pcd.points = o3d.utility.Vector3dVector(np.asarray(pcd.points))
         if pcd.has_colors():
             combined_pcd.colors = o3d.utility.Vector3dVector(np.asarray(pcd.colors))
         else:
-            # 原始点云默认设为灰色
-            combined_pcd.colors = o3d.utility.Vector3dVector(
-                np.ones((len(pcd.points), 3)) * 0.5
-            )
+            # default color setting
+            combined_pcd.colors = o3d.utility.Vector3dVector(np.ones((len(pcd.points), 3)) * 0.5)
         
-        # 3.2 添加AABB包围盒顶点（红色）
-        print("=========================================================")
+        # AABB visualization
         '''if aabb is not None and isinstance(aabb, o3d.geometry.AxisAlignedBoundingBox):
             print("+++++++++++++++++++++++++++++++++++")
             aabb_points = np.asarray(aabb.get_box_points())  # 获取AABB8个顶点
 
             print(aabb_points)
-            aabb_colors = np.tile([1.0, 0.0, 0.0], (len(aabb_points), 1))  # 红色
+            aabb_colors = np.tile([1.0, 0.0, 0.0], (len(aabb_points), 1))  # Red
             # 添加到合并点云
             combined_pcd.points.extend(o3d.utility.Vector3dVector(aabb_points))
             combined_pcd.colors.extend(o3d.utility.Vector3dVector(aabb_colors))'''
         
-        # 3.3 添加OBB包围盒顶点（绿色）
+        # OBB visualization
         if obb is not None and isinstance(obb, o3d.geometry.OrientedBoundingBox):
-            obb_points = np.asarray(obb.get_box_points())  # 获取OBB8个顶点
+            obb_points = np.asarray(obb.get_box_points())
             print("obb ==============================,", obb_points)
-            obb_colors = np.tile([0.0, 1.0, 0.0], (len(obb_points), 1))  # 绿色
-            # 添加到合并点云
+            obb_colors = np.tile([0.0, 1.0, 0.0], (len(obb_points), 1))  # Green
             combined_pcd.points.extend(o3d.utility.Vector3dVector(obb_points))
             combined_pcd.colors.extend(o3d.utility.Vector3dVector(obb_colors))
 
@@ -415,25 +407,37 @@ class PointCloudPerception:
 
             # 3. 为每条棱生成密集采样点（连成线）
             edge_samples = []
-            num_points_per_edge = 20
+            num_points_per_edge = 40
             for (start_idx, end_idx) in edge_pairs:
                 start_point = obb_points[start_idx]
                 end_point = obb_points[end_idx]
-                # 线性插值生成采样点
                 t = np.linspace(0, 1, num_points_per_edge)
                 edge_line = start_point[None, :] * (1 - t[:, None]) + end_point[None, :] * t[:, None]
                 edge_samples.append(edge_line)
 
-            # 4. 合并所有棱的采样点
             edge_samples = np.concatenate(edge_samples, axis=0)
-            # 生成棱边颜色（统一为指定颜色）
             edge_color = [1.0, 0.0, 0.0]
             edge_colors = np.tile(edge_color, (len(edge_samples), 1))
 
             # 5. 添加到合并点云中
             combined_pcd.points.extend(o3d.utility.Vector3dVector(edge_samples))
             combined_pcd.colors.extend(o3d.utility.Vector3dVector(edge_colors))
-        
+
+            obb_lines = o3d.geometry.LineSet.create_from_oriented_bounding_box(obb)
+            obb_mesh = o3d.geometry.TriangleMesh.create_from_oriented_bounding_box(obb)
+            #obb_mesh = o3d.geometry.TriangleMesh.create_from_line_set(obb_lines, radius=0.005)
+            
+            '''obb_mesh = o3d.geometry.TriangleMesh.create_from_oriented_bounding_box(obb)
+            # 设置OBB颜色（绿色）
+            obb_mesh.paint_uniform_color([0.0, 1.0, 0.0])
+            # 网格转点云（提取顶点+棱边采样，保证CloudCompare能看到）
+            obb_pcd = o3d.geometry.PointCloud()
+            obb_pcd.points = obb_mesh.vertices
+            obb_pcd.colors = obb_mesh.vertex_colors
+            # 添加到合并点云
+            combined_pcd += obb_pcd'''
+        o3d.io.write_line_set("scene_obb.ply", obb_lines)
+        o3d.io.write_triangle_mesh("scene_obb_mesh.ply", obb_mesh)
         # 3.4 添加抓取姿态坐标系（轴长0.1米，X红/Y绿/Z蓝）
         axis_length = 0.1
         # 生成坐标系轴的点（从原点到轴端点，密集点保证CloudCompare中可见）

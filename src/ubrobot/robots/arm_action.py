@@ -47,7 +47,9 @@ matplotlib.use('Agg')
 import matplotlib.pyplot as plt
 from mpl_toolkits.mplot3d import Axes3D
 
-from .pointcloud import PointCloudPerception
+from pointcloud import PointCloudPerception
+
+from pointcloud import GraspPoseCalculator
 
 class RobotState(Enum):
     IDLE = 0
@@ -259,6 +261,7 @@ class PoseTransformer:
         # Point Cloud from RealSense (RGBD)
         self.orig_pcd = None
         self.pc = PointCloudPerception()
+        self.grasp_calc = GraspPoseCalculator()
         
         # 状态管理
         self.original_pose = None
@@ -459,7 +462,7 @@ class PoseTransformer:
             print(f"坐标系：{grasp_pose['header']['frame_id']}")
             print(f"抓取位置：x={grasp_pose['pose']['position']['x']:.3f}m, y={grasp_pose['pose']['position']['y']:.3f}m, z={grasp_pose['pose']['position']['z']:.3f}m")
             print(f"抓取四元数：x={grasp_pose['pose']['orientation']['x']:.3f}, y={grasp_pose['pose']['orientation']['y']:.3f}, z={grasp_pose['pose']['orientation']['z']:.3f}, w={grasp_pose['pose']['orientation']['w']:.3f}")
-            self.pc.export_grasp_visualization_to_ply(self.orig_pcd, grasp_pose, aabb_list[0], obb_list[0])
+            self.pc.export_grasp_visualization_to_ply(target_pcd_list[0], grasp_pose, aabb_list[0], obb_list[0])
     
     def pose_callback(self, msg):
         """PoseStamped消息回调"""

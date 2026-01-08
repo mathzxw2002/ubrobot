@@ -1,0 +1,27 @@
+## piper_config.yml
+robot_cfg:
+  kinematics:
+    usd_path: null
+    urdf_path: "./ros_depends_ws/src/piper_ros/src/piper_description/urdf/my_piper.urdf"  # Ensure this path is correct
+    asset_root_path: "./"
+    
+    base_link: "base_link"
+    ee_link: "link6"         # Your final link in the provided URDF
+    link_names: ["link1", "link2", "link3", "link4", "link5", "link6"]
+    
+    # Joint names exactly as they appear in your URDF
+    joint_names: ["joint1", "joint2", "joint3", "joint4", "joint5", "joint6"]
+    
+    # Default pose for the arm (home position)
+    default_set_state: [0.0, 0.0, 0.0, 0.0, 0.0, 0.0]
+    
+    # Collision spheres: cuRobo uses these for fast collision checking
+    # You can auto-generate these, but here is a basic manual set for Piper
+    collision_spheres:
+      base_link: [[0.0, 0.0, 0.05, 0.08]]
+      link1: [[0.0, 0.0, 0.0, 0.06]]
+      link2: [[0.15, 0.0, 0.0, 0.06], [0.28, 0.0, 0.0, 0.06]]
+      link3: [[-0.12, 0.03, 0.0, 0.05], [-0.24, 0.06, 0.0, 0.05]]
+      link4: [[0.0, 0.0, 0.0, 0.04]]
+      link5: [[0.0, 0.05, 0.0, 0.04]]
+      link6: [[0.0, 0.0, 0.03, 0.04]]

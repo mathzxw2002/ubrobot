@@ -709,17 +709,6 @@ class PoseTransformer:
         self.task_cmd = 0
         self.task_reslut = 2'''
         print("======================== test...")
-        '''image = PIL_Image.fromarray(self.rgb_image).convert('RGB')
-        results = self.yolo_model(image)
-
-        res_plotted = results[0].plot()
-        #res_plotted_bgr = cv2.cvtColor(res_plotted, cv2.COLOR_RGB2BGR)
-
-        image.save("./input_img.png")
-
-        seg_vis_pil = PIL_Image.fromarray(res_plotted).convert('RGB')
-        seg_vis_pil.save("./vis_img.png")'''
-
         #self.get_manipulate_pose_camera_link()
         #print(self.piper.GetArmJointMsgs())
         #print(self.piper.GetArmGripperMsgs())

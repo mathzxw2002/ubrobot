@@ -32,6 +32,8 @@ from nav_msgs.msg import Odometry
 from sensor_msgs.msg import Image
 from sensor_msgs.msg import CameraInfo
 
+from sensor_msgs.msg import JointState
+
 from thread_utils import ReadWriteLock
 from PIL import Image as PIL_Image
 
@@ -50,6 +52,8 @@ from mpl_toolkits.mplot3d import Axes3D
 from pointcloud import PointCloudPerception
 
 from pointcloud import GraspPoseCalculator
+
+from piper_sdk import *
 
 class RobotState(Enum):
     IDLE = 0
@@ -233,6 +237,15 @@ class PoseTransformer:
         self.depth_sub = Subscriber("/cam_arm/camera/aligned_depth_to_color/image_raw", Image)
         self.camera_info_sub = Subscriber("/cam_arm/camera/aligned_depth_to_color/camera_info", CameraInfo)
 
+        # get robot arm state 
+        #self.robot_joint_states_sub = Subscriber("joint_states_single", JointState)
+        #self.robot_arm_status_sub = Subscriber("arm_status", JointState)
+        #self.robot_end_pose_sub = Subscriber("end_pose", JointState)
+        #self.robot_end_pose_euler_sub = Subscriber("end_pose_euler", JointState)
+
+        self.piper = C_PiperInterface_V2()
+        self.piper.ConnectPort()
+        
         self.camera_info_sub.registerCallback(self.camera_info_callback)
 
         self.syncronizer = ApproximateTimeSynchronizer([self.image_sub, self.depth_sub], 1, 0.1)
@@ -662,7 +675,10 @@ class PoseTransformer:
         seg_vis_pil = PIL_Image.fromarray(res_plotted).convert('RGB')
         seg_vis_pil.save("./vis_img.png")'''
 
-        self.get_manipulate_pose_camera_link()
+        #self.get_manipulate_pose_camera_link()
+        print(self.piper.GetArmJointMsgs())
+        print(self.piper.GetArmGripperMsgs())
+        time.sleep(0.005)
 
     def record_search_route(self):
         """记录搜索路径"""

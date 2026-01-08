@@ -17,7 +17,7 @@ ln -s /usr/lib/python3/dist-packages/PyKDL.cpython-38-aarch64-linux-gnu.so /home
 
 ln -s  /usr/lib/python3/dist-packages/sip.cpython-38-aarch64-linux-gnu.so ~/py310_env/lib/python3.10/site-packages/sip.so
 
-#bash ros_depends_ws/src/piper_ros/can_activate.sh
+bash ros_depends_ws/src/piper_ros/can_activate.sh
 
 python3 src/ubrobot/robots/arm_action.py 
 #python examples/piper_to_piper/teleoperate.py --teleop_type=gamepad

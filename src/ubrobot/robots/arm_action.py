@@ -656,10 +656,19 @@ class PoseTransformer:
         factor = 1000
 
         current_end_pose_msg = self.piper.GetArmEndPoseMsgs()
-        print(current_end_pose_msg.end_pose)
+        print(current_end_pose_msg.end_pose.X_axis)
+
+        current_pose_raw = [
+            current_end_pose_msg.end_pose.X_axis,
+            current_end_pose_msg.end_pose.Y_axis,
+            current_end_pose_msg.end_pose.Z_axis,
+            current_end_pose_msg.end_pose.RX_axis,
+            current_end_pose_msg.end_pose.RY_axis,
+            current_end_pose_msg.end_pose.RZ_axis
+        ]
         
-        position = [57.0, 0.0, 215.0, 0, 85.0, 0, 0]
-        
+        # delta position
+        position = [5.0, 0.0, 0.0, 0, 0.0, 0, 20]
         X = round(position[0]*factor)
         Y = round(position[1]*factor)
         Z = round(position[2]*factor)
@@ -668,10 +677,21 @@ class PoseTransformer:
         RZ = round(position[5]*factor)
         joint_6 = round(position[6]*factor)
         print(X,Y,Z,RX,RY,RZ)
-        self.piper.MotionCtrl_2(0x01, 0x00, 100, 0x00)
-        #self.piper.EndPoseCtrl(X,Y,Z,RX,RY,RZ)
+
+        target_pose_raw = [round(current + delta) for current, delta in zip(current_pose_raw, position)]
+        
+        self.piper.MotionCtrl_2(0x01, 0x00, 50, 0x00)
+        
+        print("target pose:", target_pose_raw)
+        
+        time.sleep(0.1)
+
+        #self.piper.EndPoseCtrl(arget_pose_raw[0], target_pose_raw[1], target_pose_raw[2], target_pose_raw[3], target_pose_raw[4], target_pose_raw[5])
+       
+        time.sleep(0.1)
+
         self.piper.GripperCtrl(abs(joint_6), 1000, 0x01, 0)
-        time.sleep(0.01)
+        time.sleep(0.1)
 
     def execute_grasp_sequence(self):
         """执行抓取序列"""

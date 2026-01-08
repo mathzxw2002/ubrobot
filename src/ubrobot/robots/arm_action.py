@@ -654,54 +654,24 @@ class PoseTransformer:
         
         self.piper.GripperCtrl(0,1000,0x01, 0)
         factor = 1000
-        position = [
-                    57.0, \
-                    0.0, \
-                    215.0, \
-                    0, \
-                    85.0, \
-                    0, \
-                    0]
 
-        count = 0
-        while True:
-            print(self.piper.GetArmEndPoseMsgs())
-            count  = count + 1
-            
-            if(count == 200):
-                print("2-----------")
-                position = [
-                    57.0, \
-                    0.0, \
-                    260.0, \
-                    0, \
-                    85.0, \
-                    0, \
-                    0]
-            elif(count == 400):
-                print("1-----------")
-                position = [
-                    57.0, \
-                    0.0, \
-                    215.0, \
-                    0, \
-                    85.0, \
-                    0, \
-                    0]
-                count = 0
-            
-            X = round(position[0]*factor)
-            Y = round(position[1]*factor)
-            Z = round(position[2]*factor)
-            RX = round(position[3]*factor)
-            RY = round(position[4]*factor)
-            RZ = round(position[5]*factor)
-            joint_6 = round(position[6]*factor)
-            print(X,Y,Z,RX,RY,RZ)
-            self.piper.MotionCtrl_2(0x01, 0x00, 100, 0x00)
-            #self.piper.EndPoseCtrl(X,Y,Z,RX,RY,RZ)
-            self.piper.GripperCtrl(abs(joint_6), 1000, 0x01, 0)
-            time.sleep(0.01)
+        current_end_pose_msg = self.piper.GetArmEndPoseMsgs()
+        print(current_end_pose_msg.end_pose)
+        
+        position = [57.0, 0.0, 215.0, 0, 85.0, 0, 0]
+        
+        X = round(position[0]*factor)
+        Y = round(position[1]*factor)
+        Z = round(position[2]*factor)
+        RX = round(position[3]*factor)
+        RY = round(position[4]*factor)
+        RZ = round(position[5]*factor)
+        joint_6 = round(position[6]*factor)
+        print(X,Y,Z,RX,RY,RZ)
+        self.piper.MotionCtrl_2(0x01, 0x00, 100, 0x00)
+        #self.piper.EndPoseCtrl(X,Y,Z,RX,RY,RZ)
+        self.piper.GripperCtrl(abs(joint_6), 1000, 0x01, 0)
+        time.sleep(0.01)
 
     def execute_grasp_sequence(self):
         """执行抓取序列"""

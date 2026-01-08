@@ -647,6 +647,61 @@ class PoseTransformer:
         rospy.loginfo(f"Waiting for {duration} seconds")
         rospy.sleep(duration)
         return True
+    
+    def test_robot_move(self):
+        while( not self.piper.EnablePiper()):
+            time.sleep(0.01)
+        
+        self.piper.GripperCtrl(0,1000,0x01, 0)
+        factor = 1000
+        position = [
+                    57.0, \
+                    0.0, \
+                    215.0, \
+                    0, \
+                    85.0, \
+                    0, \
+                    0]
+
+        count = 0
+        while True:
+            print(self.piper.GetArmEndPoseMsgs())
+            count  = count + 1
+            
+            if(count == 200):
+                print("2-----------")
+                position = [
+                    57.0, \
+                    0.0, \
+                    260.0, \
+                    0, \
+                    85.0, \
+                    0, \
+                    0]
+            elif(count == 400):
+                print("1-----------")
+                position = [
+                    57.0, \
+                    0.0, \
+                    215.0, \
+                    0, \
+                    85.0, \
+                    0, \
+                    0]
+                count = 0
+            
+            X = round(position[0]*factor)
+            Y = round(position[1]*factor)
+            Z = round(position[2]*factor)
+            RX = round(position[3]*factor)
+            RY = round(position[4]*factor)
+            RZ = round(position[5]*factor)
+            joint_6 = round(position[6]*factor)
+            print(X,Y,Z,RX,RY,RZ)
+            self.piper.MotionCtrl_2(0x01, 0x00, 100, 0x00)
+            #self.piper.EndPoseCtrl(X,Y,Z,RX,RY,RZ)
+            self.piper.GripperCtrl(abs(joint_6), 1000, 0x01, 0)
+            time.sleep(0.01)
 
     def execute_grasp_sequence(self):
         """执行抓取序列"""
@@ -676,10 +731,11 @@ class PoseTransformer:
         seg_vis_pil.save("./vis_img.png")'''
 
         #self.get_manipulate_pose_camera_link()
-        print(self.piper.GetArmJointMsgs())
-        print(self.piper.GetArmGripperMsgs())
-        print(self.piper.GetArmEndPoseMsgs())
-        time.sleep(0.005)
+        #print(self.piper.GetArmJointMsgs())
+        #print(self.piper.GetArmGripperMsgs())
+        #print(self.piper.GetArmEndPoseMsgs())
+        #time.sleep(0.005)
+        self.test_robot_move()
 
     def record_search_route(self):
         """记录搜索路径"""

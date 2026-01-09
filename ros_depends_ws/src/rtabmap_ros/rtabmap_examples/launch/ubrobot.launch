@@ -59,13 +59,11 @@
    <arg name="color_fps" value="15"/>                                                  
 </include>
 
-<!--
 <include file="$(find piper_kinematics)/launch/piper_ik.launch">         
     <arg name="max_iterations" value="50"/>
     <arg name="damping_factor" value="0.1"/>
     <arg name="publish_rate" value="30"/>
 </include>
--->
 
 <include file="$(find piper)/launch/start_single_piper.launch">
    <arg name="can_port" value="can0" />

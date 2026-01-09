@@ -657,7 +657,7 @@ class PoseTransformer:
             time.sleep(0.01)
         
         arm_position = [0.2, 0, 0, 0, 0, 0]
-        self.piper_mp.call_joint_moveit_ctrl_arm(arm_position, max_velocity=0.5, max_acceleration=0.5) # 回零
+        self.piper_mp.call_joint_moveit_ctrl_arm(arm_position) # 回零
         time.sleep(1)
 
         '''self.piper.GripperCtrl(0,1000,0x01, 0)

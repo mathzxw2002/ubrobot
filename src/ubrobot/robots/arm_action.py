@@ -53,6 +53,8 @@ from pointcloud import PointCloudPerception
 
 from pointcloud import GraspPoseCalculator
 
+from piper_motion_plan import PiperMotionPlan
+
 from piper_sdk import *
 
 class RobotState(Enum):
@@ -311,6 +313,8 @@ class PoseTransformer:
         
         # 终端设置
         self.old_settings = termios.tcgetattr(sys.stdin)
+
+        self.piper_mp = PiperMotionPlan()
         
         rospy.loginfo("Pose transformer node started. Waiting for PoseStamped messages...")
 
@@ -652,7 +656,11 @@ class PoseTransformer:
         while( not self.piper.EnablePiper()):
             time.sleep(0.01)
         
-        self.piper.GripperCtrl(0,1000,0x01, 0)
+        arm_position = [0, 0, 0, 0, 0, 0]
+        self.piper_mp.call_joint_moveit_ctrl_arm(arm_position, max_velocity=0.5, max_acceleration=0.5) # 回零
+        time.sleep(1)
+
+        '''self.piper.GripperCtrl(0,1000,0x01, 0)
         factor = 1000
 
         current_end_pose_msg = self.piper.GetArmEndPoseMsgs()
@@ -691,7 +699,7 @@ class PoseTransformer:
         time.sleep(0.1)
 
         self.piper.GripperCtrl(abs(joint_6), 1000, 0x01, 0)
-        time.sleep(0.1)
+        time.sleep(0.1)'''
 
     def execute_grasp_sequence(self):
         """执行抓取序列"""

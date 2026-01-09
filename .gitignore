@@ -135,6 +135,7 @@ workspaces/
 ros_depends_ws/.catkin_workspace
 ros_depends_ws/build_isolated/
 ros_depends_ws/devel_isolated/
+ros_depends_ws/devel/
 ros_depends_ws/.catkin_workspace
 ros_depends_ws/src/CMakeLists.txt
 ros_depends_ws/install/
@@ -145,6 +146,6 @@ third_party/cyclonedds/build/
 third_party/cyclonedds/install/
 third_party/install/
 
- .vscode/
+.vscode/
 
 tmp/

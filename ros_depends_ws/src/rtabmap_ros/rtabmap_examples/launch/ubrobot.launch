@@ -59,18 +59,22 @@
    <arg name="color_fps" value="15"/>                                                  
 </include>
 
+<!--
 <include file="$(find piper_kinematics)/launch/piper_ik.launch">         
     <arg name="max_iterations" value="50"/>
     <arg name="damping_factor" value="0.1"/>
     <arg name="publish_rate" value="30"/>
 </include>
+-->
 
-<!--
 <include file="$(find piper)/launch/start_single_piper.launch">
-   <arg name="can_port" value="can1" />
+   <arg name="can_port" value="can0" />
    <arg name="auto_enable" value="true" />
    <arg name="gripper_val_mutiple" value="1" />
 </include>
--->
+
+<include file="$(find piper_with_gripper_moveit)/launch/demo.launch">
+   <arg name="use_rviz" default="false" />
+</include>
 
 </launch>

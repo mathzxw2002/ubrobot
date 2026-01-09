@@ -157,7 +157,7 @@ class GraspPoseCalculator:
 
 class PointCloudPerception:
     def __init__(self):
-        self.yolo_model = YOLO('./yolo11n-seg.pt')
+        self.yolo_model = YOLO('./assets/models/yolo/yolo11n-seg.pt')
         #self.orig_pcd = None
         #self.grasp_calc = GraspPoseCalculator()
        

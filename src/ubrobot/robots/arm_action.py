@@ -656,7 +656,7 @@ class PoseTransformer:
         while( not self.piper.EnablePiper()):
             time.sleep(0.01)
         
-        arm_position = [0.2, 0, 0, 0, 0, 0]
+        arm_position = [0.0, 0, 0, 0, 0, 0]
         self.piper_mp.call_joint_moveit_ctrl_arm(arm_position) # 回零
         time.sleep(1)
 
@@ -717,12 +717,12 @@ class PoseTransformer:
         self.task_cmd = 0
         self.task_reslut = 2'''
         print("======================== test...")
-        #self.get_manipulate_pose_camera_link()
+        self.get_manipulate_pose_camera_link()
         #print(self.piper.GetArmJointMsgs())
         #print(self.piper.GetArmGripperMsgs())
         #print(self.piper.GetArmEndPoseMsgs())
         #time.sleep(0.005)
-        self.test_robot_move()
+        #self.test_robot_move()
 
     def record_search_route(self):
         """记录搜索路径"""

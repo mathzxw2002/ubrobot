@@ -238,7 +238,8 @@ class PointCloudPerception:
 
         vis_image = single_result.plot()
         save_path = "./tmp/segment_result.jpg"
-        vis_image_bgr = cv2.cvtColor(vis_image, cv2.COLOR_RGB2BGR)
+        #vis_image_bgr = cv2.cvtColor(vis_image, cv2.COLOR_RGB2BGR)
+        vis_image_bgr = cv2.cvtColor(rgb_image, cv2.COLOR_RGB2BGR)
         cv2.imwrite(save_path, vis_image_bgr)
         return sorted_boxes, sorted_confs, sorted_cls_ids, sorted_masks
 

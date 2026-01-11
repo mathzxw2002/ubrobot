@@ -12,6 +12,11 @@ matplotlib.use('Agg')
 import matplotlib.pyplot as plt
 from mpl_toolkits.mplot3d import Axes3D
 
+from vlm import RobotVLM
+import io
+from PIL import Image as PIL_Image
+
+
 class GraspPoseCalculator:
     def __init__(self):
         """初始化抓取姿态计算器"""
@@ -160,6 +165,7 @@ class PointCloudPerception:
         self.yolo_model = YOLO('./assets/models/yolo/yolo11n-seg.pt')
         #self.orig_pcd = None
         #self.grasp_calc = GraspPoseCalculator()
+        self.vlm = RobotVLM()
        
     def convertRGBD2PointClouds(self, rgb_image, depth_image, fx, fy, ppx, ppy):
         # get rgbd image and convert to poing cloud
@@ -317,6 +323,14 @@ class PointCloudPerception:
     
     def object_3d_segmentation(self, rgb_image, depth_image, fx, fy, ppx, ppy):
         sorted_boxes, sorted_confs, sorted_cls_ids, sorted_masks = self.yolo_segmentation(rgb_image)
+
+
+        image = PIL_Image.fromarray(rgb_image)
+        image_bytes = io.BytesIO()
+        image.save(image_bytes, format='JPEG')
+        image_bytes.seek(0)
+
+        self.vlm.reasoning_vlm_infer(image_bytes, "detect objects in this image")
 
         if sorted_boxes is None or sorted_masks is None:
             return

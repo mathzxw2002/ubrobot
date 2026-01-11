@@ -11,9 +11,10 @@ import random
 import io
 import ast
 from io import BytesIO
-from PIL import Image, ImageDraw, ImageFont
 from PIL import ImageColor
 import xml.etree.ElementTree as ET
+
+from PIL import Image as PIL_Image
 
 class RobotVLM:
     def __init__(self, url = "http://192.168.18.230:5802/eval_cosmos_reason1"):

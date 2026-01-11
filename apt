@@ -1,0 +1,6 @@
+
+sudo apt install ros-noetic-realsense2-camera ros-noetic-realsense2-description
+
+sudo apt install ros-noetic-imu-filter-madgwick
+
+sudo apt install librealsense2-utils

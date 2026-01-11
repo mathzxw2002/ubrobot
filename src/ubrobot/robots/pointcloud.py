@@ -324,11 +324,12 @@ class PointCloudPerception:
     def object_3d_segmentation(self, rgb_image, depth_image, fx, fy, ppx, ppy):
         sorted_boxes, sorted_confs, sorted_cls_ids, sorted_masks = self.yolo_segmentation(rgb_image)
 
-
+        #image_bytes = PIL_Image.fromarray(rgb_image).convert('RGB')
         image = PIL_Image.fromarray(rgb_image)
-        image_bytes = io.BytesIO()
-        image.save(image_bytes, format='JPEG')
-        image_bytes.seek(0)
+        image_bytes_io = io.BytesIO()
+        image.save(image_bytes_io, format='JPEG')
+        #image_bytes.seek(0)
+        image_bytes = image_bytes_io.getvalue()
 
         self.vlm.reasoning_vlm_infer(image_bytes, "detect objects in this image")
 

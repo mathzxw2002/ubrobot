@@ -63,7 +63,7 @@ class PiperMotionPlan:
         else:
             print(f"Planning failed: {result.status}")'''
 
-    def call_joint_moveit_ctrl_arm(joint_states, max_velocity=0.5, max_acceleration=0.5):
+    def call_joint_moveit_ctrl_arm(self, joint_states, max_velocity=0.5, max_acceleration=0.5):
         rospy.wait_for_service("joint_moveit_ctrl_arm")
         try:
             moveit_service = rospy.ServiceProxy("joint_moveit_ctrl_arm", JointMoveitCtrl)
@@ -81,7 +81,7 @@ class PiperMotionPlan:
         except rospy.ServiceException as e:
             rospy.logerr(f"Service call failed: {str(e)}")
 
-    def call_joint_moveit_ctrl_gripper(gripper_position, max_velocity=0.5, max_acceleration=0.5):
+    def call_joint_moveit_ctrl_gripper(self, gripper_position, max_velocity=0.5, max_acceleration=0.5):
         rospy.wait_for_service("joint_moveit_ctrl_gripper")
         try:
             moveit_service = rospy.ServiceProxy("joint_moveit_ctrl_gripper", JointMoveitCtrl)
@@ -99,7 +99,7 @@ class PiperMotionPlan:
         except rospy.ServiceException as e:
             rospy.logerr(f"Service call failed: {str(e)}")
 
-    def call_joint_moveit_ctrl_piper(joint_states, gripper_position, max_velocity=0.5, max_acceleration=0.5):
+    def call_joint_moveit_ctrl_piper(self, joint_states, gripper_position, max_velocity=0.5, max_acceleration=0.5):
         rospy.wait_for_service("joint_moveit_ctrl_piper")
         try:
             moveit_service = rospy.ServiceProxy("joint_moveit_ctrl_piper", JointMoveitCtrl)
@@ -117,7 +117,7 @@ class PiperMotionPlan:
         except rospy.ServiceException as e:
             rospy.logerr(f"Service call failed: {str(e)}")
 
-    def convert_endpose(endpose):
+    def convert_endpose(self, endpose):
         if len(endpose) == 6:
             x, y, z, roll, pitch, yaw = endpose
             qx, qy, qz, qw = quaternion_from_euler(roll, pitch, yaw)
@@ -129,7 +129,7 @@ class PiperMotionPlan:
         else:
             raise ValueError("Invalid endpose format! Must be 6 (Euler) or 7 (Quaternion) values.")
 
-    def call_joint_moveit_ctrl_endpose(endpose, max_velocity=0.5, max_acceleration=0.5):
+    def call_joint_moveit_ctrl_endpose(self, endpose, max_velocity=0.5, max_acceleration=0.5):
         rospy.wait_for_service("joint_moveit_ctrl_endpose")
         try:
             moveit_service = rospy.ServiceProxy("joint_moveit_ctrl_endpose", JointMoveitCtrl)
@@ -150,7 +150,7 @@ class PiperMotionPlan:
             rospy.logerr(f"Service call failed: {str(e)}")
 
     # 此处关节限制仅为测试使用，实际关节限制以READEME中为准
-    def randomval():
+    def randomval(self):
         arm_position = [
             random.uniform(-0.2, 0.2),  # 关节1
             random.uniform(0, 0.5),  # 关节2

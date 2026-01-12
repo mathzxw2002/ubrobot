@@ -42,7 +42,7 @@ def gradio_planning_txt_update():
 
         robot_arm_rgb_image = robot_arm.get_observation()
 
-        yield gr.update(value=[vis_annotated_img, robot_arm_rgb_image])
+        yield gr.update(value=vis_annotated_img), gr.update(value=robot_arm_rgb_image)
         time.sleep(1)
 
 def go2_robot_stop():

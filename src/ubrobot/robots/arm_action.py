@@ -39,7 +39,6 @@ from PIL import Image as PIL_Image
 
 import cv2
 import open3d as o3d
-from ultralytics import YOLO
 
 from scipy.linalg import qr
 import transforms3d.quaternions as tfq
@@ -219,7 +218,7 @@ class ActionSequence:
 class PoseTransformer:
     def __init__(self):
         # 初始化ROS节点
-        rospy.init_node('piper_pose_transformer', anonymous=True)
+        #rospy.init_node('piper_pose_transformer', anonymous=True)
 
         # 初始化tf2
         self.tf_buffer = tf2_ros.Buffer()

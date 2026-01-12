@@ -4,13 +4,14 @@ from funasr.utils.postprocess_utils import rich_transcription_postprocess
 
 class Fun_ASR:
     def __init__(self, model = "iic/SenseVoiceSmall", vad_model = "fsmn-vad", vad_kwargs = {"max_single_segment_time": 30000}, device = "cuda", disable_update = True):
-        self.model = AutoModel(
+        '''self.model = AutoModel(
             model = model,
             # vad_model = vad_model,
             # vad_kwargs=vad_kwargs,
             device = device,
             disable_update = disable_update,
-        )
+        )'''
+        pass
 
     def infer(self, audio_file):
         res = self.model.generate(

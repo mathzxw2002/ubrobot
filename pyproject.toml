@@ -17,13 +17,13 @@ dependencies = [
 	"pybind11",
 	"gradio>=4.40.0",
 	"modelscope_studio>=0.5.2, < 1.0",
-	"websockets<13.0,>=10.0",
+	"websockets<16.0,>=10.0",
 	"gradio-client >= 1.3.0",
 	"pydantic==2.10.6",
 	"eval_type_backport",
 	"urllib3>=1.25.8",
 	#"packaging==21.3",
-	"transformers>=4.34.0",
+	"transformers<=4.36.2, >=4.34.0",
 	"soundfile",
 	"ffmpeg-python==0.2.0",
 	"dashscope",
@@ -62,14 +62,13 @@ dependencies = [
 	"rospkg",
 	"PyQt5-sip",
 	"empy",
-	"ultralytics",
+	"ultralytics==8.2.89",
 	"open3d",
 	"transforms3d",
 	"eigenpy",
-
-
+	"pytracik",
+	#"unitree_sdk2py",
 	# remote git resource
-	"pytracik @ git+https://github.com/mathzxw2002/pytracik.git",
 	#"unitree_sdk2py @ git+https://github.com/unitreerobotics/unitree_sdk2_python.git"
 	
 

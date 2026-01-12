@@ -408,6 +408,11 @@ class PoseTransformer:
             rospy.logwarn("坐标变换失败: %s", str(e))
             return None
 
+    def get_observation(self):
+        # TODO  加锁
+        image = PIL_Image.fromarray(self.rgb_image).convert('RGB')
+        return image
+    
     def camera_info_callback(self, camera_info_msg):
         """
         解析相机内参（从CameraInfo消息提取fx, fy, ppx, ppy）

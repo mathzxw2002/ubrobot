@@ -22,7 +22,10 @@ shutil.rmtree('./workspaces/results', ignore_errors= True)
 
 from ubrobot.robots.ubrobot import Go2Manager
 
+from ubrobot.robots.arm_action import PoseTransformer
+
 manager = None
+robot_arm = None
 
 def gradio_planning_txt_update():
     '''chat_history = []
@@ -36,7 +39,10 @@ def gradio_planning_txt_update():
         instruction = "go to the near frontal black bag and stop immediately."
         manager.set_user_instruction(instruction)
         nav_action, vis_annotated_img = manager.get_next_planning()
-        yield gr.update(value=vis_annotated_img)
+
+        robot_arm_rgb_image = robot_arm.get_observation()
+
+        yield gr.update(value=[vis_annotated_img, robot_arm_rgb_image])
         time.sleep(1)
 
 def go2_robot_stop():
@@ -90,6 +96,7 @@ def create_gradio():
             with gr.Column(scale = 1):
                 gr.Markdown("### Nav with Instruction")
                 nav_img_output = gr.Image(type="pil", height=480,)
+                manipulate_img_output = gr.Image(type="pil", height=480,)
                 planning_response_txt = gr.Textbox(interactive=False, lines=5)
                 ins_msg_bt = gr.Button("nav instruction")
                 stop_bt = gr.Button("STOP!!!")
@@ -128,7 +135,7 @@ def create_gradio():
             outputs = user_processing_flag
             )
         
-        ins_msg_bt.click(gradio_planning_txt_update, inputs=[], outputs=[nav_img_output])
+        ins_msg_bt.click(gradio_planning_txt_update, inputs=[], outputs=[nav_img_output, manipulate_img_output])
         stop_bt.click(go2_robot_stop, inputs=[], outputs=[])
         standup_bt.click(go2_robot_standup, inputs=[], outputs=[])
         standdown_bt.click(go2_robot_standdown, inputs=[], outputs=[])
@@ -162,6 +169,8 @@ if __name__ == "__main__":
     app = gr.mount_gradio_app(app, gradio_app, path='/')
 
     manager = Go2Manager()
+
+    robot_arm = PoseTransformer()
 
     manager.start_threads()
     

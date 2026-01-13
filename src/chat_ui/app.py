@@ -48,7 +48,7 @@ def gradio_planning_txt_update():
         instruction = "Locate objects in current image and return theirs coordinates as json format."
         #robot_arm.grounding_objects_2d(robot_arm_rgb_image, instruction)
 
-        yield gr.update(value=pil_annotated_img), gr.update(value=robot_arm_rgb_image)
+        yield gr.update(value=vis_annotated_img), gr.update(value=robot_arm_rgb_image)
         time.sleep(1)
 
 def go2_robot_stop():

@@ -21,12 +21,10 @@ import gradio as gr
 import pandas as pd
 
 from utils import get_timestamp_str, merge_videos, merge_audios, merge_frames_with_audio
-from tts import CosyVoice_API
-from asr import Fun_ASR
-from llm import Qwen_API
-
+from ubrobot.robots.tts import CosyVoice_API
+from ubrobot.robots.asr import Fun_ASR
+from ubrobot.robots.llm import Qwen_API
 from ubrobot.robots.ubrobot import Go2Manager
-
 from ubrobot.robots.arm_action import PoseTransformer
 
 @torch.no_grad()

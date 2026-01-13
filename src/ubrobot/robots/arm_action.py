@@ -435,11 +435,11 @@ class PoseTransformer:
         self.fy = camera_info_msg.K[4]
         self.ppx = camera_info_msg.K[2]
         self.ppy = camera_info_msg.K[5]
-        rospy.loginfo("已获取相机内参：fx=%.2f, fy=%.2f, ppx=%.2f, ppy=%.2f",
-                      self.fx, self.fy, self.ppx, self.ppy)
+        #rospy.loginfo("已获取相机内参：fx=%.2f, fy=%.2f, ppx=%.2f, ppy=%.2f",
+        #              self.fx, self.fy, self.ppx, self.ppy)
     
     def rgb_depth_down_callback(self, rgb_msg, depth_msg):
-        print("======================, rgb_depth_down_callback, ")
+        #print("======================, rgb_depth_down_callback, ")
         """处理下视彩色图像和对齐后的深度图像消息"""
         # 处理彩色图像
         raw_image = self.cv_bridge.imgmsg_to_cv2(rgb_msg, 'rgb8')[:, :, :]

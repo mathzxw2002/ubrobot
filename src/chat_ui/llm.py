@@ -107,13 +107,13 @@ class Qwen_API:
         
         return chat_response, user_messages
 
-    def infer_cosmos_reason(self, user_input, user_messages, image_pil, url='http://192.168.18.230:5802/eval_cosmos_reason1'):
+    def infer_cosmos_reason(self, user_input, user_messages, llm_queue, image_pil, url='http://192.168.18.230:5802/eval_cosmos_reason1'):
         """发送图像和指令到HTTP服务，获取推理结果"""
-        
+       
+        print("=================================================== infer_cosmos_reason")
         image_bytes = io.BytesIO()
         image_pil.save(image_bytes, format="JPEG")
         image_bytes.seek(0)
-        
 
         user_messages.append({'role': 'user', 'content': user_input})
         print(user_messages)
@@ -130,7 +130,7 @@ class Qwen_API:
                 url,
                 files=files,
                 data={'json': json_data},
-                timeout=100
+                timeout=120
             )
             response.raise_for_status()
             print(f"cosmos_reason1_infer response {response.text}")
@@ -138,11 +138,16 @@ class Qwen_API:
             print(f"cosmos_reason1_infer request failed: {e}")
             return ""
 
+        chat_response = response.text
+        if chat_response:
+            llm_queue.put(chat_response)
+            print(f"[LLM] Put into queue: {chat_response}")
+
+        llm_queue.put(None) 
         user_messages.append({'role': 'assistant', 'content': chat_response})
         if len(user_messages) > 10:
             user_messages.pop(0)
 
-        chat_response = response.text
         return chat_response, user_messages
 
 if __name__ == "__main__":

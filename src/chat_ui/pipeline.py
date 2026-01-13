@@ -25,6 +25,9 @@ from tts import CosyVoice_API
 from asr import Fun_ASR
 from llm import Qwen_API
 
+from ubrobot.robots.ubrobot import Go2Manager
+
+from ubrobot.robots.arm_action import PoseTransformer
 
 @torch.no_grad()
 class ChatPipeline:
@@ -41,12 +44,14 @@ class ChatPipeline:
         self.tts_api = CosyVoice_API()
         
         print("[Done] Initialzation finished")
-        self.timeout=30
+        self.timeout=180
         self.video_queue = queue.Queue()
         self.llm_queue = queue.Queue()
         self.tts_queue = queue.Queue()
         self.chat_history = []
         self.stop = threading.Event()
+        
+        self.robot_arm = PoseTransformer()
     
     def load_voice(self, avatar_voice = None, tts_module = None):#, ref_audio_path = None):
         start_time = time.time()
@@ -94,7 +99,7 @@ class ChatPipeline:
             gr.Info("Pipeline is not running.", duration = 2)
             return user_processing_flag
 
-    def run_pipeline(self, user_input, user_messages, chunk_size, avatar_name, tts_module, chat_mode, manipulate_img_output):
+    def run_pipeline(self, user_input, user_messages, chunk_size, avatar_name, tts_module, chat_mode):
         self.flush_pipeline()
         self.start_time = time.time()
         avatar_name = avatar_name.split(" ")[0]
@@ -129,15 +134,10 @@ class ChatPipeline:
             print(f"[ASR] User input=========================================================: {user_input_txt}, cost: {self.asr_cost}s")
 
             # LLM streaming out
-            '''llm_response_txt, user_messages = self.llm.infer_stream(
-                user_input_txt, 
-                user_messages, 
-                self.llm_queue, 
-                chunk_size,
-                chat_mode
-            )'''
+            #llm_response_txt, user_messages = self.llm.infer_stream(user_input_txt, user_messages, self.llm_queue, chunk_size, chat_mode)
 
-            llm_response_txt, user_messages = self.llm.infer_cosmos_reason(user_input_txt, user_messages, manipulate_img_output)
+            manipulate_img_output = self.robot_arm.get_observation()
+            llm_response_txt, user_messages = self.llm.infer_cosmos_reason(user_input_txt, user_messages, self.llm_queue, manipulate_img_output)
 
             print("============================================llm_response_txt", llm_response_txt)
 
@@ -239,8 +239,9 @@ class ChatPipeline:
         start_time = time.time()
         index = 0
         while not self.stop.is_set():
+            print("waiting vlm response...")
             try:
-                llm_response_txt = self.llm_queue.get(timeout=1)
+                llm_response_txt = self.llm_queue.get(timeout=180)
                 self.chat_history.append(llm_response_txt)
                 print(f"-----------------[TTS] Get chunk from llm_queue: {llm_response_txt}, llm_queue size: {self.llm_queue.qsize()}, chat_history {self.chat_history} ")
                 if not llm_response_txt:
@@ -284,4 +285,4 @@ class ChatPipeline:
         self.video_queue.put(None)
 
 # 实例化         
-chat_pipeline = ChatPipeline()
+#chat_pipeline = ChatPipeline()

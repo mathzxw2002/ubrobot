@@ -11,7 +11,7 @@ import time
 
 import logging
 import os
-from pipeline import chat_pipeline
+from pipeline import ChatPipeline
 
 logging.basicConfig(level=logging.WARNING)
 
@@ -26,12 +26,15 @@ from ubrobot.robots.arm_action import PoseTransformer
 
 manager = None
 robot_arm = None
+chat_pipeline = None
 
 def gradio_planning_txt_update():
+
     '''chat_history = []
     chat_history.append({"role": "user", "content": global_nav_instruction_str})
     chat_history.append({"role": "assistant", "content": result_str})
     '''
+    global robot_arm_rgb_image
     while True:
     
         pil_annotated_img = manager.get_observation()
@@ -43,9 +46,9 @@ def gradio_planning_txt_update():
         robot_arm_rgb_image = robot_arm.get_observation()
 
         instruction = "Locate objects in current image and return theirs coordinates as json format."
-        robot_arm.grounding_objects_2d(robot_arm_rgb_image, instruction)
+        #robot_arm.grounding_objects_2d(robot_arm_rgb_image, instruction)
 
-        yield gr.update(value=vis_annotated_img), gr.update(value=robot_arm_rgb_image)
+        yield gr.update(value=pil_annotated_img), gr.update(value=robot_arm_rgb_image)
         time.sleep(1)
 
 def go2_robot_stop():
@@ -124,7 +127,7 @@ def create_gradio():
 
         # Submit
         user_input.submit(chat_pipeline.run_pipeline,
-            inputs=[user_input, user_messages, chunk_size, avatar_name, tts_module, chat_mode, manipulate_img_output],
+            inputs=[user_input, user_messages, chunk_size, avatar_name, tts_module, chat_mode],
             outputs=[user_messages]
             )
         user_input.submit(chat_pipeline.yield_results, 
@@ -167,11 +170,13 @@ def create_gradio():
     return demo.queue()
 
 if __name__ == "__main__":
+    manager = Go2Manager()
+
+    chat_pipeline = ChatPipeline()
+
     app = FastAPI()
     gradio_app = create_gradio()
     app = gr.mount_gradio_app(app, gradio_app, path='/')
-
-    manager = Go2Manager()
 
     robot_arm = PoseTransformer()
 

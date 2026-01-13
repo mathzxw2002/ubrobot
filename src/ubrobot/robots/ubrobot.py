@@ -256,7 +256,7 @@ class Go2Manager():
                 self.act = nav_action
                 self.act_rw_lock.release_write()
             else:
-                print(f"skip planning. odom_infer: {odom_infer is not None} rgb_bytes: {rgb_bytes is not None} depth_bytes: {depth_bytes is not None}")
+                #print(f"skip planning. odom_infer: {odom_infer is not None} rgb_bytes: {rgb_bytes is not None} depth_bytes: {depth_bytes is not None}")
                 time.sleep(0.1)
             DESIRED_TIME = 0.3
             time.sleep(max(0, DESIRED_TIME - (time.time() - start_time)))

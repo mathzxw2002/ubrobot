@@ -1,1 +1,2 @@
-python http_cosmos_reason1_server.py 
+export PYTORCH_CUDA_ALLOC_CONF=expandable_segments:True
+python http_cosmos_reason1_server.py

@@ -189,14 +189,15 @@ def eval_dual():
     t0 = time.time()
     dual_sys_output = {}
 
-    dual_sys_output = agent.step(
-        image, depth, camera_pose, instruction, intrinsic=args.camera_intrinsic, look_down=look_down
-    )
-    if dual_sys_output.output_action is not None and dual_sys_output.output_action == [5]:
-        look_down = True
+    with torch.no_grad():
         dual_sys_output = agent.step(
             image, depth, camera_pose, instruction, intrinsic=args.camera_intrinsic, look_down=look_down
         )
+        if dual_sys_output.output_action is not None and dual_sys_output.output_action == [5]:
+            look_down = True
+            dual_sys_output = agent.step(
+                image, depth, camera_pose, instruction, intrinsic=args.camera_intrinsic, look_down=look_down
+            )
 
     json_output = {}
     if dual_sys_output.output_action is not None:
@@ -223,7 +224,8 @@ if __name__ == '__main__':
 
     parser = argparse.ArgumentParser()
     parser.add_argument("--device", type=str, default="cuda:0")
-    parser.add_argument("--model_path", type=str, default="/home/sany/InternNav/scripts/notebooks/checkpoints/InternVLA-N1")
+    #parser.add_argument("--model_path", type=str, default="/home/sany/ubrobot/checkpoints/InternVLA-N1")
+    parser.add_argument("--model_path", type=str, default="/home/sany/ubrobot/checkpoints/InternVLA-N1-DualVLN")
     parser.add_argument("--resize_w", type=int, default=384)
     parser.add_argument("--resize_h", type=int, default=384)
     parser.add_argument("--num_history", type=int, default=8)

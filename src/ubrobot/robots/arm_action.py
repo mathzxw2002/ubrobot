@@ -220,6 +220,11 @@ class PoseTransformer:
         # 初始化ROS节点
         #rospy.init_node('piper_pose_transformer', anonymous=True)
 
+        # Point Cloud from RealSense (RGBD)
+        self.orig_pcd = None
+        self.pc = PointCloudPerception()
+        self.grasp_calc = GraspPoseCalculator()
+
         # 初始化tf2
         self.tf_buffer = tf2_ros.Buffer()
         self.tf_listener = tf2_ros.TransformListener(self.tf_buffer)
@@ -271,11 +276,6 @@ class PoseTransformer:
         self.fy = None
         self.ppx = None
         self.ppy = None
-
-        # Point Cloud from RealSense (RGBD)
-        self.orig_pcd = None
-        self.pc = PointCloudPerception()
-        self.grasp_calc = GraspPoseCalculator()
         
         # 状态管理
         self.original_pose = None
@@ -411,6 +411,16 @@ class PoseTransformer:
         # TODO  加锁
         image = PIL_Image.fromarray(self.rgb_image).convert('RGB')
         return image
+    
+    def grounding_objects_2d(self, image_pil: PIL_Image.Image, instruction:str):
+        response_restult_str = None
+        image_bytes = io.BytesIO()
+        image_pil.save(image_bytes, format="JPEG")
+        image_bytes.seek(0)
+        instruction = "Locate objects in current image and return theirs coordinates as json format."
+        response_restult_str = self.vlm.reasoning_vlm_infer(image_bytes, instruction)
+        print(response_restult_str)
+        return response_restult_str
     
     def camera_info_callback(self, camera_info_msg):
         """

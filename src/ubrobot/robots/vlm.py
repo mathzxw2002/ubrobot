@@ -23,7 +23,7 @@ class RobotVLM:
     
     def reasoning_vlm_infer(self, image_bytes, instruction):
         # TODO test
-        self.grounding_2d_bbox(image_bytes)
+        #self.grounding_2d_bbox(image_bytes)
         return self._cosmos_reason1_infer(image_bytes, instruction)
 
     def _cosmos_reason1_infer(self, image_bytes, instruction):

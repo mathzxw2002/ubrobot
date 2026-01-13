@@ -56,6 +56,8 @@ from piper_motion_plan import PiperMotionPlan
 
 from piper_sdk import *
 
+from .vlm import RobotVLM
+
 class RobotState(Enum):
     IDLE = 0
     SEARCHING = 1
@@ -224,6 +226,8 @@ class PoseTransformer:
         self.orig_pcd = None
         self.pc = PointCloudPerception()
         self.grasp_calc = GraspPoseCalculator()
+
+        self.vlm = RobotVLM()
 
         # 初始化tf2
         self.tf_buffer = tf2_ros.Buffer()

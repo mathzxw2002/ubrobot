@@ -5,7 +5,8 @@ import queue
 import os
 import json
 import time
-
+import requests
+import io
 
 class Qwen_API:
     def __init__(self, api_key = None, base_url = "https://dashscope.aliyuncs.com/compatible-mode/v1"):
@@ -104,20 +105,45 @@ class Qwen_API:
         
         print(f"[LLM] Response: {chat_response}\n")
         
-        return chat_response, user_messages, time_cost
+        return chat_response, user_messages
 
-    def cosmos_reason1_infer(image_bytes, instruction, url='http://192.168.18.230:5802/eval_cosmos_reason1'):
+    def infer_cosmos_reason(self, user_input, user_messages, image_pil, url='http://192.168.18.230:5802/eval_cosmos_reason1'):
+        """发送图像和指令到HTTP服务，获取推理结果"""
+        
+        image_bytes = io.BytesIO()
+        image_pil.save(image_bytes, format="JPEG")
+        image_bytes.seek(0)
+        
 
+        user_messages.append({'role': 'user', 'content': user_input})
+        print(user_messages)
+
+        instruction = user_input
         data = {"ins": instruction}
         json_data = json.dumps(data)
 
         files = {
             'image': ('rgb_image', image_bytes, 'image/jpeg'),
         }
-        start = time.time()
-        response = requests.post(url, files=files, data={'json': json_data}, timeout=100)
-        print(f"==================================================response {response.text}")
-        return response.text
+        try:
+            response = requests.post(
+                url,
+                files=files,
+                data={'json': json_data},
+                timeout=100
+            )
+            response.raise_for_status()
+            print(f"cosmos_reason1_infer response {response.text}")
+        except requests.exceptions.RequestException as e:
+            print(f"cosmos_reason1_infer request failed: {e}")
+            return ""
+
+        user_messages.append({'role': 'assistant', 'content': chat_response})
+        if len(user_messages) > 10:
+            user_messages.pop(0)
+
+        chat_response = response.text
+        return chat_response, user_messages
 
 if __name__ == "__main__":
     start_time = time.time()

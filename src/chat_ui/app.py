@@ -124,7 +124,7 @@ def create_gradio():
 
         # Submit
         user_input.submit(chat_pipeline.run_pipeline,
-            inputs=[user_input, user_messages, chunk_size, avatar_name, tts_module, chat_mode],
+            inputs=[user_input, user_messages, chunk_size, avatar_name, tts_module, chat_mode, manipulate_img_output],
             outputs=[user_messages]
             )
         user_input.submit(chat_pipeline.yield_results, 

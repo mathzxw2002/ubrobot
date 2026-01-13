@@ -94,7 +94,7 @@ class ChatPipeline:
             gr.Info("Pipeline is not running.", duration = 2)
             return user_processing_flag
 
-    def run_pipeline(self, user_input, user_messages, chunk_size, avatar_name, tts_module, chat_mode):
+    def run_pipeline(self, user_input, user_messages, chunk_size, avatar_name, tts_module, chat_mode, manipulate_img_output):
         self.flush_pipeline()
         self.start_time = time.time()
         avatar_name = avatar_name.split(" ")[0]
@@ -129,15 +129,15 @@ class ChatPipeline:
             print(f"[ASR] User input=========================================================: {user_input_txt}, cost: {self.asr_cost}s")
 
             # LLM streaming out
-            llm_response_txt, user_messages, llm_time_cost = self.llm.infer_stream(
+            '''llm_response_txt, user_messages = self.llm.infer_stream(
                 user_input_txt, 
                 user_messages, 
                 self.llm_queue, 
                 chunk_size,
                 chat_mode
-            )
+            )'''
 
-            #self.llm.cosmos_reason1_infer(image_bytes, instruction)
+            llm_response_txt, user_messages = self.llm.infer_cosmos_reason(user_input_txt, user_messages, manipulate_img_output)
 
             print("============================================llm_response_txt", llm_response_txt)
 

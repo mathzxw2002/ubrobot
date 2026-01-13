@@ -6,23 +6,7 @@ forked from: https://github.com/Henry-23/VideoChat
 
 
 
-
-
 ## Bug Fix
-
-### 0, ModuleNotFoundError: No module named 'mmcv._ext' 
-mmcv
-
-python3 setup.py build_ext --inplace
-
-sudo MMCV_WITH_OPS=1 pip install -e .  --break-system-packages
-
-
-
-mmcv 2.1.0
-mmdet 3.3.0
-mmpose 1.3.2
-
 
 ### 1, TypeError: Client.__init__() got an unexpected keyword argument 'proxies'
 pip install httpx==0.27.2

@@ -267,9 +267,9 @@ class PoseTransformer:
         # Example with depth capture and custom settings
         custom_config = RealSenseCameraConfig(
             serial_number_or_name="336222070923", # Replace with actual SN
-            fps=15,
-            width=640,
-            height=480,
+            fps=30,
+            width=1280,
+            height=720,
             color_mode=ColorMode.BGR, # Request BGR output
             rotation=Cv2Rotation.NO_ROTATION,
             use_depth=True
@@ -444,6 +444,9 @@ class PoseTransformer:
         color_image = self.rgb_depth_camera.read()
         print(color_image.shape)
         image = PIL_Image.fromarray(color_image).convert('RGB')
+
+        #print("==================================", self.rgb_image)
+        #image = PIL_Image.fromarray(self.rgb_image).convert('RGB')
         return image
     
     def grounding_objects_2d(self, image_pil: PIL_Image.Image, instruction:str):
@@ -465,11 +468,11 @@ class PoseTransformer:
         self.fy = camera_info_msg.K[4]
         self.ppx = camera_info_msg.K[2]
         self.ppy = camera_info_msg.K[5]
-        #rospy.loginfo("已获取相机内参：fx=%.2f, fy=%.2f, ppx=%.2f, ppy=%.2f",
-        #              self.fx, self.fy, self.ppx, self.ppy)
+        rospy.loginfo("已获取相机内参：fx=%.2f, fy=%.2f, ppx=%.2f, ppy=%.2f",
+                      self.fx, self.fy, self.ppx, self.ppy)
     
     def rgb_depth_down_callback(self, rgb_msg, depth_msg):
-        #print("======================, rgb_depth_down_callback, ")
+        print("======================, rgb_depth_down_callback, ")
         """处理下视彩色图像和对齐后的深度图像消息"""
         # 处理彩色图像
         raw_image = self.cv_bridge.imgmsg_to_cv2(rgb_msg, 'rgb8')[:, :, :]

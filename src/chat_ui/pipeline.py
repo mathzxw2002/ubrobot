@@ -49,7 +49,7 @@ class ChatPipeline:
         self.chat_history = []
         self.stop = threading.Event()
         
-        self.robot_arm = PoseTransformer()
+        #self.robot_arm = PoseTransformer()
     
     def load_voice(self, avatar_voice = None, tts_module = None):#, ref_audio_path = None):
         start_time = time.time()

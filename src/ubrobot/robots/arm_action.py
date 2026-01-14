@@ -253,8 +253,8 @@ class PoseTransformer:
         #self.robot_end_pose_sub = Subscriber("end_pose", JointState)
         #self.robot_end_pose_euler_sub = Subscriber("end_pose_euler", JointState)
 
-        self.piper = C_PiperInterface_V2()
-        self.piper.ConnectPort()
+        #self.piper = C_PiperInterface_V2()
+        #self.piper.ConnectPort()
         
         self.camera_info_sub.registerCallback(self.camera_info_callback)
 
@@ -671,8 +671,8 @@ class PoseTransformer:
         return True
     
     def test_robot_move(self):
-        while( not self.piper.EnablePiper()):
-            time.sleep(0.01)
+        #while( not self.piper.EnablePiper()):
+        #    time.sleep(0.01)
         
         arm_position = [0.0, 0, 0, 0, 0, 0]
         self.piper_mp.call_joint_moveit_ctrl_arm(arm_position) # 回零

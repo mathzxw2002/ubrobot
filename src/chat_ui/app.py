@@ -22,8 +22,6 @@ shutil.rmtree('./workspaces/results', ignore_errors= True)
 
 from ubrobot.robots.ubrobot import Go2Manager
 
-from ubrobot.robots.arm_action import PoseTransformer
-
 manager = None
 chat_pipeline = None
 
@@ -144,27 +142,7 @@ def create_gradio():
         standup_bt.click(go2_robot_standup, inputs=[], outputs=[])
         standdown_bt.click(go2_robot_standdown, inputs=[], outputs=[])
         move_bt.click(go2_robot_move, inputs=[], outputs=[])
-
-        #with gr.Row():
-            #with gr.Column(scale=1, min_width=300):
-                #gr.Markdown("### Nav with Instruction")
-
-                #nav_img_output = gr.Image(type="pil", height=480,)
-                #planning_response_txt = gr.Textbox(interactive=False, lines=5)
-            
-            #with gr.Column(scale=2, min_width=500):
-                #gr.Markdown("### Robot Control by Instruction")
-                #chatbot = gr.Chatbot(type="messages")
                 
-                #ins_msg = gr.Textbox(lines=1)
-
-                #with gr.Row():
-                #    with gr.Column(scale=1):
-                #        ins_msg_bt = gr.Button("nav instruction")
-                #    with gr.Column(scale=1):
-                #        clear = gr.ClearButton([chatbot])
-                #        task_reset_bt = gr.Button("nav task reset")
-        
     return demo.queue()
 
 if __name__ == "__main__":

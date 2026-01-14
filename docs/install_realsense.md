@@ -112,6 +112,12 @@ sudo cp ../config/99-realsense-libusb.rules /etc/udev/rules.d/
 sudo udevadm control --reload-rules && sudo udevadm trigger
 ```
 
+cp pyrealsense2.cpython-310-aarch64-linux-gnu.so* /home/unitree/py310_env/lib/python3.10/site-packages/
+cp pyrsutils.cpython-310-aarch64-linux-gnu.so* /home/unitree/py310_env/lib/python3.10/site-packages/
+
+check by 
+python3 -c "import pyrealsense2 as rs; print(rs.pipeline)"    
+
 ### IV. Installation Verification
 
 #### 1. Tool Verification (Quick Check)

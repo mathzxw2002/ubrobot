@@ -1,7 +1,6 @@
 import os
 import sys
 import argparse
-#from omegaconf import OmegaConf
 import numpy as np
 from tqdm import tqdm
 import torch
@@ -16,7 +15,6 @@ import gradio as gr
 import ffmpeg
 import subprocess
 import threading
-#from pydub import AudioSegment
 import gradio as gr
 import pandas as pd
 
@@ -49,7 +47,9 @@ class ChatPipeline:
         self.chat_history = []
         self.stop = threading.Event()
         
-        #self.robot_arm = PoseTransformer()
+        self.robot_arm = PoseTransformer()
+        #self.manager = None
+
     
     def load_voice(self, avatar_voice = None, tts_module = None):#, ref_audio_path = None):
         start_time = time.time()
@@ -281,6 +281,15 @@ class ChatPipeline:
                     gr.Info("ffmpeg Timeout")
                     break
         self.video_queue.put(None)
+
+
+    def get_robot_arm_image_observation(self):
+        return self.robot_arm.get_observation()
+    
+    #def get_front_image_observation(self):
+    #    return self.
+
+
 
 # 实例化         
 #chat_pipeline = ChatPipeline()

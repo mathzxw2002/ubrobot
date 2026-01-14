@@ -4,8 +4,6 @@ https://github.com/mathzxw2002/VideoChat
 
 forked from: https://github.com/Henry-23/VideoChat
 
-
-
 ## Bug Fix
 
 ### 1, TypeError: Client.__init__() got an unexpected keyword argument 'proxies'

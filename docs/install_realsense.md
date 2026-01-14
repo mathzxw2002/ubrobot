@@ -75,6 +75,9 @@ cmake .. -DCMAKE_BUILD_TYPE=Release \
          -DBUILD_EXAMPLES=true
 ```
 
+cmake .. -DCMAKE_BUILD_TYPE=Release -DBUILD_PYTHON_BINDINGS=bool:true -DFORCE_LIBUVC=true -DFORCE_RSUSB_BACKEND=TRUE 
+
+
 #### 3. Compile and Install
 
 ```Plain Text

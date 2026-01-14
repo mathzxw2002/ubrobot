@@ -58,6 +58,9 @@ from piper_sdk import *
 
 from .vlm import RobotVLM
 
+from lerobot.cameras.realsense import RealSenseCamera, RealSenseCameraConfig
+from lerobot.cameras import ColorMode, Cv2Rotation
+
 class RobotState(Enum):
     IDLE = 0
     SEARCHING = 1
@@ -260,6 +263,32 @@ class PoseTransformer:
 
         self.syncronizer = ApproximateTimeSynchronizer([self.image_sub, self.depth_sub], 1, 0.1)
         self.syncronizer.registerCallback(self.rgb_depth_down_callback)
+
+        # Example with depth capture and custom settings
+        custom_config = RealSenseCameraConfig(
+            serial_number_or_name="336222070923", # Replace with actual SN
+            fps=15,
+            width=640,
+            height=480,
+            color_mode=ColorMode.BGR, # Request BGR output
+            rotation=Cv2Rotation.NO_ROTATION,
+            use_depth=True
+        )
+        self.rgb_depth_camera = RealSenseCamera(custom_config)
+        self.rgb_depth_camera.connect()
+
+        # Read 1 depth frame
+        #depth_map = self.rgb_depth_camera.read_depth()
+
+        # Read 1 frame synchronously
+        #color_image = self.rgb_depth_camera.read()
+        #print(color_image.shape)
+
+        # Read 1 frame asynchronously
+        #async_image = rgb_depth_camera.async_read()
+
+        # When done, properly disconnect the camera using
+        #self.rgb_depth_camera.disconnect() # TODO disconnect finally
         
         # 逆解状态管理
         self.ik_manager = IKStatusManager()
@@ -412,8 +441,9 @@ class PoseTransformer:
             return None
 
     def get_observation(self):
-        # TODO  加锁
-        image = PIL_Image.fromarray(self.rgb_image).convert('RGB')
+        color_image = self.rgb_depth_camera.read()
+        print(color_image.shape)
+        image = PIL_Image.fromarray(color_image).convert('RGB')
         return image
     
     def grounding_objects_2d(self, image_pil: PIL_Image.Image, instruction:str):

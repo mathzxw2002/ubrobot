@@ -39,7 +39,8 @@ dependencies = [
 	"huggingface_hub<0.36.0,>=0.34.2",
 	#"tokenizers>=0.15.0",
 	
-	"scipy", 
+	"scipy",
+	"pyzmq", 
 	"viser",
 	"yourdfpy",
 	"python-can==4.4.0",

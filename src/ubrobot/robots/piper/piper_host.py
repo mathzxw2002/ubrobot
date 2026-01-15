@@ -59,10 +59,10 @@ class PiperHost:
 
 @draccus.wrap()
 def main(cfg: PiperServerConfig):
-    logging.info("Configuring LeKiwi")
+    logging.info("Configuring Piper")
     robot = Piper(cfg.robot)
 
-    logging.info("Connecting LeKiwi")
+    logging.info("Connecting Piper")
     robot.connect()
 
     logging.info("Starting HostAgent")
@@ -95,7 +95,8 @@ def main(cfg: PiperServerConfig):
                     f"Command not received for more than {host.watchdog_timeout_ms} milliseconds. Stopping the base."
                 )
                 watchdog_active = True
-                robot.stop_base()
+                #TODO how to revise for piper
+                #robot.stop_base()
 
             last_observation = robot.get_observation()
 
@@ -125,11 +126,11 @@ def main(cfg: PiperServerConfig):
     except KeyboardInterrupt:
         print("Keyboard interrupt received. Exiting...")
     finally:
-        print("Shutting down Lekiwi Host.")
+        print("Shutting down Piper Host.")
         robot.disconnect()
         host.disconnect()
 
-    logging.info("Finished LeKiwi cleanly")
+    logging.info("Finished Piper cleanly")
 
 
 if __name__ == "__main__":

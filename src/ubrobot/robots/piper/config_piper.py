@@ -27,8 +27,9 @@ class PiperConfig(RobotConfig):
     # Expose gripper as "gripper.pos" in mm if True
     include_gripper: bool = False
     # Optional cameras; leave empty when not used
-    cameras: dict[str, CameraConfig] = field(
-        default_factory=lambda: {
+    '''cameras: dict[str, CameraConfig] = field(
+        default_factory=
+            lambda: {
             "wrist": OpenCVCameraConfig(
                 index_or_path=4, 
                 width=640, 
@@ -37,6 +38,9 @@ class PiperConfig(RobotConfig):
                 fourcc="MJPG"
             )
         }
+    )'''
+    cameras: dict[str, CameraConfig] = field(
+        default_factory=dict
     )
     # When False, expose normalized [-100,100] joint percents; when True, degrees/mm
     use_degrees: bool = True
@@ -84,6 +88,7 @@ class PiperClientConfig(RobotConfig):
     )
 
     #cameras: dict[str, CameraConfig] = field(default_factory=lekiwi_cameras_config)
+    cameras: dict[str, CameraConfig] = field(default_factory=dict)
 
     polling_timeout_ms: int = 15
     connect_timeout_s: int = 5

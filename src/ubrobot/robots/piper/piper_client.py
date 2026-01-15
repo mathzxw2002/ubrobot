@@ -79,9 +79,9 @@ class PiperClient(Robot):
                 "arm_wrist_flex.pos",
                 "arm_wrist_roll.pos",
                 "arm_gripper.pos",
-                "x.vel",
-                "y.vel",
-                "theta.vel",
+                #"x.vel",
+                #"y.vel",
+                #"theta.vel",
             ),
             float,
         )
@@ -134,7 +134,7 @@ class PiperClient(Robot):
         poller.register(self.zmq_observation_socket, zmq.POLLIN)
         socks = dict(poller.poll(self.connect_timeout_s * 1000))
         if self.zmq_observation_socket not in socks or socks[self.zmq_observation_socket] != zmq.POLLIN:
-            raise DeviceNotConnectedError("Timeout waiting for LeKiwi Host to connect expired.")
+            raise DeviceNotConnectedError("Timeout waiting for Piper Host to connect expired.")
 
         self._is_connected = True
 
@@ -257,7 +257,7 @@ class PiperClient(Robot):
         and a camera frame. Receives over ZMQ, translate to body-frame vel
         """
         if not self._is_connected:
-            raise DeviceNotConnectedError("LeKiwiClient is not connected. You need to run `robot.connect()`.")
+            raise DeviceNotConnectedError("PiperClient is not connected. You need to run `robot.connect()`.")
 
         frames, obs_dict = self._get_data()
 
@@ -326,6 +326,8 @@ class PiperClient(Robot):
         # TODO(Steven): Remove the np conversion when it is possible to record a non-numpy array value
         actions = np.array([action.get(k, 0.0) for k in self._state_order], dtype=np.float32)
 
+        print("=============== send action in piper client...", actions)
+
         action_sent = {key: actions[i] for i, key in enumerate(self._state_order)}
         action_sent[ACTION] = actions
         return action_sent
@@ -335,7 +337,7 @@ class PiperClient(Robot):
 
         if not self._is_connected:
             raise DeviceNotConnectedError(
-                "LeKiwi is not connected. You need to run `robot.connect()` before disconnecting."
+                "Piper is not connected. You need to run `robot.connect()` before disconnecting."
             )
         self.zmq_observation_socket.close()
         self.zmq_cmd_socket.close()

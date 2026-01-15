@@ -17,7 +17,7 @@
 import time
 
 from ubrobot.robots.piper.piper_client import PiperClient, PiperClientConfig
-from lerobot.teleoperators.so_leader import SO100Leader, SO100LeaderConfig
+from lerobot.teleoperators.so100_leader import SO100Leader, SO100LeaderConfig
 from lerobot.utils.robot_utils import precise_sleep
 #from lerobot.utils.visualization_utils import init_rerun, log_rerun_data
 
@@ -27,7 +27,7 @@ FPS = 30
 def main():
     # Create the robot and teleoperator configurations
     robot_config = PiperClientConfig(remote_ip="192.168.18.113", id="robot_arm_piper")
-    teleop_arm_config = SO100LeaderConfig(port="/dev/tty.usbmodem585A0077581", id="my_awesome_leader_arm")
+    teleop_arm_config = SO100LeaderConfig(port="/dev/ttyACM0", id="my_awesome_leader_arm")
     
     # Initialize the robot and teleoperator
     robot = PiperClient(robot_config)

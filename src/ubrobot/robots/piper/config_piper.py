@@ -5,7 +5,6 @@ from lerobot.cameras.opencv import OpenCVCameraConfig
 from lerobot.robots import RobotConfig
 
 
-
 @RobotConfig.register_subclass("piper")
 @dataclass
 class PiperConfig(RobotConfig):
@@ -43,3 +42,48 @@ class PiperConfig(RobotConfig):
     use_degrees: bool = True
     # Timeout in seconds to wait for SDK EnablePiper during connect
     enable_timeout: float = 5.0
+
+@dataclass
+class PiperHostConfig:
+    # Network Configuration
+    port_zmq_cmd: int = 5555
+    port_zmq_observations: int = 5556
+
+    # Duration of the application
+    connection_time_s: int = 30
+
+    # Watchdog: stop the robot if no command is received for over 0.5 seconds.
+    watchdog_timeout_ms: int = 500
+
+    # If robot jitters decrease the frequency and monitor cpu load with `top` in cmd
+    max_loop_freq_hz: int = 30
+
+@RobotConfig.register_subclass("piper_client")
+@dataclass
+class PiperClientConfig(RobotConfig):
+    # Network Configuration
+    remote_ip: str
+    port_zmq_cmd: int = 5555
+    port_zmq_observations: int = 5556
+
+    teleop_keys: dict[str, str] = field(
+        default_factory=lambda: {
+            # Movement
+            "forward": "w",
+            "backward": "s",
+            "left": "a",
+            "right": "d",
+            "rotate_left": "z",
+            "rotate_right": "x",
+            # Speed control
+            "speed_up": "r",
+            "speed_down": "f",
+            # quit teleop
+            "quit": "q",
+        }
+    )
+
+    #cameras: dict[str, CameraConfig] = field(default_factory=lekiwi_cameras_config)
+
+    polling_timeout_ms: int = 15
+    connect_timeout_s: int = 5

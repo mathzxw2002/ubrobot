@@ -1,3 +1,6 @@
+import sys
+sys.path.append("/home/unitree/ubrobot/ros_depends_ws/src/rtabmap_odom_py/build")
+
 import rs_odom_module
 import time
 

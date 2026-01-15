@@ -93,3 +93,14 @@ The Piper robot supports the following configuration options:
 - LeRobot >= 0.4.0
 - python-can
 - piper_sdk
+
+
+
+
+https://github.com/agilexrobotics/piper_sdk
+
+
+https://github.com/agilexrobotics/handeye_calibration_ros
+
+
+https://www.hackster.io/agilexrobotics/real-time-6d-pose-generation-grasp-planning-toolkit-3c9af6

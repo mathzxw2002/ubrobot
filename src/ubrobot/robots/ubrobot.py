@@ -98,10 +98,6 @@ class Go2Manager():
         self.syncronizer.registerCallback(self.rgb_depth_down_callback)
         self.odom_sub = rospy.Subscriber("/rtabmap/odom", Odometry, self.odom_callback)
 
-
-        # 控制指令发布器
-        self.control_pub = rospy.Publisher('/cmd_vel_bridge', Twist, queue_size=5)
-
         self.cv_bridge = CvBridge()
         self.rgb_image = None
         self.rgb_bytes = None
@@ -293,19 +289,15 @@ class Go2Manager():
         self.rgb_depth_rw_lock.acquire_write()
         self.rgb_bytes = image_bytes
         self.rgb_time = rgb_msg.header.stamp.secs + rgb_msg.header.stamp.nsecs / 1.0e9
-        self.last_rgb_time = self.rgb_time
         self.depth_bytes = depth_bytes
-        self.depth_time = depth_msg.header.stamp.secs + depth_msg.header.stamp.nsecs / 1.0e9
-        self.last_depth_time = self.depth_time
         self.rgb_depth_rw_lock.release_write()
 
         # 标记图像更新
-        #self.new_vis_image_arrived = True
         self.new_image_arrived = True
 
     def odom_callback(self, msg):
         """处理里程计消息，更新机器人位姿和速度"""
-        #self.odom_cnt += 1
+        
         self.odom_rw_lock.acquire_write()
         # 计算偏航角
         zz = msg.pose.pose.orientation.z
@@ -314,7 +306,7 @@ class Go2Manager():
         # 更新位姿
         self.odom = [msg.pose.pose.position.x, msg.pose.pose.position.y, yaw]
         self.odom_queue.append((time.time(), copy.deepcopy(self.odom)))
-        #self.odom_timestamp = time.time()
+        
         # 更新速度
         self.linear_vel = msg.twist.twist.linear.x
         self.angular_vel = msg.twist.twist.angular.z
@@ -334,22 +326,12 @@ class Go2Manager():
         request.linear.y = 0.0
         request.angular.z = vyaw
 
-        self.control_pub.publish(request)
-
         # 发送指令到机器人基座（可根据需要启用）
         action = {"x.vel": vx,
                   "y.vel": 0,
                   "theta.vel": vyaw
                   }
         # self.lekiwi_base.send_action(action)
-
-    def set_nav_instruction(self, ins_str):
-        """设置全局导航指令，替代原Gradio输入"""
-        self.global_nav_instruction_str = ins_str
-        # 可选：执行推理
-        if self.rgb_bytes is not None:
-            image_bytes = copy.deepcopy(self.rgb_bytes)
-            #self._cosmos_reason1_infer(image_bytes, ins_str)
 
     def nav_task_reset(self):
         """重置导航任务，停止机器人运动"""
@@ -400,16 +382,11 @@ if __name__ == "__main__":
     # 启动控制线程和规划线程
     manager.start_threads()
 
-    # 可选：设置默认导航指令（替代Gradio输入）
-    # manager.set_nav_instruction("walk close to office chair")
-
     try:
         # 初始化 Go2Manager 实例（内部已调用 rospy.init_node）
         manager = Go2Manager()
         # 启动控制线程和规划线程
         manager.start_threads()
-        # 可选：设置默认导航指令
-        # manager.set_nav_instruction("walk close to office chair")
         rospy.spin()
     except KeyboardInterrupt:
         print("\n======= Stopping Go2Manager Core =======")

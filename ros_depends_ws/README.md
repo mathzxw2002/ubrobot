@@ -2,9 +2,12 @@
 
 pip install empy==3.3.4
 
-
+ cmake -DRTABMap_DIR=/home/unitree/ubrobot/ros_depends_ws/build_isolated/rtabmap/devel ..
 
 https://github.com/agilexrobotics/piper_ros
+
+
+ -DWITH_REALSENSE2=ON
 
 
 for ros noetic

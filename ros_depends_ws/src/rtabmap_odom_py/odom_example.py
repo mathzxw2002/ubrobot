@@ -1,5 +1,6 @@
 import sys
-sys.path.append("/home/unitree/ubrobot/ros_depends_ws/src/rtabmap_odom_py/build")
+#sys.path.append("/home/unitree/ubrobot/ros_depends_ws/src/rtabmap_odom_py/build")
+sys.path.append("/home/unitree/ubrobot/ros_depends_ws/src/rtabmap_odom_py/odom")
 
 import rs_odom_module
 import time
@@ -10,6 +11,11 @@ import numpy as np
 print("Initializing D435i and Odometry...")
 try:
     tracker = rs_odom_module.RealsenseOdom(camera_serial="419522070679")
+
+    print("Waiting for camera data...")
+    # Give the camera and RTAB-Map 2-3 seconds to sync and receive the first frame
+    time.sleep(3.0)
+
 except RuntimeError as e:
     print("初始化失败：", e)
     exit(1)
@@ -18,26 +24,16 @@ def my_logic():
     print("Loop started. Press Ctrl+C to stop.")
     try:
         # 1. 获取相机内参
-        intrinsics = tracker.get_camera_intrinsics()
+        '''intrinsics = tracker.get_camera_intrinsics()
         print("相机内参：")
         print(f"  焦距：fx={intrinsics['fx']:.2f}, fy={intrinsics['fy']:.2f}")
         print(f"  主点：cx={intrinsics['cx']:.2f}, cy={intrinsics['cy']:.2f}")
         print(f"  分辨率：{intrinsics['width']}x{intrinsics['height']}")
-        print(f"  深度缩放因子：{intrinsics['scale']}")
+        print(f"  深度缩放因子：{intrinsics['scale']}")'''
 
         while True:
             # Get the current pose on-demand
-            pose = tracker.get_pose()
-            if pose:
-                print("\n当前位姿：")
-                print(f"  x={pose[0]:.4f}, y={pose[1]:.4f}, z={pose[2]:.4f}")
-                print(f"  roll={pose[3]:.4f}, pitch={pose[4]:.4f}, yaw={pose[5]:.4f}")
-            else:
-                print("\n位姿跟踪丢失")
-
-            # 1. 获取位姿（同时计算速度）
             pose = tracker.get_pose_with_twist()
-            
             # 2. 获取速度（对应 odom_twist 的 linear.x 和 angular.z）
             twist = tracker.get_odom_twist()
             
@@ -52,12 +48,15 @@ def my_logic():
             rgb_img = tracker.get_rgb_image()
             if not rgb_img.size == 0:
                 # numpy数组可直接用于OpenCV处理（注意：RGB转BGR）
+                print("================================== rgb image...")
                 rgb_cv = cv2.cvtColor(np.array(rgb_img), cv2.COLOR_RGB2BGR)
+                cv2.imwrite('./rgbe.png', rgb_cv)
 
             # 4. 获取深度图像并显示
             depth_img = tracker.get_depth_image()
             if not depth_img.size == 0:
                 # 归一化深度图像用于显示
+                print("saving................depth image")
                 depth_normalized = cv2.normalize(np.array(depth_img), None, 0, 255, cv2.NORM_MINMAX, cv2.CV_8UC1)
             
             # Note: As discussed, too slow (like 1s) will cause tracking loss if moving.

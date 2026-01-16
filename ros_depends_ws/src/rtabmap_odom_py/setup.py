@@ -10,7 +10,7 @@ def build_extension():
     
     # 执行cmake和make
     subprocess.check_call(
-        ["cmake", "..", "-DCMAKE_BUILD_TYPE=Release"],
+        ["cmake", "..", "-DCMAKE_BUILD_TYPE=Release", "-DRTABMap_DIR=/home/unitree/ubrobot/ros_depends_ws/build_isolated/rtabmap/devel"],
         cwd=build_dir
     )
     subprocess.check_call(["make", "-j4"], cwd=build_dir)

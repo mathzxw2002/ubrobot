@@ -332,6 +332,11 @@ class Go2Manager():
             
             # 标记图像更新
             self.new_image_arrived = True
+
+            # 更新位姿
+            self.odom = [pose[0], pose[1], pose[5]]
+            self.odom_queue.append((time.time(), copy.deepcopy(self.odom)))
+            self.vel = [twist.linear_x, twist.angular_z]
             
             # Note: As discussed, too slow (like 1s) will cause tracking loss if moving.
             time.sleep(0.05) # ~20Hz recommended

@@ -134,7 +134,7 @@ class Go2Manager():
 
         self.control_thread_instance = threading.Thread(target=self._control_thread, daemon=True)
         self.planning_thread_instance = threading.Thread(target=self._planning_thread, daemon=True)
-        self.camera_thread_instance = threading.Thread(target=self._camera_thread, daemon=True)
+        self.odom_thread_instance = threading.Thread(target=self._odom_thread, daemon=True)
 
         # nav action
         self.act = None
@@ -279,7 +279,7 @@ class Go2Manager():
             DESIRED_TIME = 0.3
             time.sleep(max(0, DESIRED_TIME - (time.time() - start_time)))
     
-    def _camera_thread(self):
+    def _odom_thread(self):
         # 1. 获取相机内参
         '''intrinsics = self.tracker.get_camera_intrinsics()
         print("相机内参：")
@@ -344,7 +344,7 @@ class Go2Manager():
     def start_threads(self):
         self.planning_thread_instance.start()
         self.control_thread_instance.start()
-        #self.camera_thread_instance.start()
+        self.odom_thread_instance.start()
         print("✅ Go2Manager: control thread and planning thread started successfully")
 
     def rgb_depth_down_callback(self, rgb_msg, depth_msg):

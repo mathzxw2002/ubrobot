@@ -9,6 +9,7 @@ from PIL import ImageDraw, ImageFont
 import cv2
 from PIL import Image as PIL_Image
 import requests
+import io
 
 from collections import OrderedDict
 
@@ -217,8 +218,17 @@ class RobotNav:
                 act.current_control_mode = ControlMode.PID_Mode
         return act
     
-    def _dual_sys_eval(self, policy_init, http_idx, image_bytes, depth_bytes, instruction, odom, homo_odom, url='http://192.168.18.230:5801/eval_dual'):
+    def _dual_sys_eval(self, policy_init, http_idx, rgb_image_pil, depth_pil, instruction, odom, homo_odom, url='http://192.168.18.230:5801/eval_dual'):
         
+        
+        image_bytes = io.BytesIO()
+        rgb_image_pil.save(image_bytes, format='JPEG')
+        image_bytes.seek(0)
+
+        depth_bytes = io.BytesIO()
+        depth_pil.save(depth_bytes, format='PNG')
+        depth_bytes.seek(0)
+
         #global frame_data
         data = {"reset": policy_init, "idx": http_idx, "ins": instruction}
         json_data = json.dumps(data)

@@ -100,9 +100,11 @@ class Go2Manager():
 
         self.cv_bridge = CvBridge()
         self.rgb_image = None
-        self.rgb_bytes = None
+        #self.rgb_image_pil = None
+        #self.rgb_bytes = None
         self.depth_image = None
-        self.depth_bytes = None
+        #self.depth_pil = None
+        #self.depth_bytes = None
         self.new_image_arrived = False
         self.rgb_time = 0.0
 
@@ -146,10 +148,7 @@ class Go2Manager():
     
     def reasoning_vlm(self, image_pil: PIL_Image.Image, instruction:str):
         response_restult_str = None
-        image_bytes = io.BytesIO()
-        image_pil.save(image_bytes, format="JPEG")
-        image_bytes.seek(0)
-        response_restult_str = self.vlm.reasoning_vlm_infer(image_bytes, instruction)
+        response_restult_str = self.vlm.reasoning_vlm_infer(image_pil, instruction)
         return response_restult_str
     
     def set_user_instruction(self, instruction: str):
@@ -157,8 +156,13 @@ class Go2Manager():
 
     def get_rgb_depth_odom(self):
         self.rgb_depth_rw_lock.acquire_read()
-        rgb_bytes = copy.deepcopy(self.rgb_bytes)
-        depth_bytes = copy.deepcopy(self.depth_bytes)
+        #rgb_bytes = copy.deepcopy(self.rgb_bytes)
+        #depth_bytes = copy.deepcopy(self.depth_bytes)
+        rgb_image_pil = PIL_Image.fromarray(self.rgb_image)
+
+        depth = (np.clip(self.depth_image * 10000.0, 0, 65535)).astype(np.uint16)
+        depth_pil = PIL_Image.fromarray(depth)
+
         rgb_time = self.rgb_time
         self.rgb_depth_rw_lock.release_read()
 
@@ -171,10 +175,13 @@ class Go2Manager():
                 min_diff = diff
                 odom_infer = copy.deepcopy(odom[1])
         self.odom_rw_lock.release_read()
-        return rgb_bytes, depth_bytes, odom_infer
+        return odom_infer, rgb_image_pil, depth_pil
     
-    def nav_policy_infer(self, policy_init, http_idx, image_bytes, depth_bytes, instruction, odom, homo_odom):
-        nav_action, vis_annotated_img = self.nav._dual_sys_eval(policy_init, http_idx, image_bytes, depth_bytes, instruction, odom, homo_odom)
+    def nav_policy_infer(self, policy_init, http_idx, rgb_image_pil, depth_pil, instruction, odom, homo_odom):        
+        
+        
+        nav_action, vis_annotated_img = self.nav._dual_sys_eval(policy_init, http_idx, rgb_image_pil, depth_pil, instruction, odom, homo_odom)
+        
         return nav_action, vis_annotated_img
 
     def _control_thread(self):
@@ -235,11 +242,11 @@ class Go2Manager():
                 continue
             self.new_image_arrived = False
 
-            rgb_bytes, depth_bytes, odom_infer = self.get_rgb_depth_odom()
-            if odom_infer is not None and rgb_bytes is not None and depth_bytes is not None and self.global_nav_instruction_str is not None:
+            odom_infer, rgb_image_pil, depth_pil = self.get_rgb_depth_odom()
+            if odom_infer is not None and rgb_image_pil is not None and depth_pil is not None and self.global_nav_instruction_str is not None:
 
                 start = time.time()
-                nav_action, vis_annotated_img = self.nav_policy_infer(self.policy_init, self.http_idx, rgb_bytes, depth_bytes, self.global_nav_instruction_str, self.odom, self.homo_odom)
+                nav_action, vis_annotated_img = self.nav_policy_infer(self.policy_init, self.http_idx, rgb_image_pil, depth_pil, self.global_nav_instruction_str, self.odom, self.homo_odom)
 
                 self.nav_action = nav_action
                 self.nav_annotated_img = vis_annotated_img
@@ -267,10 +274,10 @@ class Go2Manager():
         # 处理彩色图像
         raw_image = self.cv_bridge.imgmsg_to_cv2(rgb_msg, 'rgb8')[:, :, :]
         self.rgb_image = raw_image
-        image = PIL_Image.fromarray(self.rgb_image)
-        image_bytes = io.BytesIO()
-        image.save(image_bytes, format='JPEG')
-        image_bytes.seek(0)
+        #image = PIL_Image.fromarray(self.rgb_image)
+        #image_bytes = io.BytesIO()
+        #image.save(image_bytes, format='JPEG')
+        #image_bytes.seek(0)
 
         # 处理深度图像
         raw_depth = self.cv_bridge.imgmsg_to_cv2(depth_msg, '16UC1')
@@ -279,17 +286,19 @@ class Go2Manager():
         self.depth_image = raw_depth / 1000.0
         self.depth_image -= 0.0
         self.depth_image[np.where(self.depth_image < 0)] = 0
-        depth = (np.clip(self.depth_image * 10000.0, 0, 65535)).astype(np.uint16)
-        depth = PIL_Image.fromarray(depth)
-        depth_bytes = io.BytesIO()
-        depth.save(depth_bytes, format='PNG')
-        depth_bytes.seek(0)
+        
+        #depth = (np.clip(self.depth_image * 10000.0, 0, 65535)).astype(np.uint16)
+        #depth = PIL_Image.fromarray(depth)
+        #depth_bytes = io.BytesIO()
+        #depth.save(depth_bytes, format='PNG')
+        #depth_bytes.seek(0)
 
         # 保存数据和时间戳
         self.rgb_depth_rw_lock.acquire_write()
-        self.rgb_bytes = image_bytes
+        #self.rgb_bytes = image_bytes
         self.rgb_time = rgb_msg.header.stamp.secs + rgb_msg.header.stamp.nsecs / 1.0e9
-        self.depth_bytes = depth_bytes
+        #self.depth_bytes = depth_bytes
+        #self.depth_pil = depth
         self.rgb_depth_rw_lock.release_write()
 
         # 标记图像更新

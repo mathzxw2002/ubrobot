@@ -1,9 +1,3 @@
-# GraspGen-位姿生成与抓取
-
-## 
-
-本文通过TensorRT加速YoloV8-Pose推理，使用主成分分析实现了一种基于位姿生成工具，实现了实时的位姿生成与抓取。
-
 ## 标签
 
 PiPER机械臂、YoloV8-Pose模型、TensorRT、运动学正逆解、位姿控制、夹爪控制

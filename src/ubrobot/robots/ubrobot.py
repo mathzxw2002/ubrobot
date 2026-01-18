@@ -21,12 +21,12 @@ from unitree_sdk2py.go2.sport.sport_client import (
     SPORT_PATH_POINT_SIZE,
 )
 
-import rospy
-from message_filters import ApproximateTimeSynchronizer, Subscriber
-from cv_bridge import CvBridge
-from geometry_msgs.msg import Twist
-from nav_msgs.msg import Odometry
-from sensor_msgs.msg import Image
+#import rospy
+#from message_filters import ApproximateTimeSynchronizer, Subscriber
+#from cv_bridge import CvBridge
+#from geometry_msgs.msg import Twist
+#from nav_msgs.msg import Odometry
+#from sensor_msgs.msg import Image
 
 from PIL import Image as PIL_Image
 
@@ -42,6 +42,11 @@ from .vlm import RobotVLM
 from .nav import RobotNav, RobotAction, ControlMode
 
 from dataclasses import dataclass
+
+import sys
+sys.path.append("/home/unitree/ubrobot/ros_depends_ws/src/rtabmap_odom_py/odom")
+
+import rs_odom_module
 
 @dataclass
 class TestOption:
@@ -71,7 +76,7 @@ option_list = [
 
 class Go2Manager():
     def __init__(self):
-        rospy.init_node('go2_manager', anonymous=True) 
+        #rospy.init_node('go2_manager', anonymous=True) 
 
         # 控制模式相关
         self.policy_init = True
@@ -84,6 +89,19 @@ class Go2Manager():
         self.nav_action = None
         self.nav_annotated_img = None
 
+        # odom manager
+        # Initialize the hardware and RTAB-Map
+        print("Initializing D435i and Odometry...")
+        self.tracker = None
+        try:
+            self.tracker = rs_odom_module.RealsenseOdom(camera_serial="419522070679")
+            print("Waiting for camera data...")
+            # Give the camera and RTAB-Map 2-3 seconds to sync and receive the first frame
+            time.sleep(3.0)
+        except RuntimeError as e:
+            print("初始化失败：", e)
+            exit(1)
+
         # 读写锁相关
         self.rgb_depth_rw_lock = ReadWriteLock()
         self.odom_rw_lock = ReadWriteLock()
@@ -91,30 +109,21 @@ class Go2Manager():
         self.act_rw_lock = ReadWriteLock()
         self.nav_rw_lock = ReadWriteLock()
 
-        rgb_down_sub = Subscriber("/cam_front/camera/color/image_raw", Image)
-        depth_down_sub = Subscriber("/cam_front/camera/aligned_depth_to_color/image_raw", Image)
+        #rgb_down_sub = Subscriber("/cam_front/camera/color/image_raw", Image)
+        #depth_down_sub = Subscriber("/cam_front/camera/aligned_depth_to_color/image_raw", Image)
 
-        self.syncronizer = ApproximateTimeSynchronizer([rgb_down_sub, depth_down_sub], 1, 0.1)
-        self.syncronizer.registerCallback(self.rgb_depth_down_callback)
-        self.odom_sub = rospy.Subscriber("/rtabmap/odom", Odometry, self.odom_callback)
+        #self.syncronizer = ApproximateTimeSynchronizer([rgb_down_sub, depth_down_sub], 1, 0.1)
+        #self.syncronizer.registerCallback(self.rgb_depth_down_callback)
+        #self.odom_sub = rospy.Subscriber("/rtabmap/odom", Odometry, self.odom_callback)
 
-
-        # 控制指令发布器
-        self.control_pub = rospy.Publisher('/cmd_vel_bridge', Twist, queue_size=5)
-
-        self.cv_bridge = CvBridge()
+        #self.cv_bridge = CvBridge()
         self.rgb_image = None
-        self.rgb_bytes = None
         self.depth_image = None
-        self.depth_bytes = None
         self.new_image_arrived = False
-        self.rgb_time = 0.0
+        #self.rgb_time = 0.0
 
         self.odom = None
-        self.linear_vel = 0.0
-        self.angular_vel = 0.0
         self.odom_queue = deque(maxlen=50)
-        self.homo_odom = None
         self.vel = None
 
         # vlm model
@@ -125,6 +134,7 @@ class Go2Manager():
 
         self.control_thread_instance = threading.Thread(target=self._control_thread, daemon=True)
         self.planning_thread_instance = threading.Thread(target=self._planning_thread, daemon=True)
+        self.odom_thread_instance = threading.Thread(target=self._odom_thread, daemon=True)
 
         # nav action
         self.act = None
@@ -150,10 +160,7 @@ class Go2Manager():
     
     def reasoning_vlm(self, image_pil: PIL_Image.Image, instruction:str):
         response_restult_str = None
-        image_bytes = io.BytesIO()
-        image_pil.save(image_bytes, format="JPEG")
-        image_bytes.seek(0)
-        response_restult_str = self.vlm.reasoning_vlm_infer(image_bytes, instruction)
+        response_restult_str = self.vlm.reasoning_vlm_infer(image_pil, instruction)
         return response_restult_str
     
     def set_user_instruction(self, instruction: str):
@@ -161,24 +168,27 @@ class Go2Manager():
 
     def get_rgb_depth_odom(self):
         self.rgb_depth_rw_lock.acquire_read()
-        rgb_bytes = copy.deepcopy(self.rgb_bytes)
-        depth_bytes = copy.deepcopy(self.depth_bytes)
-        rgb_time = self.rgb_time
+        rgb_image_pil = PIL_Image.fromarray(self.rgb_image)
+        depth = (np.clip(self.depth_image * 10000.0, 0, 65535)).astype(np.uint16)
+        depth_pil = PIL_Image.fromarray(depth)
+
+        #rgb_time = self.rgb_time
         self.rgb_depth_rw_lock.release_read()
 
-        self.odom_rw_lock.acquire_read()
-        min_diff = 1e10
+        #self.odom_rw_lock.acquire_read()
+        #min_diff = 1e10
         odom_infer = None
-        for odom in self.odom_queue:
-            diff = abs(odom[0] - rgb_time)
-            if diff < min_diff:
-                min_diff = diff
-                odom_infer = copy.deepcopy(odom[1])
-        self.odom_rw_lock.release_read()
-        return rgb_bytes, depth_bytes, odom_infer
+        #for odom in self.odom_queue:
+        #    diff = abs(odom[0] - rgb_time)
+        #    if diff < min_diff:
+        #        min_diff = diff
+        #        odom_infer = copy.deepcopy(odom[1])
+        #self.odom_rw_lock.release_read()
+        odom_infer = self.odom
+        return odom_infer, rgb_image_pil, depth_pil
     
-    def nav_policy_infer(self, policy_init, http_idx, image_bytes, depth_bytes, instruction, odom, homo_odom):
-        nav_action, vis_annotated_img = self.nav._dual_sys_eval(policy_init, http_idx, image_bytes, depth_bytes, instruction, odom, homo_odom)
+    def nav_policy_infer(self, policy_init, http_idx, rgb_image_pil, depth_pil, instruction, odom):        
+        nav_action, vis_annotated_img = self.nav._dual_sys_eval(policy_init, http_idx, rgb_image_pil, depth_pil, instruction, odom)
         return nav_action, vis_annotated_img
 
     def _control_thread(self):
@@ -216,8 +226,16 @@ class Go2Manager():
 
                 #self.move(v, 0.0, w)
         elif act.current_control_mode == ControlMode.PID_Mode:
-            #self.homo_goal = act.homo_goal
-            homo_odom = copy.deepcopy(self.homo_odom) if self.homo_odom is not None else None
+            odom = copy.deepcopy(self.odom) if self.odom is not None else None
+            # compute homo_odom by odom
+            # 计算齐次变换矩阵
+            yaw = odom[2]
+            R0 = np.array([[np.cos(yaw), -np.sin(yaw)], [np.sin(yaw), np.cos(yaw)]])
+            homo_odom = np.eye(4)
+            homo_odom[:2, :2] = R0
+            homo_odom[:2, 3] = odom[:2]
+            
+            #homo_odom = copy.deepcopy(self.homo_odom) if self.homo_odom is not None else None
             vel = copy.deepcopy(self.vel) if self.vel is not None else None
             if homo_odom is not None and vel is not None and act.homo_goal is not None:
                 v, w, e_p, e_r = self.pid.solve(homo_odom, act.homo_goal, vel)
@@ -239,11 +257,11 @@ class Go2Manager():
                 continue
             self.new_image_arrived = False
 
-            rgb_bytes, depth_bytes, odom_infer = self.get_rgb_depth_odom()
-            if odom_infer is not None and rgb_bytes is not None and depth_bytes is not None and self.global_nav_instruction_str is not None:
+            odom_infer, rgb_image_pil, depth_pil = self.get_rgb_depth_odom()
+            if odom_infer is not None and rgb_image_pil is not None and depth_pil is not None and self.global_nav_instruction_str is not None:
 
                 start = time.time()
-                nav_action, vis_annotated_img = self.nav_policy_infer(self.policy_init, self.http_idx, rgb_bytes, depth_bytes, self.global_nav_instruction_str, self.odom, self.homo_odom)
+                nav_action, vis_annotated_img = self.nav_policy_infer(self.policy_init, self.http_idx, rgb_image_pil, depth_pil, self.global_nav_instruction_str, self.odom)
 
                 self.nav_action = nav_action
                 self.nav_annotated_img = vis_annotated_img
@@ -260,21 +278,81 @@ class Go2Manager():
                 time.sleep(0.1)
             DESIRED_TIME = 0.3
             time.sleep(max(0, DESIRED_TIME - (time.time() - start_time)))
+    
+    def _odom_thread(self):
+        # 1. 获取相机内参
+        '''intrinsics = self.tracker.get_camera_intrinsics()
+        print("相机内参：")
+        print(f"  焦距：fx={intrinsics['fx']:.2f}, fy={intrinsics['fy']:.2f}")
+        print(f"  主点：cx={intrinsics['cx']:.2f}, cy={intrinsics['cy']:.2f}")
+        print(f"  分辨率：{intrinsics['width']}x{intrinsics['height']}")
+        print(f"  深度缩放因子：{intrinsics['scale']}")'''
+
+        while True:
+            # Get the current pose on-demand
+            pose = self.tracker.get_pose_with_twist()
+            # 2. 获取速度（对应 odom_twist 的 linear.x 和 angular.z）
+            twist = self.tracker.get_odom_twist()
+            
+            #if pose:
+            #    print(f"\r位姿：x={pose[0]:.4f}, y={pose[1]:.4f}, yaw={pose[5]:.4f} | "
+            #        f"速度：线速度={twist.linear_x:.2f}m/s, 角速度={twist.angular_z:.2f}rad/s", 
+            #        end="")
+            #else:
+            #    print("\r位姿跟踪丢失 | 速度：0.00m/s, 0.00rad/s", end="")
+
+            # 3. 获取RGB图像并显示
+            rgb_img = self.tracker.get_rgb_image()
+            if not rgb_img.size == 0:
+                # numpy数组可直接用于OpenCV处理（注意：RGB转BGR）
+                #print("================================== rgb image...")
+                self.rgb_image = rgb_img
+                #rgb_cv = cv2.cvtColor(np.array(rgb_img), cv2.COLOR_RGB2BGR)
+                #cv2.imwrite('./rgb.png', rgb_cv)
+
+            # 4. 获取深度图像并显示
+            depth_img = self.tracker.get_depth_image()
+            if not depth_img.size == 0:
+                # 归一化深度图像用于显示
+                #print("saving................depth image")
+                depth_normalized = cv2.normalize(np.array(depth_img), None, 0, 255, cv2.NORM_MINMAX, cv2.CV_8UC1)
+
+            
+                #raw_depth = self.cv_bridge.imgmsg_to_cv2(depth_msg, '16UC1')
+                #raw_depth[np.isnan(raw_depth)] = 0
+                #raw_depth[np.isinf(raw_depth)] = 0
+                #self.depth_image = raw_depth / 1000.0
+                self.depth_image = depth_img
+                self.depth_image -= 0.0
+                self.depth_image[np.where(self.depth_image < 0)] = 0
+                self.depth_image[np.isnan(self.depth_image)] = 0
+                self.depth_image[np.isinf(self.depth_image)] = 0
+
+            #self.rgb_time = rgb_msg.header.stamp.secs + rgb_msg.header.stamp.nsecs / 1.0e9
+            
+            # 标记图像更新
+            self.new_image_arrived = True
+
+            if pose:
+                # 更新位姿
+                self.odom = [pose[0], pose[1], pose[5]]
+                self.odom_queue.append((time.time(), copy.deepcopy(self.odom)))
+                self.vel = [twist.linear_x, twist.angular_z]
+            
+            # Note: As discussed, too slow (like 1s) will cause tracking loss if moving.
+            time.sleep(0.05) # ~20Hz recommended
 
     def start_threads(self):
         self.planning_thread_instance.start()
         self.control_thread_instance.start()
+        self.odom_thread_instance.start()
         print("✅ Go2Manager: control thread and planning thread started successfully")
 
-    def rgb_depth_down_callback(self, rgb_msg, depth_msg):
+    '''def rgb_depth_down_callback(self, rgb_msg, depth_msg):
         """处理下视彩色图像和对齐后的深度图像消息"""
         # 处理彩色图像
         raw_image = self.cv_bridge.imgmsg_to_cv2(rgb_msg, 'rgb8')[:, :, :]
         self.rgb_image = raw_image
-        image = PIL_Image.fromarray(self.rgb_image)
-        image_bytes = io.BytesIO()
-        image.save(image_bytes, format='JPEG')
-        image_bytes.seek(0)
 
         # 处理深度图像
         raw_depth = self.cv_bridge.imgmsg_to_cv2(depth_msg, '16UC1')
@@ -283,29 +361,17 @@ class Go2Manager():
         self.depth_image = raw_depth / 1000.0
         self.depth_image -= 0.0
         self.depth_image[np.where(self.depth_image < 0)] = 0
-        depth = (np.clip(self.depth_image * 10000.0, 0, 65535)).astype(np.uint16)
-        depth = PIL_Image.fromarray(depth)
-        depth_bytes = io.BytesIO()
-        depth.save(depth_bytes, format='PNG')
-        depth_bytes.seek(0)
 
         # 保存数据和时间戳
         self.rgb_depth_rw_lock.acquire_write()
-        self.rgb_bytes = image_bytes
         self.rgb_time = rgb_msg.header.stamp.secs + rgb_msg.header.stamp.nsecs / 1.0e9
-        self.last_rgb_time = self.rgb_time
-        self.depth_bytes = depth_bytes
-        self.depth_time = depth_msg.header.stamp.secs + depth_msg.header.stamp.nsecs / 1.0e9
-        self.last_depth_time = self.depth_time
         self.rgb_depth_rw_lock.release_write()
 
         # 标记图像更新
-        #self.new_vis_image_arrived = True
         self.new_image_arrived = True
 
     def odom_callback(self, msg):
         """处理里程计消息，更新机器人位姿和速度"""
-        #self.odom_cnt += 1
         self.odom_rw_lock.acquire_write()
         # 计算偏航角
         zz = msg.pose.pose.orientation.z
@@ -314,27 +380,16 @@ class Go2Manager():
         # 更新位姿
         self.odom = [msg.pose.pose.position.x, msg.pose.pose.position.y, yaw]
         self.odom_queue.append((time.time(), copy.deepcopy(self.odom)))
-        #self.odom_timestamp = time.time()
-        # 更新速度
-        self.linear_vel = msg.twist.twist.linear.x
-        self.angular_vel = msg.twist.twist.angular.z
-        self.odom_rw_lock.release_write()
-
-        # 计算齐次变换矩阵
-        R0 = np.array([[np.cos(yaw), -np.sin(yaw)], [np.sin(yaw), np.cos(yaw)]])
-        self.homo_odom = np.eye(4)
-        self.homo_odom[:2, :2] = R0
-        self.homo_odom[:2, 3] = [msg.pose.pose.position.x, msg.pose.pose.position.y]
         self.vel = [msg.twist.twist.linear.x, msg.twist.twist.angular.z]
+        # 更新速度
+        self.odom_rw_lock.release_write()'''
 
     def move(self, vx, vy, vyaw):
         """发布机器人线速度和角速度控制指令"""
-        request = Twist()
-        request.linear.x = vx
-        request.linear.y = 0.0
-        request.angular.z = vyaw
-
-        self.control_pub.publish(request)
+        #request = Twist()
+        #request.linear.x = vx
+        #request.linear.y = 0.0
+        #request.angular.z = vyaw
 
         # 发送指令到机器人基座（可根据需要启用）
         action = {"x.vel": vx,
@@ -342,14 +397,6 @@ class Go2Manager():
                   "theta.vel": vyaw
                   }
         # self.lekiwi_base.send_action(action)
-
-    def set_nav_instruction(self, ins_str):
-        """设置全局导航指令，替代原Gradio输入"""
-        self.global_nav_instruction_str = ins_str
-        # 可选：执行推理
-        if self.rgb_bytes is not None:
-            image_bytes = copy.deepcopy(self.rgb_bytes)
-            #self._cosmos_reason1_infer(image_bytes, ins_str)
 
     def nav_task_reset(self):
         """重置导航任务，停止机器人运动"""
@@ -394,23 +441,13 @@ class Go2Manager():
 if __name__ == "__main__":
 
     print("======= Starting Go2Manager Core =======")
-    # 初始化Go2Manager实例
-    manager = Go2Manager()
-
-    # 启动控制线程和规划线程
-    manager.start_threads()
-
-    # 可选：设置默认导航指令（替代Gradio输入）
-    # manager.set_nav_instruction("walk close to office chair")
-
     try:
-        # 初始化 Go2Manager 实例（内部已调用 rospy.init_node）
+        # 初始化 Go2Manager 实例
         manager = Go2Manager()
         # 启动控制线程和规划线程
         manager.start_threads()
-        # 可选：设置默认导航指令
-        # manager.set_nav_instruction("walk close to office chair")
-        rospy.spin()
+
+        #rospy.spin()
     except KeyboardInterrupt:
         print("\n======= Stopping Go2Manager Core =======")
         manager.nav_task_reset()

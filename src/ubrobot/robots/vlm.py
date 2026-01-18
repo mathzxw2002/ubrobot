@@ -21,13 +21,16 @@ class RobotVLM:
         self.url = url
        
     
-    def reasoning_vlm_infer(self, image_bytes, instruction):
-        # TODO test
-        #self.grounding_2d_bbox(image_bytes)
-        return self._cosmos_reason1_infer(image_bytes, instruction)
+    def reasoning_vlm_infer(self, image_pil, instruction):
+        return self._cosmos_reason1_infer(image_pil, instruction)
 
-    def _cosmos_reason1_infer(self, image_bytes, instruction):
+    def _cosmos_reason1_infer(self, image_pil, instruction):
         """发送图像和指令到HTTP服务，获取推理结果"""
+        print("=================================================== infer_cosmos_reason")
+        image_bytes = io.BytesIO()
+        image_pil.save(image_bytes, format="JPEG")
+        image_bytes.seek(0)
+
         data = {"ins": instruction}
         json_data = json.dumps(data)
 

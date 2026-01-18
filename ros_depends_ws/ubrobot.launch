@@ -1,0 +1,16 @@
+<?xml version="1.0"?>
+<launch>
+
+<!-- Startup Script for launching UBRobot Sensors, e.g. cameras and piper arms. -->
+
+<include file="$(find piper)/launch/start_single_piper.launch">
+   <arg name="can_port" value="can0" />
+   <arg name="auto_enable" value="true" />
+   <arg name="gripper_val_mutiple" value="1" />
+</include>
+
+<include file="$(find piper_with_gripper_moveit)/launch/demo.launch">
+   <arg name="use_rviz" default="false" />
+</include>
+
+</launch>

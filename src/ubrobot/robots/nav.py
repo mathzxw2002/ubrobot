@@ -9,6 +9,7 @@ from PIL import ImageDraw, ImageFont
 import cv2
 from PIL import Image as PIL_Image
 import requests
+import io
 
 from collections import OrderedDict
 
@@ -176,7 +177,14 @@ class RobotNav:
                 homo_goal[:3, :3] = np.dot(rotation_matrix, homo_goal[:3, :3])
         return homo_goal
     
-    def convert_policy_res_to_action(self, response, odom, homo_odom):
+    def convert_policy_res_to_action(self, response, odom):
+        # compute homo_odom by odom
+        # 计算齐次变换矩阵
+        yaw = odom[2]
+        R0 = np.array([[np.cos(yaw), -np.sin(yaw)], [np.sin(yaw), np.cos(yaw)]])
+        homo_odom = np.eye(4)
+        homo_odom[:2, :2] = R0
+        homo_odom[:2, 3] = odom[:2]
 
         act = RobotAction()
         act.odom = odom
@@ -213,12 +221,20 @@ class RobotNav:
             actions = response['discrete_action']
             if actions != [5] and actions != [9]:
                 act.homo_goal = self.incremental_change_goal(actions, homo_odom)
-                #self.homo_goal = act.homo_goal
                 act.current_control_mode = ControlMode.PID_Mode
         return act
     
-    def _dual_sys_eval(self, policy_init, http_idx, image_bytes, depth_bytes, instruction, odom, homo_odom, url='http://192.168.18.230:5801/eval_dual'):
+    def _dual_sys_eval(self, policy_init, http_idx, rgb_image_pil, depth_pil, instruction, odom, url='http://192.168.18.230:5801/eval_dual'):
         
+        
+        image_bytes = io.BytesIO()
+        rgb_image_pil.save(image_bytes, format='JPEG')
+        image_bytes.seek(0)
+
+        depth_bytes = io.BytesIO()
+        depth_pil.save(depth_bytes, format='PNG')
+        depth_bytes.seek(0)
+
         #global frame_data
         data = {"reset": policy_init, "idx": http_idx, "ins": instruction}
         json_data = json.dumps(data)
@@ -242,7 +258,7 @@ class RobotNav:
             return {}
 
         nav_result = json.loads(response.text)
-        nav_action = self.convert_policy_res_to_action(nav_result, odom, homo_odom)
+        nav_action = self.convert_policy_res_to_action(nav_result, odom)
 
         if 1:
             pixel_goal = nav_result.get('pixel_goal', None)

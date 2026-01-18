@@ -172,7 +172,7 @@ class Go2Manager():
         depth = (np.clip(self.depth_image * 10000.0, 0, 65535)).astype(np.uint16)
         depth_pil = PIL_Image.fromarray(depth)
 
-        rgb_time = self.rgb_time
+        #rgb_time = self.rgb_time
         self.rgb_depth_rw_lock.release_read()
 
         #self.odom_rw_lock.acquire_read()

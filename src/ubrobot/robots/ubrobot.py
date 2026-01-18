@@ -136,7 +136,6 @@ class Go2Manager():
         self.planning_thread_instance = threading.Thread(target=self._planning_thread, daemon=True)
         self.camera_thread_instance = threading.Thread(target=self._camera_thread, daemon=True)
 
-
         # nav action
         self.act = None
 
@@ -176,15 +175,16 @@ class Go2Manager():
         rgb_time = self.rgb_time
         self.rgb_depth_rw_lock.release_read()
 
-        self.odom_rw_lock.acquire_read()
-        min_diff = 1e10
+        #self.odom_rw_lock.acquire_read()
+        #min_diff = 1e10
         odom_infer = None
-        for odom in self.odom_queue:
-            diff = abs(odom[0] - rgb_time)
-            if diff < min_diff:
-                min_diff = diff
-                odom_infer = copy.deepcopy(odom[1])
-        self.odom_rw_lock.release_read()
+        #for odom in self.odom_queue:
+        #    diff = abs(odom[0] - rgb_time)
+        #    if diff < min_diff:
+        #        min_diff = diff
+        #        odom_infer = copy.deepcopy(odom[1])
+        #self.odom_rw_lock.release_read()
+        odom_infer = self.odom
         return odom_infer, rgb_image_pil, depth_pil
     
     def nav_policy_infer(self, policy_init, http_idx, rgb_image_pil, depth_pil, instruction, odom):        
@@ -306,8 +306,9 @@ class Go2Manager():
             if not rgb_img.size == 0:
                 # numpy数组可直接用于OpenCV处理（注意：RGB转BGR）
                 print("================================== rgb image...")
-                rgb_cv = cv2.cvtColor(np.array(rgb_img), cv2.COLOR_RGB2BGR)
-                cv2.imwrite('./rgbe.png', rgb_cv)
+                self.rgb_image = rgb_img
+                #rgb_cv = cv2.cvtColor(np.array(rgb_img), cv2.COLOR_RGB2BGR)
+                #cv2.imwrite('./rgb.png', rgb_cv)
 
             # 4. 获取深度图像并显示
             depth_img = self.tracker.get_depth_image()
@@ -315,6 +316,22 @@ class Go2Manager():
                 # 归一化深度图像用于显示
                 print("saving................depth image")
                 depth_normalized = cv2.normalize(np.array(depth_img), None, 0, 255, cv2.NORM_MINMAX, cv2.CV_8UC1)
+
+            
+            #raw_depth = self.cv_bridge.imgmsg_to_cv2(depth_msg, '16UC1')
+            #raw_depth[np.isnan(raw_depth)] = 0
+            #raw_depth[np.isinf(raw_depth)] = 0
+            #self.depth_image = raw_depth / 1000.0
+            self.depth_image = depth_img
+            self.depth_image -= 0.0
+            self.depth_image[np.where(self.depth_image < 0)] = 0
+            self.depth_image[np.isnan(self.depth_image)] = 0
+            self.depth_image[np.isinf(self.depth_image)] = 0
+
+            #self.rgb_time = rgb_msg.header.stamp.secs + rgb_msg.header.stamp.nsecs / 1.0e9
+            
+            # 标记图像更新
+            self.new_image_arrived = True
             
             # Note: As discussed, too slow (like 1s) will cause tracking loss if moving.
             time.sleep(0.05) # ~20Hz recommended
@@ -349,7 +366,6 @@ class Go2Manager():
 
     def odom_callback(self, msg):
         """处理里程计消息，更新机器人位姿和速度"""
-        
         self.odom_rw_lock.acquire_write()
         # 计算偏航角
         zz = msg.pose.pose.orientation.z
@@ -358,16 +374,9 @@ class Go2Manager():
         # 更新位姿
         self.odom = [msg.pose.pose.position.x, msg.pose.pose.position.y, yaw]
         self.odom_queue.append((time.time(), copy.deepcopy(self.odom)))
-        
+        self.vel = [msg.twist.twist.linear.x, msg.twist.twist.angular.z]
         # 更新速度
         self.odom_rw_lock.release_write()
-
-        # 计算齐次变换矩阵
-        #R0 = np.array([[np.cos(yaw), -np.sin(yaw)], [np.sin(yaw), np.cos(yaw)]])
-        #self.homo_odom = np.eye(4)
-        #self.homo_odom[:2, :2] = R0
-        #self.homo_odom[:2, 3] = [msg.pose.pose.position.x, msg.pose.pose.position.y]
-        self.vel = [msg.twist.twist.linear.x, msg.twist.twist.angular.z]
 
     def move(self, vx, vy, vyaw):
         """发布机器人线速度和角速度控制指令"""

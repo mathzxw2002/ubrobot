@@ -146,8 +146,7 @@ public:
         }
 
         // 转换为numpy数组（HWC格式）
-	py::array_t<uint8_t> rgb_array({static_cast<long int>(rgb_mat.rows),  static_cast<long int>(rgb_mat.cols), static_cast<long int>(3)}, {static_cast<long int>(rgb_mat.cols * 3), static_cast<long int>(3), static_cast<long int>(1)}, rgb_mat.data );
-
+	    py::array_t<uint8_t> rgb_array({static_cast<long int>(rgb_mat.rows),  static_cast<long int>(rgb_mat.cols), static_cast<long int>(3)}, {static_cast<long int>(rgb_mat.cols * 3), static_cast<long int>(3), static_cast<long int>(1)}, rgb_mat.data );
         return rgb_array;
     }
 
@@ -178,8 +177,7 @@ public:
         }
 
         // 转换为numpy数组
-	py::array_t<float> depth_array({static_cast<long int>(depth_float.rows), static_cast<long int>(depth_float.cols)}, {static_cast<long int>(depth_float.cols * sizeof(float)), static_cast<long int>(sizeof(float))}, reinterpret_cast<float*>(static_cast<uchar*>(depth_float.data)));
-
+	    py::array_t<float> depth_array({static_cast<long int>(depth_float.rows), static_cast<long int>(depth_float.cols)}, {static_cast<long int>(depth_float.cols * sizeof(float)), static_cast<long int>(sizeof(float))}, reinterpret_cast<float*>(static_cast<uchar*>(depth_float.data)));
         return depth_array;
     }
 

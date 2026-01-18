@@ -100,19 +100,13 @@ class Go2Manager():
 
         self.cv_bridge = CvBridge()
         self.rgb_image = None
-        #self.rgb_image_pil = None
-        #self.rgb_bytes = None
         self.depth_image = None
-        #self.depth_pil = None
-        #self.depth_bytes = None
         self.new_image_arrived = False
         self.rgb_time = 0.0
 
         self.odom = None
-        self.linear_vel = 0.0
-        self.angular_vel = 0.0
         self.odom_queue = deque(maxlen=50)
-        self.homo_odom = None
+        #self.homo_odom = None
         self.vel = None
 
         # vlm model
@@ -156,10 +150,7 @@ class Go2Manager():
 
     def get_rgb_depth_odom(self):
         self.rgb_depth_rw_lock.acquire_read()
-        #rgb_bytes = copy.deepcopy(self.rgb_bytes)
-        #depth_bytes = copy.deepcopy(self.depth_bytes)
         rgb_image_pil = PIL_Image.fromarray(self.rgb_image)
-
         depth = (np.clip(self.depth_image * 10000.0, 0, 65535)).astype(np.uint16)
         depth_pil = PIL_Image.fromarray(depth)
 
@@ -177,10 +168,10 @@ class Go2Manager():
         self.odom_rw_lock.release_read()
         return odom_infer, rgb_image_pil, depth_pil
     
-    def nav_policy_infer(self, policy_init, http_idx, rgb_image_pil, depth_pil, instruction, odom, homo_odom):        
+    def nav_policy_infer(self, policy_init, http_idx, rgb_image_pil, depth_pil, instruction, odom):        
         
         
-        nav_action, vis_annotated_img = self.nav._dual_sys_eval(policy_init, http_idx, rgb_image_pil, depth_pil, instruction, odom, homo_odom)
+        nav_action, vis_annotated_img = self.nav._dual_sys_eval(policy_init, http_idx, rgb_image_pil, depth_pil, instruction, odom)
         
         return nav_action, vis_annotated_img
 
@@ -219,8 +210,16 @@ class Go2Manager():
 
                 #self.move(v, 0.0, w)
         elif act.current_control_mode == ControlMode.PID_Mode:
-            #self.homo_goal = act.homo_goal
-            homo_odom = copy.deepcopy(self.homo_odom) if self.homo_odom is not None else None
+            odom = copy.deepcopy(self.odom) if self.odom is not None else None
+            # compute homo_odom by odom
+            # 计算齐次变换矩阵
+            yaw = odom[2]
+            R0 = np.array([[np.cos(yaw), -np.sin(yaw)], [np.sin(yaw), np.cos(yaw)]])
+            homo_odom = np.eye(4)
+            homo_odom[:2, :2] = R0
+            homo_odom[:2, 3] = odom[:2]
+            
+            #homo_odom = copy.deepcopy(self.homo_odom) if self.homo_odom is not None else None
             vel = copy.deepcopy(self.vel) if self.vel is not None else None
             if homo_odom is not None and vel is not None and act.homo_goal is not None:
                 v, w, e_p, e_r = self.pid.solve(homo_odom, act.homo_goal, vel)
@@ -246,7 +245,7 @@ class Go2Manager():
             if odom_infer is not None and rgb_image_pil is not None and depth_pil is not None and self.global_nav_instruction_str is not None:
 
                 start = time.time()
-                nav_action, vis_annotated_img = self.nav_policy_infer(self.policy_init, self.http_idx, rgb_image_pil, depth_pil, self.global_nav_instruction_str, self.odom, self.homo_odom)
+                nav_action, vis_annotated_img = self.nav_policy_infer(self.policy_init, self.http_idx, rgb_image_pil, depth_pil, self.global_nav_instruction_str, self.odom)
 
                 self.nav_action = nav_action
                 self.nav_annotated_img = vis_annotated_img
@@ -274,10 +273,6 @@ class Go2Manager():
         # 处理彩色图像
         raw_image = self.cv_bridge.imgmsg_to_cv2(rgb_msg, 'rgb8')[:, :, :]
         self.rgb_image = raw_image
-        #image = PIL_Image.fromarray(self.rgb_image)
-        #image_bytes = io.BytesIO()
-        #image.save(image_bytes, format='JPEG')
-        #image_bytes.seek(0)
 
         # 处理深度图像
         raw_depth = self.cv_bridge.imgmsg_to_cv2(depth_msg, '16UC1')
@@ -286,19 +281,10 @@ class Go2Manager():
         self.depth_image = raw_depth / 1000.0
         self.depth_image -= 0.0
         self.depth_image[np.where(self.depth_image < 0)] = 0
-        
-        #depth = (np.clip(self.depth_image * 10000.0, 0, 65535)).astype(np.uint16)
-        #depth = PIL_Image.fromarray(depth)
-        #depth_bytes = io.BytesIO()
-        #depth.save(depth_bytes, format='PNG')
-        #depth_bytes.seek(0)
 
         # 保存数据和时间戳
         self.rgb_depth_rw_lock.acquire_write()
-        #self.rgb_bytes = image_bytes
         self.rgb_time = rgb_msg.header.stamp.secs + rgb_msg.header.stamp.nsecs / 1.0e9
-        #self.depth_bytes = depth_bytes
-        #self.depth_pil = depth
         self.rgb_depth_rw_lock.release_write()
 
         # 标记图像更新
@@ -317,15 +303,13 @@ class Go2Manager():
         self.odom_queue.append((time.time(), copy.deepcopy(self.odom)))
         
         # 更新速度
-        self.linear_vel = msg.twist.twist.linear.x
-        self.angular_vel = msg.twist.twist.angular.z
         self.odom_rw_lock.release_write()
 
         # 计算齐次变换矩阵
-        R0 = np.array([[np.cos(yaw), -np.sin(yaw)], [np.sin(yaw), np.cos(yaw)]])
-        self.homo_odom = np.eye(4)
-        self.homo_odom[:2, :2] = R0
-        self.homo_odom[:2, 3] = [msg.pose.pose.position.x, msg.pose.pose.position.y]
+        #R0 = np.array([[np.cos(yaw), -np.sin(yaw)], [np.sin(yaw), np.cos(yaw)]])
+        #self.homo_odom = np.eye(4)
+        #self.homo_odom[:2, :2] = R0
+        #self.homo_odom[:2, 3] = [msg.pose.pose.position.x, msg.pose.pose.position.y]
         self.vel = [msg.twist.twist.linear.x, msg.twist.twist.angular.z]
 
     def move(self, vx, vy, vyaw):

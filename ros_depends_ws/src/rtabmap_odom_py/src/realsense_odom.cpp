@@ -7,6 +7,7 @@
 #include <rtabmap/core/Parameters.h>
 #include <rtabmap/core/CameraModel.h>
 #include <rtabmap/core/OdometryInfo.h>
+#include <rtabmap/core/Transform.h> 
 #include <string>
 #include <iostream>
 #include <vector>
@@ -35,6 +36,7 @@ struct CameraIntrinsics {
 struct OdomTwist {
     float linear_x;  // m/s
     float angular_z; // rad/s
+    float confidence; // 速度置信度（0-1）
 };
 
 class RealsenseOdom {
@@ -57,16 +59,27 @@ public:
         camera_initialized_ = true;
 
         rtabmap::ParametersMap params;
-        params.insert(rtabmap::ParametersPair(rtabmap::Parameters::kOdomStrategy(), "0"));
+        params.insert(rtabmap::ParametersPair(rtabmap::Parameters::kOdomStrategy(), "0")); // 视觉里程计
         params.insert(rtabmap::ParametersPair(rtabmap::Parameters::kVisMaxFeatures(), "1000"));
+        params.insert(rtabmap::ParametersPair(rtabmap::Parameters::kOdomFramerate(), "30")); // 匹配相机帧率
+        params.insert(rtabmap::ParametersPair(rtabmap::Parameters::kOdomSmoothMotion(), "true")); // 开启运动平滑
         
         odom_ = rtabmap::Odometry::create(params);
 
+        // 等待相机输出有效数据后再初始化内参
+        int wait_frame = 0;
+        while (wait_frame < 10 && !latest_data_.isValid()) {
+            latest_data_ = camera_.takeImage();
+            wait_frame++;
+            std::this_thread::sleep_for(std::chrono::milliseconds(100));
+        }
         this->init_camera_intrinsics();
 
+        // 初始化速度和位姿状态
         last_pose_valid_ = false;
         twist_.linear_x = 0.0f;
         twist_.angular_z = 0.0f;
+        twist_.confidence = 0.0f; // 初始化置信度
 
         if(DEBUG_MODE) {
             std::cout << "[DEBUG] Camera Intrinsics: " 
@@ -85,6 +98,7 @@ public:
         if(!latest_data_.isValid() || odom_ == nullptr) {
             twist_.linear_x = 0.0f;
             twist_.angular_z = 0.0f;
+            twist_.confidence = 0.0f;
             return {};
         }
 
@@ -94,33 +108,37 @@ public:
         if(pose.isNull()) {
             twist_.linear_x = 0.0f;
             twist_.angular_z = 0.0f;
+            twist_.confidence = 0.0f;
             return {};
         }
 
-        float x, y, z, r, p, yaw;
-        pose.getTranslationAndEulerAngles(x, y, z, r, p, yaw);
-        double curr_time = latest_data_.stamp();
+        // 直接从OdometryInfo获取计算好的速度（无需手动差分）
+        twist_.linear_x = static_cast<float>(info.vx);    // 前向线速度（m/s）
+        twist_.angular_z = static_cast<float>(info.wz);   // 偏航角速度（rad/s）
+        twist_.confidence = static_cast<float>(info.confidence); // 速度置信度（0-1）
 
-        if(last_pose_valid_) {
-            double dt = curr_time - last_time_;
-            if(dt > 1e-3) { 
-                float dx = x - last_x_;
-                float dy = y - last_y_;
-                float dist = std::sqrt(dx*dx + dy*dy);
-                twist_.linear_x = dist / dt;
-
-                float dyaw = yaw - last_yaw_;
-                dyaw = std::atan2(std::sin(dyaw), std::cos(dyaw));
-                twist_.angular_z = dyaw / dt;
-            }
+        // 过滤低置信度数据
+        if (twist_.confidence < 0.2) {
+            twist_.linear_x = 0.0f;
+            twist_.angular_z = 0.0f;
         }
 
-        // 保存当前帧为上一帧
+        // 解析位姿（保留原有逻辑）
+        float x, y, z, r, p, yaw;
+        pose.getTranslationAndEulerAngles(x, y, z, r, p, yaw);
+
+        // 保留历史位姿（仅用于日志，无需计算速度）
         last_x_ = x;
         last_y_ = y;
         last_yaw_ = yaw;
-        last_time_ = curr_time;
+        last_time_ = latest_data_.stamp();
         last_pose_valid_ = true;
+
+        if (DEBUG_MODE) {
+            std::cout << "[DEBUG] 原生速度：linear_x=" << twist_.linear_x 
+                      << " m/s, angular_z=" << twist_.angular_z 
+                      << " rad/s, 置信度=" << twist_.confidence << std::endl;
+        }
 
         return {x, y, z, r, p, yaw};
     }
@@ -207,7 +225,6 @@ public:
         return intrinsics_dict;
     }
 
-    // 析构函数
     ~RealsenseOdom() {
         std::unique_lock<std::shared_mutex> lock(data_rw_mutex_);
         
@@ -215,6 +232,7 @@ public:
             delete odom_;
             odom_ = nullptr;
         }
+        camera_.close();
         camera_initialized_ = false;
         if(DEBUG_MODE) {
             std::cout << "[DEBUG] Resource released." << std::endl;
@@ -256,16 +274,16 @@ private:
 	rtabmap::CameraModel model;
         if(!latest_data_.cameraModels().empty()) { // Check Mono/RGB-D camera models
             model = latest_data_.cameraModels()[0];
-        } else if(latest_data_.stereoCameraModels().empty()) {// Check Stereo camera models
-	    // Access the first stereo model in the vector, then get its left camera
-	    if(latest_data_.stereoCameraModels()[0].isValidForProjection()) {
-	        model = latest_data_.stereoCameraModels()[0].left();
-	    } else {
-		throw std::runtime_error("CameraModels and stereoCameraModels are empty.");
-    	    }
-	} else {
-	    throw std::runtime_error("No camera models found in latest_data_");
-	}
+        } else if(!latest_data_.stereoCameraModels().empty()) {// Check Stereo camera models
+            // Access the first stereo model in the vector, then get its left camera
+            if(latest_data_.stereoCameraModels()[0].isValidForProjection()) {
+                model = latest_data_.stereoCameraModels()[0].left();
+            } else {
+                throw std::runtime_error("CameraModels and stereoCameraModels are empty.");
+            }
+        } else {
+            throw std::runtime_error("No camera models found in latest_data_");
+        }
 
         intrinsics_.fx = model.fx();
         intrinsics_.fy = model.fy();

@@ -223,7 +223,7 @@ class ActionSequence:
 class PoseTransformer:
     def __init__(self):
         # 初始化ROS节点
-        #rospy.init_node('piper_pose_transformer', anonymous=True)
+        rospy.init_node('piper_pose_transformer', anonymous=True)
 
         # Point Cloud from RealSense (RGBD)
         self.orig_pcd = None

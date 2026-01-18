@@ -294,18 +294,18 @@ class Go2Manager():
             # 2. 获取速度（对应 odom_twist 的 linear.x 和 angular.z）
             twist = self.tracker.get_odom_twist()
             
-            if pose:
-                print(f"\r位姿：x={pose[0]:.4f}, y={pose[1]:.4f}, yaw={pose[5]:.4f} | "
-                    f"速度：线速度={twist.linear_x:.2f}m/s, 角速度={twist.angular_z:.2f}rad/s", 
-                    end="")
-            else:
-                print("\r位姿跟踪丢失 | 速度：0.00m/s, 0.00rad/s", end="")
+            #if pose:
+            #    print(f"\r位姿：x={pose[0]:.4f}, y={pose[1]:.4f}, yaw={pose[5]:.4f} | "
+            #        f"速度：线速度={twist.linear_x:.2f}m/s, 角速度={twist.angular_z:.2f}rad/s", 
+            #        end="")
+            #else:
+            #    print("\r位姿跟踪丢失 | 速度：0.00m/s, 0.00rad/s", end="")
 
             # 3. 获取RGB图像并显示
             rgb_img = self.tracker.get_rgb_image()
             if not rgb_img.size == 0:
                 # numpy数组可直接用于OpenCV处理（注意：RGB转BGR）
-                print("================================== rgb image...")
+                #print("================================== rgb image...")
                 self.rgb_image = rgb_img
                 #rgb_cv = cv2.cvtColor(np.array(rgb_img), cv2.COLOR_RGB2BGR)
                 #cv2.imwrite('./rgb.png', rgb_cv)
@@ -314,29 +314,30 @@ class Go2Manager():
             depth_img = self.tracker.get_depth_image()
             if not depth_img.size == 0:
                 # 归一化深度图像用于显示
-                print("saving................depth image")
+                #print("saving................depth image")
                 depth_normalized = cv2.normalize(np.array(depth_img), None, 0, 255, cv2.NORM_MINMAX, cv2.CV_8UC1)
 
             
-            #raw_depth = self.cv_bridge.imgmsg_to_cv2(depth_msg, '16UC1')
-            #raw_depth[np.isnan(raw_depth)] = 0
-            #raw_depth[np.isinf(raw_depth)] = 0
-            #self.depth_image = raw_depth / 1000.0
-            self.depth_image = depth_img
-            self.depth_image -= 0.0
-            self.depth_image[np.where(self.depth_image < 0)] = 0
-            self.depth_image[np.isnan(self.depth_image)] = 0
-            self.depth_image[np.isinf(self.depth_image)] = 0
+                #raw_depth = self.cv_bridge.imgmsg_to_cv2(depth_msg, '16UC1')
+                #raw_depth[np.isnan(raw_depth)] = 0
+                #raw_depth[np.isinf(raw_depth)] = 0
+                #self.depth_image = raw_depth / 1000.0
+                self.depth_image = depth_img
+                self.depth_image -= 0.0
+                self.depth_image[np.where(self.depth_image < 0)] = 0
+                self.depth_image[np.isnan(self.depth_image)] = 0
+                self.depth_image[np.isinf(self.depth_image)] = 0
 
             #self.rgb_time = rgb_msg.header.stamp.secs + rgb_msg.header.stamp.nsecs / 1.0e9
             
             # 标记图像更新
             self.new_image_arrived = True
 
-            # 更新位姿
-            self.odom = [pose[0], pose[1], pose[5]]
-            self.odom_queue.append((time.time(), copy.deepcopy(self.odom)))
-            self.vel = [twist.linear_x, twist.angular_z]
+            if pose:
+                # 更新位姿
+                self.odom = [pose[0], pose[1], pose[5]]
+                self.odom_queue.append((time.time(), copy.deepcopy(self.odom)))
+                self.vel = [twist.linear_x, twist.angular_z]
             
             # Note: As discussed, too slow (like 1s) will cause tracking loss if moving.
             time.sleep(0.05) # ~20Hz recommended
@@ -347,7 +348,7 @@ class Go2Manager():
         self.odom_thread_instance.start()
         print("✅ Go2Manager: control thread and planning thread started successfully")
 
-    def rgb_depth_down_callback(self, rgb_msg, depth_msg):
+    '''def rgb_depth_down_callback(self, rgb_msg, depth_msg):
         """处理下视彩色图像和对齐后的深度图像消息"""
         # 处理彩色图像
         raw_image = self.cv_bridge.imgmsg_to_cv2(rgb_msg, 'rgb8')[:, :, :]
@@ -381,14 +382,14 @@ class Go2Manager():
         self.odom_queue.append((time.time(), copy.deepcopy(self.odom)))
         self.vel = [msg.twist.twist.linear.x, msg.twist.twist.angular.z]
         # 更新速度
-        self.odom_rw_lock.release_write()
+        self.odom_rw_lock.release_write()'''
 
     def move(self, vx, vy, vyaw):
         """发布机器人线速度和角速度控制指令"""
-        request = Twist()
-        request.linear.x = vx
-        request.linear.y = 0.0
-        request.angular.z = vyaw
+        #request = Twist()
+        #request.linear.x = vx
+        #request.linear.y = 0.0
+        #request.angular.z = vyaw
 
         # 发送指令到机器人基座（可根据需要启用）
         action = {"x.vel": vx,

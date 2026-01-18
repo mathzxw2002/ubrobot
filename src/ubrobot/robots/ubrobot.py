@@ -21,12 +21,12 @@ from unitree_sdk2py.go2.sport.sport_client import (
     SPORT_PATH_POINT_SIZE,
 )
 
-import rospy
-from message_filters import ApproximateTimeSynchronizer, Subscriber
-from cv_bridge import CvBridge
-from geometry_msgs.msg import Twist
-from nav_msgs.msg import Odometry
-from sensor_msgs.msg import Image
+#import rospy
+#from message_filters import ApproximateTimeSynchronizer, Subscriber
+#from cv_bridge import CvBridge
+#from geometry_msgs.msg import Twist
+#from nav_msgs.msg import Odometry
+#from sensor_msgs.msg import Image
 
 from PIL import Image as PIL_Image
 
@@ -76,7 +76,7 @@ option_list = [
 
 class Go2Manager():
     def __init__(self):
-        rospy.init_node('go2_manager', anonymous=True) 
+        #rospy.init_node('go2_manager', anonymous=True) 
 
         # 控制模式相关
         self.policy_init = True
@@ -109,18 +109,18 @@ class Go2Manager():
         self.act_rw_lock = ReadWriteLock()
         self.nav_rw_lock = ReadWriteLock()
 
-        rgb_down_sub = Subscriber("/cam_front/camera/color/image_raw", Image)
-        depth_down_sub = Subscriber("/cam_front/camera/aligned_depth_to_color/image_raw", Image)
+        #rgb_down_sub = Subscriber("/cam_front/camera/color/image_raw", Image)
+        #depth_down_sub = Subscriber("/cam_front/camera/aligned_depth_to_color/image_raw", Image)
 
-        self.syncronizer = ApproximateTimeSynchronizer([rgb_down_sub, depth_down_sub], 1, 0.1)
-        self.syncronizer.registerCallback(self.rgb_depth_down_callback)
-        self.odom_sub = rospy.Subscriber("/rtabmap/odom", Odometry, self.odom_callback)
+        #self.syncronizer = ApproximateTimeSynchronizer([rgb_down_sub, depth_down_sub], 1, 0.1)
+        #self.syncronizer.registerCallback(self.rgb_depth_down_callback)
+        #self.odom_sub = rospy.Subscriber("/rtabmap/odom", Odometry, self.odom_callback)
 
-        self.cv_bridge = CvBridge()
+        #self.cv_bridge = CvBridge()
         self.rgb_image = None
         self.depth_image = None
         self.new_image_arrived = False
-        self.rgb_time = 0.0
+        #self.rgb_time = 0.0
 
         self.odom = None
         self.odom_queue = deque(maxlen=50)
@@ -441,12 +441,12 @@ if __name__ == "__main__":
 
     print("======= Starting Go2Manager Core =======")
     try:
-        # 初始化 Go2Manager 实例（内部已调用 rospy.init_node）
+        # 初始化 Go2Manager 实例
         manager = Go2Manager()
         # 启动控制线程和规划线程
         manager.start_threads()
 
-        rospy.spin()
+        #rospy.spin()
     except KeyboardInterrupt:
         print("\n======= Stopping Go2Manager Core =======")
         manager.nav_task_reset()

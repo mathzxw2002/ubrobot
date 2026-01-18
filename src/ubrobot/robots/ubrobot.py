@@ -43,6 +43,11 @@ from .nav import RobotNav, RobotAction, ControlMode
 
 from dataclasses import dataclass
 
+import sys
+sys.path.append("/home/unitree/ubrobot/ros_depends_ws/src/rtabmap_odom_py/odom")
+
+import rs_odom_module
+
 @dataclass
 class TestOption:
     name: str
@@ -84,6 +89,19 @@ class Go2Manager():
         self.nav_action = None
         self.nav_annotated_img = None
 
+        # odom manager
+        # Initialize the hardware and RTAB-Map
+        print("Initializing D435i and Odometry...")
+        self.tracker = None
+        try:
+            self.tracker = rs_odom_module.RealsenseOdom(camera_serial="419522070679")
+            print("Waiting for camera data...")
+            # Give the camera and RTAB-Map 2-3 seconds to sync and receive the first frame
+            time.sleep(3.0)
+        except RuntimeError as e:
+            print("初始化失败：", e)
+            exit(1)
+
         # 读写锁相关
         self.rgb_depth_rw_lock = ReadWriteLock()
         self.odom_rw_lock = ReadWriteLock()
@@ -106,7 +124,6 @@ class Go2Manager():
 
         self.odom = None
         self.odom_queue = deque(maxlen=50)
-        #self.homo_odom = None
         self.vel = None
 
         # vlm model
@@ -117,6 +134,8 @@ class Go2Manager():
 
         self.control_thread_instance = threading.Thread(target=self._control_thread, daemon=True)
         self.planning_thread_instance = threading.Thread(target=self._planning_thread, daemon=True)
+        self.camera_thread_instance = threading.Thread(target=self._camera_thread, daemon=True)
+
 
         # nav action
         self.act = None
@@ -169,10 +188,7 @@ class Go2Manager():
         return odom_infer, rgb_image_pil, depth_pil
     
     def nav_policy_infer(self, policy_init, http_idx, rgb_image_pil, depth_pil, instruction, odom):        
-        
-        
         nav_action, vis_annotated_img = self.nav._dual_sys_eval(policy_init, http_idx, rgb_image_pil, depth_pil, instruction, odom)
-        
         return nav_action, vis_annotated_img
 
     def _control_thread(self):
@@ -262,10 +278,51 @@ class Go2Manager():
                 time.sleep(0.1)
             DESIRED_TIME = 0.3
             time.sleep(max(0, DESIRED_TIME - (time.time() - start_time)))
+    
+    def _camera_thread(self):
+        # 1. 获取相机内参
+        '''intrinsics = self.tracker.get_camera_intrinsics()
+        print("相机内参：")
+        print(f"  焦距：fx={intrinsics['fx']:.2f}, fy={intrinsics['fy']:.2f}")
+        print(f"  主点：cx={intrinsics['cx']:.2f}, cy={intrinsics['cy']:.2f}")
+        print(f"  分辨率：{intrinsics['width']}x{intrinsics['height']}")
+        print(f"  深度缩放因子：{intrinsics['scale']}")'''
+
+        while True:
+            # Get the current pose on-demand
+            pose = self.tracker.get_pose_with_twist()
+            # 2. 获取速度（对应 odom_twist 的 linear.x 和 angular.z）
+            twist = self.tracker.get_odom_twist()
+            
+            if pose:
+                print(f"\r位姿：x={pose[0]:.4f}, y={pose[1]:.4f}, yaw={pose[5]:.4f} | "
+                    f"速度：线速度={twist.linear_x:.2f}m/s, 角速度={twist.angular_z:.2f}rad/s", 
+                    end="")
+            else:
+                print("\r位姿跟踪丢失 | 速度：0.00m/s, 0.00rad/s", end="")
+
+            # 3. 获取RGB图像并显示
+            rgb_img = self.tracker.get_rgb_image()
+            if not rgb_img.size == 0:
+                # numpy数组可直接用于OpenCV处理（注意：RGB转BGR）
+                print("================================== rgb image...")
+                rgb_cv = cv2.cvtColor(np.array(rgb_img), cv2.COLOR_RGB2BGR)
+                cv2.imwrite('./rgbe.png', rgb_cv)
+
+            # 4. 获取深度图像并显示
+            depth_img = self.tracker.get_depth_image()
+            if not depth_img.size == 0:
+                # 归一化深度图像用于显示
+                print("saving................depth image")
+                depth_normalized = cv2.normalize(np.array(depth_img), None, 0, 255, cv2.NORM_MINMAX, cv2.CV_8UC1)
+            
+            # Note: As discussed, too slow (like 1s) will cause tracking loss if moving.
+            time.sleep(0.05) # ~20Hz recommended
 
     def start_threads(self):
         self.planning_thread_instance.start()
         self.control_thread_instance.start()
+        #self.camera_thread_instance.start()
         print("✅ Go2Manager: control thread and planning thread started successfully")
 
     def rgb_depth_down_callback(self, rgb_msg, depth_msg):
@@ -369,17 +426,12 @@ class Go2Manager():
 if __name__ == "__main__":
 
     print("======= Starting Go2Manager Core =======")
-    # 初始化Go2Manager实例
-    manager = Go2Manager()
-
-    # 启动控制线程和规划线程
-    manager.start_threads()
-
     try:
         # 初始化 Go2Manager 实例（内部已调用 rospy.init_node）
         manager = Go2Manager()
         # 启动控制线程和规划线程
         manager.start_threads()
+
         rospy.spin()
     except KeyboardInterrupt:
         print("\n======= Stopping Go2Manager Core =======")

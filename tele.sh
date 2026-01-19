@@ -1,5 +1,5 @@
 
-export LD_PRELOAD=/home/unitree/py310_env/lib/python3.10/site-packages/scikit_learn.libs/libgomp-947d5fa1.so.1.0.0:$LD_PRELOAD
+#export LD_PRELOAD=/home/unitree/py310_env/lib/python3.10/site-packages/scikit_learn.libs/libgomp-947d5fa1.so.1.0.0:$LD_PRELOAD
 
 sudo chmod 666 /dev/ttyACM0
 

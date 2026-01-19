@@ -9,4 +9,4 @@ export IS_HALF="True"
 
 bash ros_depends_ws/src/piper_ros/can_activate.sh
 # head realsense d435i camera sn: 419522070679
-roslaunch ros_depends_ws/src/rtabmap_ros/rtabmap_examples/launch/ubrobot.launch --screen
+roslaunch ros_depends_ws/ubrobot.launch --screen

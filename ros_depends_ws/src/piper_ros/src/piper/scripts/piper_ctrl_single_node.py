@@ -86,6 +86,7 @@ class C_PiperRosNode():
         rospy.loginfo("%s is %s", rospy.resolve_name('~gripper_val_mutiple'), self.gripper_val_mutiple)
         # publish
         self.joint_pub = rospy.Publisher('joint_states_single', JointState, queue_size=1)
+        #self.joint_pub = rospy.Publisher('joint_states', JointState, queue_size=1)
         self.arm_status_pub = rospy.Publisher('arm_status', PiperStatusMsg, queue_size=1)
         # self.end_pose_euler_pub = rospy.Publisher('end_pose_euler', PosCmd, queue_size=1)
         self.end_pose_pub = rospy.Publisher('end_pose', PoseStamped, queue_size=1)

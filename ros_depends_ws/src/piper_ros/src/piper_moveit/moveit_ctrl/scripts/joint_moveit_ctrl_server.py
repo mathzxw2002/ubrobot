@@ -5,6 +5,8 @@ from moveit_commander import *
 from moveit_ctrl.srv import JointMoveitCtrl, JointMoveitCtrlResponse
 from geometry_msgs.msg import Pose
 from tf.transformations import quaternion_from_euler
+import moveit_commander
+from moveit_commander import *
 
 class JointMoveitCtrlServer:
     def __init__(self):
@@ -71,9 +73,64 @@ class JointMoveitCtrlServer:
         try:
             if self.gripper_move_group:
                 gripper_goal = [request.gripper]
+                rospy.loginfo(f"请求的夹爪目标值: {gripper_goal}")
+
+                current_joint_vals = self.gripper_move_group.get_current_joint_values()
+                rospy.loginfo(f"夹爪当前关节值: {current_joint_vals}")
+
                 self.gripper_move_group.set_joint_value_target(gripper_goal)
-                self.gripper_move_group.go(wait=True)
-                rospy.loginfo("Gripper movement executed successfully.")
+                target_joint_vals = self.gripper_move_group.get_joint_value_target()
+                rospy.loginfo(f"MoveGroup设置的目标关节值: {target_joint_vals}")
+
+                #self.gripper_move_group.go(wait=True)
+
+                plan_result = self.gripper_move_group.plan()
+                trajectory = None
+                trajectory_msg = None
+                plan_success = False
+
+                if isinstance(plan_result, tuple):
+                    # ROS Noetic / new version: (success, trajectory, planning_time, error_code)
+                    plan_success = plan_result[0]
+                    trajectory = plan_result[1]
+                else:
+                    # old version
+                    trajectory = plan_result
+                    plan_success = True if trajectory.joint_trajectory.points else False
+
+                if plan_success and trajectory.joint_trajectory.points:
+                    rospy.loginfo(f"夹爪规划轨迹路点数: {len(trajectory.joint_trajectory.points)}")
+                    rospy.loginfo(f"轨迹最后一个路点关节值: {trajectory.joint_trajectory.points[-1].positions}")
+                
+                    # 执行轨迹
+                    execute_success = self.gripper_move_group.execute(trajectory, wait=True)
+                    if execute_success:
+                        rospy.loginfo("Gripper movement executed successfully.")
+                        status = True
+                        error_code = 0
+                    else:
+                        rospy.logerr("Gripper movement executed failed!")
+                        status = False
+                        error_code = 2
+                else:
+                    current_vals = self.gripper_move_group.get_current_joint_values()
+                    target_vals = self.gripper_move_group.get_joint_value_target()
+                    
+                    is_already_at_target = all(abs(c - t) < 0.001 for c, t in zip(current_vals, target_vals))
+
+                    if is_already_at_target:
+                        rospy.loginfo("夾爪已在目標位置，無需移動")
+                        status = True
+                        error_code = 0
+                    else:
+                        rospy.logerr("夾爪路徑規劃失敗（目標不可達或碰撞）")
+                        status = False
+                        error_code = 3
+
+                # 清空目标，避免残留
+                #self.gripper_move_group.clear_joint_value_targets()
+                self.gripper_move_group.clear_pose_targets()
+                #rospy.loginfo("Gripper movement executed successfully.")
             else:
                 rospy.logerr("Gripper move group is not initialized.")
         except Exception as e:

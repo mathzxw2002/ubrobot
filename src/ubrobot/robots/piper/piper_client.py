@@ -73,12 +73,12 @@ class PiperClient(Robot):
     def _state_ft(self) -> dict[str, type]:
         return dict.fromkeys(
             (
-                "arm_shoulder_pan.pos",
-                "arm_shoulder_lift.pos",
-                "arm_elbow_flex.pos",
-                "arm_wrist_flex.pos",
-                "arm_wrist_roll.pos",
-                "arm_gripper.pos",
+                "shoulder_pan.pos",
+                "shoulder_lift.pos",
+                "elbow_flex.pos",
+                "wrist_flex.pos",
+                "wrist_roll.pos",
+                "gripper.pos",
                 #"x.vel",
                 #"y.vel",
                 #"theta.vel",
@@ -326,7 +326,7 @@ class PiperClient(Robot):
         # TODO(Steven): Remove the np conversion when it is possible to record a non-numpy array value
         actions = np.array([action.get(k, 0.0) for k in self._state_order], dtype=np.float32)
 
-        print("=============== send action in piper client...", actions)
+        #print("=============== send action in piper client...", actions)
 
         action_sent = {key: actions[i] for i, key in enumerate(self._state_order)}
         action_sent[ACTION] = actions

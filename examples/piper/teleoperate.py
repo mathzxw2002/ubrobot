@@ -54,7 +54,7 @@ def main():
         # Get teleop action
         # Arm
         arm_action = leader_arm.get_action()
-        arm_action = {f"arm_{k}": v for k, v in arm_action.items()}
+        #arm_action = {f"arm_{k}": v for k, v in arm_action.items()}
         
         # Send action to robot
         _ = robot.send_action(arm_action)

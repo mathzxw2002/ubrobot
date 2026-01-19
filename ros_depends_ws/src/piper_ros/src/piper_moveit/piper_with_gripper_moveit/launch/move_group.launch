@@ -45,7 +45,6 @@
 
   <!-- Planning Pipelines -->
   <group ns="move_group/planning_pipelines">
-
     <!-- OMPL -->
     <include file="$(dirname)/planning_pipeline.launch.xml">
       <arg name="pipeline" value="ompl" />

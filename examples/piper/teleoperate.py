@@ -19,7 +19,7 @@ import time
 from ubrobot.robots.piper.piper_client import PiperClient, PiperClientConfig
 from lerobot.teleoperators.so100_leader import SO100Leader, SO100LeaderConfig
 from lerobot.utils.robot_utils import precise_sleep
-#from lerobot.utils.visualization_utils import init_rerun, log_rerun_data
+from lerobot.utils.visualization_utils import init_rerun, log_rerun_data
 
 FPS = 30
 
@@ -39,7 +39,7 @@ def main():
     leader_arm.connect()
     
     # Init rerun viewer
-    #init_rerun(session_name="piper_teleop")
+    init_rerun(session_name="piper_teleop")
 
     if not robot.is_connected or not leader_arm.is_connected:
         raise ValueError("Robot or teleop is not connected!")
@@ -53,14 +53,13 @@ def main():
 
         # Get teleop action
         # Arm
-        arm_action = leader_arm.get_action()
-        #arm_action = {f"arm_{k}": v for k, v in arm_action.items()}
+        action = leader_arm.get_action()
         
         # Send action to robot
-        _ = robot.send_action(arm_action)
+        _ = robot.send_action(action)
 
         # Visualize
-        #log_rerun_data(observation=observation, action=action)
+        log_rerun_data(observation=observation, action=action)
 
         precise_sleep(max(1.0 / FPS - (time.perf_counter() - t0), 0.0))
 

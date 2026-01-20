@@ -1,9 +1,30 @@
 from dataclasses import dataclass, field
 
-from lerobot.cameras import CameraConfig
-from lerobot.cameras.opencv import OpenCVCameraConfig
+from lerobot.cameras.configs import CameraConfig, Cv2Rotation
+from lerobot.cameras.opencv.configuration_opencv import OpenCVCameraConfig
+
+from lerobot.cameras.realsense import RealSenseCamera, RealSenseCameraConfig
+from lerobot.cameras import ColorMode
+
 from lerobot.robots import RobotConfig
 
+
+def piper_cameras_config() -> dict[str, CameraConfig]:
+    return {
+        #"wrist": OpenCVCameraConfig(
+        #    index_or_path="/dev/video2", fps=30, width=480, height=640, rotation=Cv2Rotation.ROTATE_90
+        #),
+
+        "wrist": RealSenseCameraConfig(
+            serial_number_or_name="336222070923", # Replace with actual SN
+            fps=30,
+            width=1280,
+            height=720,
+            color_mode=ColorMode.BGR, # Request BGR output
+            rotation=Cv2Rotation.NO_ROTATION,
+            use_depth=True
+        ),
+    }
 
 @RobotConfig.register_subclass("piper")
 @dataclass
@@ -40,8 +61,23 @@ class PiperConfig(RobotConfig):
         }
     )'''
     cameras: dict[str, CameraConfig] = field(
-        default_factory=dict
+        default_factory=
+            lambda: {
+            "wrist": RealSenseCameraConfig(
+                serial_number_or_name="336222070923", # Replace with actual SN
+                fps=30,
+                width=1280,
+                height=720,
+                color_mode=ColorMode.BGR, # Request BGR output
+                rotation=Cv2Rotation.NO_ROTATION,
+                use_depth=True
+            )
+        }
     )
+    
+    #cameras: dict[str, CameraConfig] = field(
+    #    default_factory=dict
+    #)
     # When False, expose normalized [-100,100] joint percents; when True, degrees/mm
     use_degrees: bool = False
     # Timeout in seconds to wait for SDK EnablePiper during connect
@@ -87,8 +123,7 @@ class PiperClientConfig(RobotConfig):
         }
     )
 
-    #cameras: dict[str, CameraConfig] = field(default_factory=lekiwi_cameras_config)
-    cameras: dict[str, CameraConfig] = field(default_factory=dict)
-
+    cameras: dict[str, CameraConfig] = field(default_factory=piper_cameras_config)
+    
     polling_timeout_ms: int = 15
     connect_timeout_s: int = 5

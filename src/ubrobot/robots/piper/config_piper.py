@@ -25,7 +25,7 @@ class PiperConfig(RobotConfig):
         }
     )
     # Expose gripper as "gripper.pos" in mm if True
-    include_gripper: bool = False
+    include_gripper: bool = True
     # Optional cameras; leave empty when not used
     '''cameras: dict[str, CameraConfig] = field(
         default_factory=
@@ -43,7 +43,7 @@ class PiperConfig(RobotConfig):
         default_factory=dict
     )
     # When False, expose normalized [-100,100] joint percents; when True, degrees/mm
-    use_degrees: bool = True
+    use_degrees: bool = False
     # Timeout in seconds to wait for SDK EnablePiper during connect
     enable_timeout: float = 5.0
 

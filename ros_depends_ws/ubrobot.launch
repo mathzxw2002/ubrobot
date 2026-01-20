@@ -7,12 +7,12 @@
    <arg name="can_port" value="can0" />
    <arg name="auto_enable" value="true" />
    <arg name="gripper_val_mutiple" value="1" />
-	   <remap from="/joint_states_single" to="/joint_states" />
 </include>
 
+<!--
 <include file="$(find piper_with_gripper_moveit)/launch/demo.launch">
-	<arg name="use_rviz" default="false" />
-		<remap from="/joint_states" to="/joint_states_single" />
+   <arg name="use_rviz" default="false" />
 </include>
+-->
 
 </launch>

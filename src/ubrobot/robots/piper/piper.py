@@ -112,6 +112,7 @@ class Piper(Robot):
             raise ConnectionError(f"{self} is not connected.")
         status = self._iface.get_status_deg()
 
+        print("------------------------ in get_observation")
         if not self.config.use_degrees:
             oriented_min, oriented_max = self._get_oriented_limits()
 
@@ -161,6 +162,7 @@ class Piper(Robot):
         try:
             obs = self.get_observation()
         except Exception:
+            print("exception in piper get_observation...")
             # If observation can't be read, fallback to zeros for safety
             obs = {f"{name}.pos": 0.0 for name in self.config.joint_names}
             if self.config.include_gripper:
@@ -217,6 +219,8 @@ class Piper(Robot):
             joints_hw_deg.append(deg_hw)
 
         if self.config.include_gripper:
+
+            print("include gripper......")
             g_raw = action.get("gripper.pos", obs.get("gripper.pos", None))
             gripper_mm = None
             if g_raw is not None:
@@ -233,6 +237,9 @@ class Piper(Robot):
                     gripper_mm = None
         else:
             gripper_mm = None
+
+
+        print("++++++++++++++++++++++ final action in piper.", gripper_mm)
 
         try:
             self._iface.set_joint_positions_deg(joints_hw_deg, gripper_mm)

@@ -139,6 +139,7 @@ class PiperSDKInterface:
         """Send joints in degrees and optional gripper in mm."""
         j_ints = [int(round(d * 1000.0)) for d in joints_deg]
         try:
+            print("in piper sdk...................", j_ints, gripper_mm)
             self.piper.JointCtrl(*j_ints)
             if gripper_mm is not None:
                 self.piper.GripperCtrl(int(round(gripper_mm * 10000.0)), 1000, 0x01, 0)

@@ -1,164 +1,80 @@
-import torch
-#from curobo.wrap.reacher.motion_gen import MotionGen, MotionGenConfig, MotionGenPlanConfig
-#from curobo.types.math import Pose
-#from curobo.types.robot import JointState
-#from curobo.types.base import TensorDeviceType
-#from curobo.geom.types import Cuboid
-
-import rospy
 import time
 import random
-
-from moveit_ctrl.srv import JointMoveitCtrl, JointMoveitCtrlRequest
-from tf.transformations import quaternion_from_euler
+import numpy as np
+import pinocchio as pin
+from pyroboplan.models import Robot
+from pyroboplan.planning import RRTPlanner
+from pyroboplan.trajectory import Trajectory
+from piper_sdk import C_PiperInterface  # Official 2026 SDK
 
 class PiperMotionPlan:
     def __init__(self):
         print("init piper motion planner...")
-    
-    '''def test(self):
-        # 1. Initialize GPU args
-        tensor_args = TensorDeviceType()
+        
+    def deploy_piper_plan(self):
+        # 1. HARDWARE INITIALIZATION
+        # Connect to the Piper arm via CAN interface
+        piper = C_PiperInterface("can0")
+        piper.ConnectPort()
+        
+        # Enable the arm and set to Position-Velocity control mode
+        # This is critical for following timed trajectories
+        while not piper.enable_arm():
+            time.sleep(0.1)
+        print("Piper Arm Enabled.")
 
-        # 2. Load Piper Configuration
-        config = MotionGenConfig.load_from_robot_config(
-            "./assets/piper_config.yml",
-            tensor_args,
-            enable_graph_planner=True
+        # 2. PLANNER SETUP
+        # Load the Piper model from its URDF for kinematics and collision checking
+        # Replace 'path/to/piper.urdf' with your actual file path
+        robot = Robot.from_urdf("./ros_depends_ws/src/piper_ros/src/piper_description/urdf/piper_description.urdf")
+        planner = RRTPlanner(robot)
+
+        # 3. DEFINE START AND GOAL
+        # Get current joint positions from the real robot
+        # piper_sdk returns a list of 6 joint values in radians
+        start_q = np.array(piper.get_joint_states().joint_modules.joint_states)
+        
+        # Define a goal configuration (example: reaching forward)
+        goal_q = np.array([0.5, -0.2, 0.3, 0.0, 1.2, 0.0])
+
+        # 4. GENERATE COLLISION-FREE PATH
+        print("Planning path...")
+        path = planner.plan(start_q, goal_q)
+
+        if not path:
+            print("Planning failed!")
+            return
+
+        # 5. APPLY TOPP-RA SMOOTHING
+        # Define Piper's physical limits (example values for 2026)
+        vel_limits = np.array([1.5, 1.5, 1.5, 2.0, 2.0, 2.0]) 
+        accel_limits = np.array([3.0, 3.0, 3.0, 4.0, 4.0, 4.0])
+        dt = 0.02  # 50Hz control loop
+
+        print("Smoothing trajectory with TOPP-RA...")
+        traj = Trajectory.from_path(path)
+        times, positions, velocities, _, _ = traj.generate_toppra(
+            vel_limits, accel_limits, dt=dt
         )
-        motion_gen = MotionGen(config)
-        motion_gen.warmup()
 
-        # 3. Define an Obstacle (e.g., a table or the Cubot base)
-        obstacle = Cuboid(
-            name="cubot_base",
-            pose=[0.3, 0.0, 0.05, 1, 0, 0, 0], # x, y, z, qw, qx, qy, qz
-            dims=[0.2, 0.2, 0.1] # Width, Depth, Height
-        )
-        motion_gen.update_world(obs_list=[obstacle])
-
-        # 4. Set Target Pose (Position in meters, Orientation in Quaternions)
-        # Let's target a point 20cm forward and 20cm up
-        target_pose = Pose(
-            position=torch.tensor([[0.2, 0.0, 0.2]], device=tensor_args.device),
-            quaternion=torch.tensor([[1.0, 0.0, 0.0, 0.0]], device=tensor_args.device)
-        )
-
-        # 5. Get Current Joint State (Example: All zeros)
-        start_state = JointState.from_position(
-            torch.tensor([[0.0, 0.0, 0.0, 0.0, 0.0, 0.0]], device=tensor_args.device)
-        )
-
-        # 6. Plan Motion
-        plan_config = MotionGenPlanConfig(enable_graph_planner=True, max_attempts=5)
-        result = motion_gen.plan_single(start_state, target_pose, plan_config)
-
-        # 7. Execute/Display Result
-        if result.success:
-            print("Plan Found!")
-            # 'interpolated_plan' gives smooth joint trajectories for your Piper driver
-            traj = result.interpolated_plan
-            print(f"Number of waypoints: {traj.position.shape[1]}")
-            # You can now send traj.position[0][i] to your piper_sdk
-        else:
-            print(f"Planning failed: {result.status}")'''
-
-    def call_joint_moveit_ctrl_arm(self, joint_states, max_velocity=0.5, max_acceleration=0.5):
-        rospy.wait_for_service("joint_moveit_ctrl_arm")
+        # 6. EXECUTE ON HARDWARE
+        print(f"Executing trajectory ({len(times)} points)...")
         try:
-            moveit_service = rospy.ServiceProxy("joint_moveit_ctrl_arm", JointMoveitCtrl)
-            request = JointMoveitCtrlRequest()
-            request.joint_states = joint_states
-            request.gripper = 0.0
-            request.max_velocity = max_velocity
-            request.max_acceleration = max_acceleration
+            for i in range(len(times)):
+                target_q = positions[i]
+                # Send joint command to the Piper hardware
+                # The SDK expects values in radians
+                #piper.motion_ctrl.joint_motion(target_q.tolist())
+                
+                # Synchronize with the trajectory time step
+                time.sleep(dt)
+            print("Execution complete.")
+        except KeyboardInterrupt:
+            print("Emergency Stop triggered.")
+            # Optional: send emergency stop command if available in SDK
+        finally:
+            piper.disconnect()
 
-            response = moveit_service(request)
-            if response.status:
-                rospy.loginfo("Successfully executed joint_moveit_ctrl_arm")
-            else:
-                rospy.logwarn(f"Failed to execute joint_moveit_ctrl_arm, error code: {response.error_code}")
-        except rospy.ServiceException as e:
-            rospy.logerr(f"Service call failed: {str(e)}")
-
-    def call_joint_moveit_ctrl_gripper(self, gripper_position, max_velocity=0.5, max_acceleration=0.5):
-        rospy.wait_for_service("joint_moveit_ctrl_gripper")
-        try:
-            moveit_service = rospy.ServiceProxy("joint_moveit_ctrl_gripper", JointMoveitCtrl)
-            request = JointMoveitCtrlRequest()
-            request.joint_states = [0.0] * 6
-            request.gripper = gripper_position
-            request.max_velocity = max_velocity
-            request.max_acceleration = max_acceleration
-
-            response = moveit_service(request)
-            if response.status:
-                rospy.loginfo("Successfully executed joint_moveit_ctrl_gripper")
-            else:
-                rospy.logwarn(f"Failed to execute joint_moveit_ctrl_gripper, error code: {response.error_code}")
-        except rospy.ServiceException as e:
-            rospy.logerr(f"Service call failed: {str(e)}")
-
-    def call_joint_moveit_ctrl_piper(self, joint_states, gripper_position, max_velocity=0.5, max_acceleration=0.5):
-        rospy.wait_for_service("joint_moveit_ctrl_piper")
-        try:
-            moveit_service = rospy.ServiceProxy("joint_moveit_ctrl_piper", JointMoveitCtrl)
-            request = JointMoveitCtrlRequest()
-            request.joint_states = joint_states
-            request.gripper = gripper_position
-            request.max_velocity = max_velocity
-            request.max_acceleration = max_acceleration
-
-            response = moveit_service(request)
-            if response.status:
-                rospy.loginfo("Successfully executed joint_moveit_ctrl_piper")
-            else:
-                rospy.logwarn(f"Failed to execute joint_moveit_ctrl_piper, error code: {response.error_code}")
-        except rospy.ServiceException as e:
-            rospy.logerr(f"Service call failed: {str(e)}")
-
-    def convert_endpose(self, endpose):
-        if len(endpose) == 6:
-            x, y, z, roll, pitch, yaw = endpose
-            qx, qy, qz, qw = quaternion_from_euler(roll, pitch, yaw)
-            return [x, y, z, qx, qy, qz, qw]
-
-        elif len(endpose) == 7:
-            return endpose  # 直接返回四元数
-
-        else:
-            raise ValueError("Invalid endpose format! Must be 6 (Euler) or 7 (Quaternion) values.")
-
-    def call_joint_moveit_ctrl_endpose(self, endpose, max_velocity=0.5, max_acceleration=0.5):
-        rospy.wait_for_service("joint_moveit_ctrl_endpose")
-        try:
-            moveit_service = rospy.ServiceProxy("joint_moveit_ctrl_endpose", JointMoveitCtrl)
-            request = JointMoveitCtrlRequest()
-            
-            request.joint_states = [0.0] * 6  # 填充6个关节状态
-            request.gripper = 0.0
-            request.max_velocity = max_velocity
-            request.max_acceleration = max_acceleration
-            request.joint_endpose = convert_endpose(endpose)  # 自动转换
-
-            response = moveit_service(request)
-            if response.status:
-                rospy.loginfo("Successfully executed joint_moveit_ctrl_endpose")
-            else:
-                rospy.logwarn(f"Failed to execute joint_moveit_ctrl_endpose, error code: {response.error_code}")
-        except rospy.ServiceException as e:
-            rospy.logerr(f"Service call failed: {str(e)}")
-
-    # 此处关节限制仅为测试使用，实际关节限制以READEME中为准
-    def randomval(self):
-        arm_position = [
-            random.uniform(-0.2, 0.2),  # 关节1
-            random.uniform(0, 0.5),  # 关节2
-            random.uniform(-0.5, 0),  # 关节3
-            random.uniform(-0.2, 0.2),  # 关节4
-            random.uniform(-0.2, 0.2),  # 关节5
-            random.uniform(-0.2, 0.2)   # 关节6
-        ]
-        gripper_position = random.uniform(0, 0.035)
-
-        return arm_position, gripper_position
+if __name__ == "__main__":
+    pp = PiperMotionPlan()
+    pp.deploy_piper_plan()

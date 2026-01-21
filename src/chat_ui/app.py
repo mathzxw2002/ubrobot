@@ -31,12 +31,10 @@ def gradio_planning_txt_update():
     chat_history.append({"role": "user", "content": global_nav_instruction_str})
     chat_history.append({"role": "assistant", "content": result_str})
     '''
+    instruction = "go to the near frontal black bag and stop immediately."
+    manager.set_user_instruction(instruction)
     while True:
     
-        pil_annotated_img = manager.get_observation()
-        #res = manager.reasoning_vlm(pil_annotated_img, "briefly describe what see in your front?")
-        instruction = "go to the near frontal black bag and stop immediately."
-        manager.set_user_instruction(instruction)
         nav_action, vis_annotated_img = manager.get_next_planning()
 
         robot_arm_rgb_image = chat_pipeline.get_robot_arm_image_observation()

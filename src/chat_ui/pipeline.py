@@ -21,9 +21,10 @@ import pandas as pd
 from utils import get_timestamp_str, merge_videos, merge_audios, merge_frames_with_audio
 from ubrobot.robots.tts import CosyVoice_API
 from ubrobot.robots.asr import Fun_ASR
-from ubrobot.robots.llm import Qwen_API
+#from ubrobot.robots.llm import Qwen_API
 from ubrobot.robots.ubrobot import Go2Manager
 from ubrobot.robots.arm_action import PoseTransformer
+from ubrobot.robots.vlm import RobotVLM
 
 @torch.no_grad()
 class ChatPipeline:
@@ -33,7 +34,8 @@ class ChatPipeline:
         self.asr = Fun_ASR()
 
         print(f"[3/4] Start initializing qwen")
-        self.llm = Qwen_API()
+        #self.llm = Qwen_API()
+        self.llm = RobotVLM()
 
         print(f"[4/4] Start initializing tts")
         #self.tts = GPT_SoVits_TTS()

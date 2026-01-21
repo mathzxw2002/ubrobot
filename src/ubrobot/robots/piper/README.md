@@ -1,5 +1,11 @@
 # LeRobot Piper Integration
 
+CMEEL_RUN_TESTS=OFF pip install pin --no-binary pin --force-reinstall
+
+pip uninstall pinocchio cmeel cmeel-boost cmeel-eigenpy
+# 清除緩存並重新安裝（這將觸發在您的 aarch64 上重新編譯）
+pip install pinocchio --no-cache-dir
+
 This package provides integration between LeRobot and the Piper robot arm.
 
 ## Installation

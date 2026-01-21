@@ -224,8 +224,10 @@ class RobotNav:
                 act.current_control_mode = ControlMode.PID_Mode
         return act
     
-    def _dual_sys_eval(self, policy_init, http_idx, rgb_image_pil, depth_pil, instruction, odom, url='http://192.168.18.230:5801/eval_dual'):
+    def _dual_sys_eval(self, policy_init, http_idx, rgb_image, depth, instruction, odom, url='http://192.168.18.230:5801/eval_dual'):
         
+        rgb_image_pil = PIL_Image.fromarray(rgb_image)
+        depth_pil = PIL_Image.fromarray(depth)
         
         image_bytes = io.BytesIO()
         rgb_image_pil.save(image_bytes, format='JPEG')
@@ -260,11 +262,10 @@ class RobotNav:
         nav_result = json.loads(response.text)
         nav_action = self.convert_policy_res_to_action(nav_result, odom)
 
-        if 1:
-            pixel_goal = nav_result.get('pixel_goal', None)
-            traj_path = nav_result.get('trajectory', None)
-            discrete_act = nav_result.get('discrete_action', None)
-            vis_annotated_img = self._annotate_image(http_idx, image_bytes, discrete_act, traj_path, pixel_goal, odom)
+        pixel_goal = nav_result.get('pixel_goal', None)
+        traj_path = nav_result.get('trajectory', None)
+        discrete_act = nav_result.get('discrete_action', None)
+        vis_annotated_img = self._annotate_image(http_idx, image_bytes, discrete_act, traj_path, pixel_goal, odom)
 
         return nav_action, vis_annotated_img
         

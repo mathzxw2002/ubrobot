@@ -22,7 +22,7 @@ shutil.rmtree('./workspaces/results', ignore_errors= True)
 
 from ubrobot.robots.ubrobot import Go2Manager
 
-manager = None
+#manager = None
 chat_pipeline = None
 
 def gradio_planning_txt_update():
@@ -31,15 +31,14 @@ def gradio_planning_txt_update():
     chat_history.append({"role": "user", "content": global_nav_instruction_str})
     chat_history.append({"role": "assistant", "content": result_str})
     '''
-    instruction = "go to the near frontal black bag and stop immediately."
-    manager.set_user_instruction(instruction)
+    #instruction = "go to the near frontal black bag and stop immediately."
+    #manager.set_user_instruction(instruction)
     while True:
-    
-        nav_action, vis_annotated_img = manager.get_next_planning()
-
+        #nav_action, vis_annotated_img = manager.get_next_planning()
+        vis_annotated_img =  chat_pipeline.get_nav_vis_image()
         robot_arm_rgb_image = chat_pipeline.get_robot_arm_image_observation()
 
-        instruction = "Locate objects in current image and return theirs coordinates as json format."
+        #instruction = "Locate objects in current image and return theirs coordinates as json format."
         #robot_arm.grounding_objects_2d(robot_arm_rgb_image, instruction)
 
         yield gr.update(value=vis_annotated_img), gr.update(value=robot_arm_rgb_image)
@@ -48,19 +47,19 @@ def gradio_planning_txt_update():
 def go2_robot_stop():
     # TODO
     print("stopping the robot.")
-    manager.go2_robot_stop()
+    #manager.go2_robot_stop()
 
 def go2_robot_standup():
     print("standing up the robot.")
-    manager.go2_robot_standup()
+    #manager.go2_robot_standup()
 
 def go2_robot_standdown():
     print("standing down the robot.")
-    manager.go2_robot_standdown()
+    #manager.go2_robot_standdown()
 
 def go2_robot_move():
     print("unitree go2 moving test...")
-    manager.go2_robot_move()
+    #manager.go2_robot_move()
 
 def create_gradio():
     with gr.Blocks(title="UBRobot ChatUI") as demo:
@@ -95,14 +94,14 @@ def create_gradio():
 
             with gr.Column(scale = 1):
                 gr.Markdown("### Nav with Instruction")
-                nav_img_output = gr.Image(type="pil", height=480,)
-                manipulate_img_output = gr.Image(type="pil", height=480,)
-                planning_response_txt = gr.Textbox(interactive=False, lines=5)
+                nav_img_output = gr.Image(type="pil", height=320)
+                manipulate_img_output = gr.Image(type="pil", height=320)
+                #planning_response_txt = gr.Textbox(interactive=False, lines=5)
                 ins_msg_bt = gr.Button("nav instruction")
-                stop_bt = gr.Button("STOP!!!")
-                standup_bt = gr.Button("StandUP")
-                standdown_bt = gr.Button("StandDOWN")
-                move_bt =  gr.Button("MOVE TEST")
+                #stop_bt = gr.Button("STOP!!!")
+                #standup_bt = gr.Button("StandUP")
+                #standdown_bt = gr.Button("StandDOWN")
+                #move_bt =  gr.Button("MOVE TEST")
 
         # Use State to store user chat history
         user_messages = gr.State([{'role': 'system', 'content': None}])
@@ -136,24 +135,20 @@ def create_gradio():
             )
         
         ins_msg_bt.click(gradio_planning_txt_update, inputs=[], outputs=[nav_img_output, manipulate_img_output])
-        stop_bt.click(go2_robot_stop, inputs=[], outputs=[])
-        standup_bt.click(go2_robot_standup, inputs=[], outputs=[])
-        standdown_bt.click(go2_robot_standdown, inputs=[], outputs=[])
-        move_bt.click(go2_robot_move, inputs=[], outputs=[])
+        #stop_bt.click(go2_robot_stop, inputs=[], outputs=[])
+        #standup_bt.click(go2_robot_standup, inputs=[], outputs=[])
+        #standdown_bt.click(go2_robot_standdown, inputs=[], outputs=[])
+        #move_bt.click(go2_robot_move, inputs=[], outputs=[])
                 
     return demo.queue()
 
 if __name__ == "__main__":
-    manager = Go2Manager()
-
     chat_pipeline = ChatPipeline()
 
     app = FastAPI()
     gradio_app = create_gradio()
     app = gr.mount_gradio_app(app, gradio_app, path='/')
 
-    manager.start_threads()
-    
     uvicorn.run(
         app, 
         host = "0.0.0.0",

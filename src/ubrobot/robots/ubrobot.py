@@ -77,6 +77,7 @@ class Go2Manager():
 
         # nav 
         self.global_nav_instruction_str = None
+        self.global_nav_instruction_str_execute = None
         self.nav_action = None
         self.nav_annotated_img = None
 
@@ -312,25 +313,22 @@ class Go2Manager():
         while True:
             t0 = time.time()
 
-            if not self.new_image_arrived:
-                time.sleep(0.01)
-                continue
-            self.new_image_arrived = False
-
-            #odom_infer, rgb_image, depth = self.get_rgb_depth_odom()
             rgb_image, depth, odom_infer = self.get_observation()
 
             if odom_infer is not None and rgb_image is not None and depth is not None and self.global_nav_instruction_str is not None:
 
+                #if self.global_nav_instruction_str !=  self.global_nav_instruction_str_execute:
+                if 0:
+                    self.policy_init = True
+                    self.http_idx = -1
+                    self.global_nav_instruction_str_execute = self.global_nav_instruction_str
+
+                    
                 nav_action, vis_annotated_img = self.nav_policy_infer(self.policy_init, self.http_idx, rgb_image, depth, self.global_nav_instruction_str, odom_infer)
-                
                 self.nav_action = nav_action
                 self.nav_annotated_img = vis_annotated_img
-
-                self.policy_init = False
                 self.http_idx += 1
-                
-                #self.act = nav_action
+                self.policy_init = False
             else:
                 #print(f"skip planning. odom_infer: {odom_infer is not None} rgb_bytes: {rgb_bytes is not None} depth_bytes: {depth_bytes is not None}")
                 time.sleep(0.1)
@@ -462,8 +460,6 @@ if __name__ == "__main__":
         manager = Go2Manager()
         # 启动控制线程和规划线程
         manager.start_threads()
-
-        #rospy.spin()
     except KeyboardInterrupt:
         print("\n======= Stopping Go2Manager Core =======")
         manager.nav_task_reset()

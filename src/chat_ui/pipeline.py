@@ -50,8 +50,8 @@ class ChatPipeline:
         self.stop = threading.Event()
         
         self.robot_arm = PoseTransformer()
-        #self.manager = None
-
+        self.manager = Go2Manager()
+        self.manager.start_threads()
     
     def load_voice(self, avatar_voice = None, tts_module = None):#, ref_audio_path = None):
         start_time = time.time()
@@ -135,6 +135,9 @@ class ChatPipeline:
 
             # LLM streaming out
             #llm_response_txt, user_messages = self.llm.infer_stream(user_input_txt, user_messages, self.llm_queue, chunk_size, chat_mode)
+
+            instruction = user_input_txt
+            self.manager.set_user_instruction(instruction)
 
             manipulate_img_output = self.robot_arm.get_observation()
             llm_response_txt, user_messages = self.llm.infer_cosmos_reason(user_input_txt, user_messages, self.llm_queue, manipulate_img_output)
@@ -291,6 +294,9 @@ class ChatPipeline:
     #def get_front_image_observation(self):
     #    return self.
 
+    def get_nav_vis_image(self):
+        nav_action, vis_annotated_img = self.manager.get_next_planning()
+        return vis_annotated_img
 
 
 # 实例化         

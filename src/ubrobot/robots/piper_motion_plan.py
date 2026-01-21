@@ -2,32 +2,33 @@ import time
 import random
 import numpy as np
 import pinocchio as pin
-from pyroboplan.models import Robot
-from pyroboplan.planning import RRTPlanner
-from pyroboplan.trajectory import Trajectory
-from piper_sdk import C_PiperInterface  # Official 2026 SDK
+from piper_sdk import C_PiperInterface_V2
+
+from pyroboplan.core import RobotModel
+from pyroboplan.core.robot import RobotModel
+from pyroboplan.models.utils import RobotModel
+from pyroboplan.planning.rrt import RRTPlanner
 
 class PiperMotionPlan:
     def __init__(self):
+        '''self._iface: PiperSDKInterface | None = None
+        self._iface = PiperSDKInterface(
+            port="can0",
+            enable_timeout=5.0,
+        )'''
         print("init piper motion planner...")
         
     def deploy_piper_plan(self):
-        # 1. HARDWARE INITIALIZATION
-        # Connect to the Piper arm via CAN interface
-        piper = C_PiperInterface("can0")
-        piper.ConnectPort()
-        
-        # Enable the arm and set to Position-Velocity control mode
-        # This is critical for following timed trajectories
-        while not piper.enable_arm():
-            time.sleep(0.1)
-        print("Piper Arm Enabled.")
 
         # 2. PLANNER SETUP
         # Load the Piper model from its URDF for kinematics and collision checking
         # Replace 'path/to/piper.urdf' with your actual file path
-        robot = Robot.from_urdf("./ros_depends_ws/src/piper_ros/src/piper_description/urdf/piper_description.urdf")
-        planner = RRTPlanner(robot)
+        urdf_path = "./ros_depends_ws/src/piper_ros/src/piper_description/urdf/piper_description.urdf"
+        model = pin.buildModelFromUrdf(urdf_path)
+
+        collision_model = pin.buildGeomFromUrdf(model, urdf_path, pin.COLLISION)
+
+        #planner = RRTPlanner(model, collision_model)
 
         # 3. DEFINE START AND GOAL
         # Get current joint positions from the real robot
@@ -52,16 +53,14 @@ class PiperMotionPlan:
         dt = 0.02  # 50Hz control loop
 
         print("Smoothing trajectory with TOPP-RA...")
-        traj = Trajectory.from_path(path)
-        times, positions, velocities, _, _ = traj.generate_toppra(
-            vel_limits, accel_limits, dt=dt
-        )
+        traj_opt = CubicTrajectoryOptimization(path, dt=dt)
+        trajectory = traj_opt.solve()
 
         # 6. EXECUTE ON HARDWARE
         print(f"Executing trajectory ({len(times)} points)...")
         try:
-            for i in range(len(times)):
-                target_q = positions[i]
+            for point in trajectory.points:
+                print(point)
                 # Send joint command to the Piper hardware
                 # The SDK expects values in radians
                 #piper.motion_ctrl.joint_motion(target_q.tolist())

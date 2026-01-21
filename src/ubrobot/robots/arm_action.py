@@ -26,7 +26,7 @@ from std_msgs.msg import Bool, Float64, Int32
 import tf.transformations as tf_trans
 
 from message_filters import ApproximateTimeSynchronizer, Subscriber
-from cv_bridge import CvBridge
+#from cv_bridge import CvBridge
 from geometry_msgs.msg import Twist
 from nav_msgs.msg import Odometry
 from sensor_msgs.msg import Image
@@ -52,7 +52,7 @@ from pointcloud import PointCloudPerception
 
 from pointcloud import GraspPoseCalculator
 
-from piper_motion_plan import PiperMotionPlan
+#from piper_motion_plan import PiperMotionPlan
 
 from piper_sdk import *
 
@@ -233,22 +233,22 @@ class PoseTransformer:
         self.vlm = RobotVLM()
 
         # 初始化tf2
-        self.tf_buffer = tf2_ros.Buffer()
-        self.tf_listener = tf2_ros.TransformListener(self.tf_buffer)
+        #self.tf_buffer = tf2_ros.Buffer()
+        #self.tf_listener = tf2_ros.TransformListener(self.tf_buffer)
         
         # 订阅和发布
-        self.sub = rospy.Subscriber("/grasp_pose_posestamp", PoseStamped, self.pose_callback)
-        self.target_pose_sub = rospy.Subscriber("/target_pose", PoseStamped, self.target_pose_callback)
-        self.target_pose_pub = rospy.Publisher('/target_pose', PoseStamped, queue_size=10)
-        self.gripper_cmd_pub = rospy.Publisher('/gripper_cmd_topic', Float64, queue_size=1)
-        self.outer_cmd_sub = rospy.Subscriber("/vision_task", Int32, self.tast_callback)
-        self.task_reslut_pub = rospy.Publisher('/vision_result', Int32, queue_size=1)
+        #self.sub = rospy.Subscriber("/grasp_pose_posestamp", PoseStamped, self.pose_callback)
+        #self.target_pose_sub = rospy.Subscriber("/target_pose", PoseStamped, self.target_pose_callback)
+        #self.target_pose_pub = rospy.Publisher('/target_pose', PoseStamped, queue_size=10)
+        #self.gripper_cmd_pub = rospy.Publisher('/gripper_cmd_topic', Float64, queue_size=1)
+        #self.outer_cmd_sub = rospy.Subscriber("/vision_task", Int32, self.tast_callback)
+        #self.task_reslut_pub = rospy.Publisher('/vision_result', Int32, queue_size=1)
 
         self.rgb_depth_rw_lock = ReadWriteLock()
 
-        self.image_sub = Subscriber("/cam_arm/camera/color/image_raw", Image)
-        self.depth_sub = Subscriber("/cam_arm/camera/aligned_depth_to_color/image_raw", Image)
-        self.camera_info_sub = Subscriber("/cam_arm/camera/aligned_depth_to_color/camera_info", CameraInfo)
+        #self.image_sub = Subscriber("/cam_arm/camera/color/image_raw", Image)
+        #self.depth_sub = Subscriber("/cam_arm/camera/aligned_depth_to_color/image_raw", Image)
+        #self.camera_info_sub = Subscriber("/cam_arm/camera/aligned_depth_to_color/camera_info", CameraInfo)
 
         # get robot arm state 
         #self.robot_joint_states_sub = Subscriber("joint_states_single", JointState)
@@ -259,10 +259,10 @@ class PoseTransformer:
         #self.piper = C_PiperInterface_V2()
         #self.piper.ConnectPort()
         
-        self.camera_info_sub.registerCallback(self.camera_info_callback)
+        #self.camera_info_sub.registerCallback(self.camera_info_callback)
 
-        self.syncronizer = ApproximateTimeSynchronizer([self.image_sub, self.depth_sub], 1, 0.1)
-        self.syncronizer.registerCallback(self.rgb_depth_down_callback)
+        #self.syncronizer = ApproximateTimeSynchronizer([self.image_sub, self.depth_sub], 1, 0.1)
+        #self.syncronizer.registerCallback(self.rgb_depth_down_callback)
 
         # Example with depth capture and custom settings
         custom_config = RealSenseCameraConfig(
@@ -294,9 +294,9 @@ class PoseTransformer:
         self.ik_manager = IKStatusManager()
         self.pose_adjuster = PoseAdjuster()
         
-        self.rate = rospy.Rate(30)
+        #self.rate = rospy.Rate(30)
 
-        self.cv_bridge = CvBridge()
+        #self.cv_bridge = CvBridge()
         self.rgb_image = None
         self.rgb_bytes = None
         self.depth_image = None
@@ -340,15 +340,15 @@ class PoseTransformer:
             orientation=[0.007, 0.915, 0.009, 0.403]
         )
 
-        self.target_pose_current = PoseStamped()
+        #self.target_pose_current = PoseStamped()
         self.via_pose_list = []
         
         # 终端设置
         self.old_settings = termios.tcgetattr(sys.stdin)
 
-        self.piper_mp = PiperMotionPlan()
+        #self.piper_mp = PiperMotionPlan()
         
-        rospy.loginfo("Pose transformer node started. Waiting for PoseStamped messages...")
+        #rospy.loginfo("Pose transformer node started. Waiting for PoseStamped messages...")
 
     def create_via_pose(self, position, orientation, frame_id="base_link"):
         """创建路径点姿势"""

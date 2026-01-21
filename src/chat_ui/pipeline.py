@@ -140,6 +140,7 @@ class ChatPipeline:
             self.manager.set_user_instruction(instruction)
 
             manipulate_img_output = self.robot_arm.get_observation()
+            user_input_txt = user_input_txt + ". Answer shortly."
             llm_response_txt, user_messages = self.llm.infer_cosmos_reason(user_input_txt, user_messages, self.llm_queue, manipulate_img_output)
 
             print("============================================llm_response_txt", llm_response_txt)

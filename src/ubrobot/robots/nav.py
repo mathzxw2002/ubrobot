@@ -26,6 +26,7 @@ class RobotAction:
     def __init__(self):
         self.current_control_mode = ControlMode.MPC_Mode
         self.trajs_in_world = None
+        self.actions = None
         self.homo_goal = None
         self.odom = None
         self.homo_odom = None
@@ -219,6 +220,7 @@ class RobotNav:
         elif 'discrete_action' in response:
             # 离散动作：切换到PID模式
             actions = response['discrete_action']
+            act.actions = actions
             if actions != [5] and actions != [9]:
                 act.homo_goal = self.incremental_change_goal(actions, homo_odom)
                 act.current_control_mode = ControlMode.PID_Mode

@@ -205,23 +205,14 @@ class Go2Manager():
             self.global_nav_instruction_str = instruction
         self.http_idx = -1
         self.policy_init = True
-   
-    '''def nav_policy_infer(self, policy_init, http_idx, rgb_image, depth, instruction, odom): 
-        start = time.time()
-        nav_action, vis_annotated_img = self.nav._dual_sys_eval(policy_init, http_idx, rgb_image, depth, instruction, odom) 
-        print(f"idx: {http_idx} after dual_sys_eval {time.time() - start}")
-        return nav_action, vis_annotated_img'''
-    
+       
     def get_action(self, policy_init, http_idx, rgb_image, depth, instruction, odom):
         nav_action = None
         vis_annotated_img = None
         if odom is not None and rgb_image is not None and depth is not None and instruction is not None:
             start = time.time()
             nav_action, vis_annotated_img = self.nav._dual_sys_eval(policy_init, http_idx, rgb_image, depth, instruction, odom)
-            print(f"idx: {http_idx} after dual_sys_eval {time.time() - start}")
-        #else:
-        #    #print(f"skip planning. odom_infer: {odom_infer is not None} rgb_bytes: {rgb_bytes is not None} depth_bytes: {depth_bytes is not None}")
-        #    print("not calling nav service...")
+            print(f"idx: {http_idx} step in get_action() cost {time.time() - start}")
         return nav_action, vis_annotated_img
 
     def _control_thread(self):
@@ -230,13 +221,10 @@ class Go2Manager():
                 time.sleep(0.01)
                 continue
             
-            #self.act_rw_lock.acquire_read()
             act = self.nav_action
-            #self.act_rw_lock.release_read()
             if act is None:
                 time.sleep(0.01)
                 continue
-            #self.send_action(act)
             time.sleep(0.1)
     
     def send_action(self, act):
@@ -286,20 +274,7 @@ class Go2Manager():
             t0 = time.time()
 
             rgb_image, depth, odom_infer = self.get_observation()
-
             nav_action, vis_annotated_img = self.get_action(self.policy_init, self.http_idx, rgb_image, depth, self.global_nav_instruction_str, odom_infer)
-
-            '''if odom_infer is not None and rgb_image is not None and depth is not None and self.global_nav_instruction_str is not None:
-
-                nav_action, vis_annotated_img = self.nav_policy_infer(self.policy_init, self.http_idx, rgb_image, depth, self.global_nav_instruction_str, odom_infer)
-                self.nav_action = nav_action
-                self.nav_annotated_img = vis_annotated_img
-                self.http_idx += 1
-                self.policy_init = False
-            else:
-                #print(f"skip planning. odom_infer: {odom_infer is not None} rgb_bytes: {rgb_bytes is not None} depth_bytes: {depth_bytes is not None}")
-                time.sleep(0.1)
-                continue'''
             
             # TODO if get STOP action signal, stop, waiting for next instruction
             self.nav_action = nav_action

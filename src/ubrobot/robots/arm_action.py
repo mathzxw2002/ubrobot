@@ -441,7 +441,7 @@ class PoseTransformer:
 
     def get_observation(self):
         color_image = self.rgb_depth_camera.read()
-        print(color_image.shape)
+        #print(color_image.shape)
         image = PIL_Image.fromarray(color_image).convert('RGB')
 
         #print("==================================", self.rgb_image)

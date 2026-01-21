@@ -213,21 +213,15 @@ class Go2Manager():
         return nav_action, vis_annotated_img'''
     
     def get_action(self, policy_init, http_idx, rgb_image, depth, instruction, odom):
-        start = time.time()
         nav_action = None
         vis_annotated_img = None
         if odom is not None and rgb_image is not None and depth is not None and instruction is not None:
+            start = time.time()
             nav_action, vis_annotated_img = self.nav._dual_sys_eval(policy_init, http_idx, rgb_image, depth, instruction, odom)
-            #self.nav_action = nav_action
-            #self.nav_annotated_img = vis_annotated_img
-
-            #self.policy_init = False
-            #self.http_idx += 1
-            #self.act = nav_action
-        else:
-            #print(f"skip planning. odom_infer: {odom_infer is not None} rgb_bytes: {rgb_bytes is not None} depth_bytes: {depth_bytes is not None}")
-            print("not calling nav service...")
-        print(f"idx: {http_idx} after dual_sys_eval {time.time() - start}")
+            print(f"idx: {http_idx} after dual_sys_eval {time.time() - start}")
+        #else:
+        #    #print(f"skip planning. odom_infer: {odom_infer is not None} rgb_bytes: {rgb_bytes is not None} depth_bytes: {depth_bytes is not None}")
+        #    print("not calling nav service...")
         return nav_action, vis_annotated_img
 
     def _control_thread(self):

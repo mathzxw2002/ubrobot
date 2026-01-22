@@ -52,9 +52,11 @@ class ChatPipeline:
         self.manager = Go2Manager()
         self.manager.start_threads()
     
-    def load_voice(self, avatar_voice = None, tts_module = None):#, ref_audio_path = None):
+    def load_voice(self, avatar_voice = None, tts_module = None):
         start_time = time.time()
-        avatar_voice = avatar_voice.split(" ")[0]
+        #avatar_voice = avatar_voice.split(" ")[0]
+        avatar_voice = "longwan"
+        
         yield gr.update(interactive=False, value=None)
         # GPT-SoVits
         '''if tts_module == "GPT-SoVits":
@@ -63,7 +65,7 @@ class ChatPipeline:
             self.tts.init_infer(ref_audio_path, prompt_text)
         # CosyVoice
         else:'''
-        self.tts_api.voice = avatar_voice  
+        self.tts_api.voice = avatar_voice
 
         gr.Info("Avatar voice loaded.", duration = 2)
         yield gr.update(interactive=True, value=None)
@@ -101,11 +103,13 @@ class ChatPipeline:
     def run_pipeline(self, user_input, user_messages, chunk_size, avatar_name, tts_module, chat_mode):
         self.flush_pipeline()
         self.start_time = time.time()
-        avatar_name = avatar_name.split(" ")[0]
+        #avatar_name = avatar_name.split(" ")[0]
+        avatar_name = "Avatar1"
         self.project_path = f"./workspaces/results/{avatar_name}/{get_timestamp_str()}"
         #project_path = f"./workspaces/results/{get_timestamp_str()}"
         user_input_audio = None
         #tts_module = 'GPT-SoVits' if user_input_audio else tts_module
+        tts_module = "CosyVoice"
 
         try:
             os.makedirs(self.project_path, exist_ok=True)
@@ -133,6 +137,8 @@ class ChatPipeline:
             print(f"[ASR] User input=========================================================: {user_input_txt}, cost: {self.asr_cost}s")
 
             # LLM streaming out
+            #chat_mode = "单轮对话 (一次性回答问题)"
+            #chunk_size = 10 
             #llm_response_txt, user_messages = self.lvm.infer_stream(user_input_txt, user_messages, self.lvm_queue, chunk_size, chat_mode)
 
             instruction = user_input_txt
@@ -241,6 +247,8 @@ class ChatPipeline:
     def tts_worker(self, project_path, tts_module):
         start_time = time.time()
         index = 0
+        tts_module = "CosyVoice"
+        
         while not self.stop.is_set():
             print("waiting vlm response...")
             try:

@@ -16,13 +16,12 @@ from pipeline import ChatPipeline
 logging.basicConfig(level=logging.WARNING)
 
 os.environ["DASHSCOPE_API_KEY"] = "sk-479fdd23120c4201bff35a107883c7c3"
-os.environ["is_half"] = "True"
+#os.environ["is_half"] = "True"
 
 shutil.rmtree('./workspaces/results', ignore_errors= True)
 
 from ubrobot.robots.ubrobot import Go2Manager
 
-#manager = None
 chat_pipeline = None
 
 def gradio_planning_txt_update():

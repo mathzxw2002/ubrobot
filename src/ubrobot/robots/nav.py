@@ -1,8 +1,3 @@
-from openai import OpenAI
-from threading import Thread
-import re
-import queue
-import os
 import json
 import time
 from PIL import ImageDraw, ImageFont
@@ -214,6 +209,9 @@ class RobotNav:
             trajs_in_world = np.array(trajs_in_world)
             print(f"{time.time()} update traj")
             act.trajs_in_world = trajs_in_world
+
+            print("====================check traj. in world.", act.trajs_in_world)
+            
             act.current_control_mode = ControlMode.MPC_Mode
         elif 'discrete_action' in response:
             # 离散动作：切换到PID模式

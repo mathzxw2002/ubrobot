@@ -1,9 +1,5 @@
 import os
-import sys
 import time
-import random
-import torch
-import soundfile as sf
 import dashscope
 from dashscope.audio.tts_v2 import *
 from dashscope.api_entities.dashscope_response import SpeechSynthesisResponse
@@ -24,9 +20,7 @@ class CosyVoice_API:
             print("[TTS] API infer cost:", time.time()-start_time)
             with open(output_wav_path, 'wb') as f:
                 f.write(audio)
-                
             return output_wav_path
         except Exception as e:
             print(f"[TTS] API infer error: {e}")
             return None
-

@@ -12,11 +12,9 @@ import threading
 import queue
 import time
 import gradio as gr
-import ffmpeg
 import subprocess
 import threading
 import gradio as gr
-import pandas as pd
 
 from utils import get_timestamp_str, merge_videos, merge_audios, merge_frames_with_audio
 from ubrobot.robots.tts import CosyVoice_API
@@ -29,15 +27,14 @@ from ubrobot.robots.vlm import RobotVLM
 class ChatPipeline:
     def __init__(self):
 
-        print(f"[2/4] Start initializing funasr")
+        print(f"[1/3] Start initializing funasr")
         self.asr = Fun_ASR()
 
-        print(f"[3/4] Start initializing qwen")
+        print(f"[2/3] Start initializing qwen")
         
         self.lvm = RobotVLM()
 
-        print(f"[4/4] Start initializing tts")
-        #self.tts = GPT_SoVits_TTS()
+        print(f"[3/3] Start initializing tts")
         self.tts_api = CosyVoice_API()
         
         print("[Done] Initialzation finished")
@@ -54,7 +51,6 @@ class ChatPipeline:
     
     def load_voice(self, avatar_voice = None, tts_module = None):
         start_time = time.time()
-        #avatar_voice = avatar_voice.split(" ")[0]
         avatar_voice = "longwan"
         
         yield gr.update(interactive=False, value=None)
@@ -103,12 +99,9 @@ class ChatPipeline:
     def run_pipeline(self, user_input, user_messages):
         self.flush_pipeline()
         self.start_time = time.time()
-        #avatar_name = avatar_name.split(" ")[0]
         avatar_name = "Avatar1"
         self.project_path = f"./workspaces/results/{avatar_name}/{get_timestamp_str()}"
-        #project_path = f"./workspaces/results/{get_timestamp_str()}"
         user_input_audio = None
-        #tts_module = 'GPT-SoVits' if user_input_audio else tts_module
         tts_module = "CosyVoice"
 
         try:
@@ -294,7 +287,6 @@ class ChatPipeline:
                     gr.Info("ffmpeg Timeout")
                     break
         self.video_queue.put(None)
-
 
     def get_robot_arm_image_observation(self):
         return self.robot_arm.get_observation()

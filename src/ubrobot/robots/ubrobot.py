@@ -1,13 +1,6 @@
-import random
 import time
-from pathlib import Path
-from collections import OrderedDict
-import json
 import copy
-import io
-import math
 from collections import deque
-from enum import Enum
 import numpy as np
 
 import sys
@@ -24,9 +17,7 @@ from PIL import Image as PIL_Image
 from .controllers import Mpc_controller, PID_controller
 from thread_utils import ReadWriteLock
 
-import cv2
 import threading
-import os
 import traceback
 
 from ubrobot.robots.vlm import RobotVLM
@@ -34,7 +25,6 @@ from ubrobot.robots.nav import RobotNav, RobotAction, ControlMode
 
 from dataclasses import dataclass
 
-import sys
 sys.path.append("/home/unitree/ubrobot/ros_depends_ws/src/rtabmap_odom_py/odom")
 
 import rs_odom_module
@@ -240,9 +230,7 @@ class Go2Manager():
             self.mpc_rw_lock.release_write()
 
             # MPC模式：基于轨迹的最优控制
-            #self.odom_rw_lock.acquire_read()
             odom = self.odom if self.odom else None
-            #self.odom_rw_lock.release_read()
             if self.mpc is not None and odom is not None:
                 local_mpc = self.mpc
                 opt_u_controls, opt_x_states = local_mpc.solve(np.array(odom))
@@ -289,7 +277,7 @@ class Go2Manager():
 
                 print("get action...", nav_action.actions)
                 # send action
-                #self.send_action(self.nav_action)
+                self.send_action(self.nav_action)
             # sleep
             time.sleep(max(0, 1.0 / FPS - (time.time() - t0)))
     

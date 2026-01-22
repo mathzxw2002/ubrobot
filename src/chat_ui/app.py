@@ -16,10 +16,6 @@ shutil.rmtree('./workspaces/results', ignore_errors= True)
 chat_pipeline = None
 
 def gradio_planning_txt_update():
-    '''chat_history = []
-    chat_history.append({"role": "user", "content": global_nav_instruction_str})
-    chat_history.append({"role": "assistant", "content": result_str})
-    '''
     while True:
         vis_annotated_img =  chat_pipeline.get_nav_vis_image()
         robot_arm_rgb_image = chat_pipeline.get_robot_arm_image_observation()

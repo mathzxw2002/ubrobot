@@ -26,7 +26,6 @@ from std_msgs.msg import Bool, Float64, Int32
 import tf.transformations as tf_trans
 
 from message_filters import ApproximateTimeSynchronizer, Subscriber
-#from cv_bridge import CvBridge
 from geometry_msgs.msg import Twist
 from nav_msgs.msg import Odometry
 from sensor_msgs.msg import Image

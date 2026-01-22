@@ -15,7 +15,7 @@ from pipeline import ChatPipeline
 
 logging.basicConfig(level=logging.WARNING)
 
-os.environ["DASHSCOPE_API_KEY"] = "sk-479fdd23120c4201bff35a107883c7c3"
+#os.environ["DASHSCOPE_API_KEY"] = "sk-479fdd23120c4201bff35a107883c7c3"
 #os.environ["is_half"] = "True"
 
 shutil.rmtree('./workspaces/results', ignore_errors= True)

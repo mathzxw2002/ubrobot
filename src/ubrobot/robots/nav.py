@@ -33,8 +33,6 @@ class RobotAction:
 
 class RobotNav:
     def __init__(self, api_key = None, base_url = "https://dashscope.aliyuncs.com/compatible-mode/v1"):
-        api_key = api_key if api_key else os.getenv("DASHSCOPE_API_KEY")
-
         self.idx2actions = OrderedDict({"0": "STOP", "1": "↑", "2": "←", "3": "→", "5": "↓", })
         
            

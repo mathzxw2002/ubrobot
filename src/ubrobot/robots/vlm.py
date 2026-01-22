@@ -19,9 +19,7 @@ from PIL import Image as PIL_Image
 class RobotVLM:
     def __init__(self, api_key = None, base_url = "https://dashscope.aliyuncs.com/compatible-mode/v1", url = "http://192.168.18.230:5802/eval_cosmos_reason1"):
         self.url = url
-        api_key = api_key if api_key else os.getenv("DASHSCOPE_API_KEY")
         self.client = OpenAI(
-            #api_key=os.getenv("DASHSCOPE_API_KEY"),
             api_key="sk-479fdd23120c4201bff35a107883c7c3",
             base_url=base_url,
         )

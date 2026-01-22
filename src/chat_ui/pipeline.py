@@ -100,7 +100,7 @@ class ChatPipeline:
             gr.Info("Pipeline is not running.", duration = 2)
             return user_processing_flag
 
-    def run_pipeline(self, user_input, user_messages, chunk_size, avatar_name, tts_module, chat_mode):
+    def run_pipeline(self, user_input, user_messages):
         self.flush_pipeline()
         self.start_time = time.time()
         #avatar_name = avatar_name.split(" ")[0]
@@ -305,7 +305,3 @@ class ChatPipeline:
     def get_nav_vis_image(self):
         nav_action, vis_annotated_img = self.manager.get_next_planning()
         return vis_annotated_img
-
-
-# 实例化         
-#chat_pipeline = ChatPipeline()

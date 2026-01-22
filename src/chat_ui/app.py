@@ -20,7 +20,7 @@ os.environ["DASHSCOPE_API_KEY"] = "sk-479fdd23120c4201bff35a107883c7c3"
 
 shutil.rmtree('./workspaces/results', ignore_errors= True)
 
-from ubrobot.robots.ubrobot import Go2Manager
+#from ubrobot.robots.ubrobot import Go2Manager
 
 chat_pipeline = None
 
@@ -82,12 +82,12 @@ def create_gradio():
                     height= 500,
                     )
 
-                with gr.Row():
-                    avatar_name = gr.Dropdown(label = "数字人形象", choices = ["Avatar1 (通义万相)"], value = "Avatar1 (通义万相)")
-                    chat_mode = gr.Dropdown(label = "对话模式", choices = ["单轮对话 (一次性回答问题)", "互动对话 (分多次回答问题)"], value = "单轮对话 (一次性回答问题)")
-                    chunk_size = gr.Slider(label = "每次处理的句子最短长度", minimum = 0, maximum = 30, value = 10, step = 1) 
-                    tts_module = gr.Dropdown(label = "TTS选型", choices = ["CosyVoice"], value = "CosyVoice")
-                    avatar_voice = gr.Dropdown(label = "TTS音色", choices = ["longxiaochun (CosyVoice)", "longwan (CosyVoice)", "longcheng (CosyVoice)", "longhua (CosyVoice)"], value="longwan (CosyVoice)")
+                #with gr.Row():
+                #    avatar_name = gr.Dropdown(label = "数字人形象", choices = ["Avatar1 (通义万相)"], value = "Avatar1 (通义万相)")
+                #    chat_mode = gr.Dropdown(label = "对话模式", choices = ["单轮对话 (一次性回答问题)", "互动对话 (分多次回答问题)"], value = "单轮对话 (一次性回答问题)")
+                #    chunk_size = gr.Slider(label = "每次处理的句子最短长度", minimum = 0, maximum = 30, value = 10, step = 1) 
+                #    tts_module = gr.Dropdown(label = "TTS选型", choices = ["CosyVoice"], value = "CosyVoice")
+                #    avatar_voice = gr.Dropdown(label = "TTS音色", choices = ["longxiaochun (CosyVoice)", "longwan (CosyVoice)", "longcheng (CosyVoice)", "longhua (CosyVoice)"], value="longwan (CosyVoice)")
                     
                 user_input = mgr.MultimodalInput(sources=["microphone"])
 
@@ -108,18 +108,19 @@ def create_gradio():
         lifecycle = mgr.Lifecycle()
 
         # loading TTS Voice
-        avatar_voice.change(chat_pipeline.load_voice, 
+        '''avatar_voice.change(chat_pipeline.load_voice, 
             inputs=[avatar_voice, tts_module],
             outputs=[user_input]
             )
         lifecycle.mount(chat_pipeline.load_voice,
             inputs=[avatar_voice, tts_module],
             outputs=[user_input]
-        )
+        )'''
 
         # Submit
         user_input.submit(chat_pipeline.run_pipeline,
-            inputs=[user_input, user_messages, chunk_size, avatar_name, tts_module, chat_mode],
+            #inputs=[user_input, user_messages, chunk_size, avatar_name, tts_module, chat_mode],
+            inputs=[user_input, user_messages],
             outputs=[user_messages]
             )
         user_input.submit(chat_pipeline.yield_results, 

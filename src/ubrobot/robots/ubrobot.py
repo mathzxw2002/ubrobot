@@ -213,6 +213,9 @@ class Go2Manager():
             start = time.time()
             nav_action, vis_annotated_img = self.nav._dual_sys_eval(policy_init, http_idx, rgb_image, depth, instruction, odom)
             print(f"idx: {http_idx} step in get_action() cost {time.time() - start}")
+        else:
+            nav_action = None
+            vis_annotated_img = rgb_image
         return nav_action, vis_annotated_img
 
     def _control_thread(self):

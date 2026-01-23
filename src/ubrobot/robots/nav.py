@@ -210,8 +210,8 @@ class RobotNav:
             print(f"{time.time()} update traj")
             act.trajs_in_world = trajs_in_world
 
-            print("====================check traj. in world.", act.trajs_in_world)
-            
+            #print("====================check traj. in world.", act.trajs_in_world)
+
             act.current_control_mode = ControlMode.MPC_Mode
         elif 'discrete_action' in response:
             # 离散动作：切换到PID模式
@@ -252,7 +252,7 @@ class RobotNav:
                 timeout=100
             )
             response.raise_for_status()
-            print(f"dual_sys_eval response {response.text}")
+            #print(f"dual_sys_eval response {response.text}")
         except requests.exceptions.RequestException as e:
             print(f"dual_sys_eval request failed: {e}")
             return {}

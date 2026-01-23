@@ -5,13 +5,7 @@ import numpy as np
 
 import sys
 from unitree_sdk2py.core.channel import ChannelFactoryInitialize
-from unitree_sdk2py.idl.default import unitree_go_msg_dds__SportModeState_
-from unitree_sdk2py.idl.unitree_go.msg.dds_ import SportModeState_
-from unitree_sdk2py.go2.sport.sport_client import (
-    SportClient,
-    PathPoint,
-    SPORT_PATH_POINT_SIZE,
-)
+from unitree_sdk2py.go2.sport.sport_client import SportClient
 
 from PIL import Image as PIL_Image
 from .controllers import Mpc_controller, PID_controller
@@ -21,7 +15,7 @@ import threading
 import traceback
 
 from ubrobot.robots.vlm import RobotVLM
-from ubrobot.robots.nav import RobotNav, RobotAction, ControlMode
+from ubrobot.robots.nav import RobotNav, ControlMode
 
 from dataclasses import dataclass
 
@@ -29,6 +23,7 @@ sys.path.append("/home/unitree/ubrobot/ros_depends_ws/src/rtabmap_odom_py/odom")
 
 import rs_odom_module
 
+'''
 @dataclass
 class TestOption:
     name: str
@@ -53,7 +48,7 @@ option_list = [
     TestOption(name="walk upright", id=17),
     TestOption(name="cross step", id=18),
     TestOption(name="free jump", id=19)       
-]
+]'''
 
 class Go2Manager():
     def __init__(self):
@@ -87,7 +82,6 @@ class Go2Manager():
 
         self.rgb_image = None
         self.depth_image = None
-        self.new_image_arrived = False
 
         self.odom = None
         self.odom_queue = deque(maxlen=50)
@@ -105,9 +99,11 @@ class Go2Manager():
         # unitree go2 dog
         self.go2client = None
         ChannelFactoryInitialize(0, "eth0") # default net card
-        self.go2client = SportClient()  
+        self.go2client = SportClient()
         self.go2client.SetTimeout(10.0)
         self.go2client.Init()
+        # TODO set slow mode
+        self.go2client.SpeedLevel(-1)
     
     def get_observation(self):
 
@@ -140,19 +136,12 @@ class Go2Manager():
         # get depth image
         depth_img = self.tracker.get_depth_image()
         if not depth_img.size == 0:
-            # 归一化深度图像用于显示
-            #print("saving................depth image")
-            #depth_normalized = cv2.normalize(np.array(depth_img), None, 0, 255, cv2.NORM_MINMAX, cv2.CV_8UC1)
-
             self.depth_image = depth_img
             self.depth_image -= 0.0
             self.depth_image[np.where(self.depth_image < 0)] = 0
             self.depth_image[np.isnan(self.depth_image)] = 0
             self.depth_image[np.isinf(self.depth_image)] = 0
         
-        # 标记图像更新
-        self.new_image_arrived = True
-
         if pose:
             # update pose info
             self.odom = [pose[0], pose[1], pose[5]]
@@ -221,7 +210,7 @@ class Go2Manager():
             time.sleep(0.1)
     
     def send_action(self, act):
-        # first check current odom info, [x, y, yaw, v_x, v_y, w_z]
+        # first check current odom info, [x, y, yaw, v_x, w_z]
         print("current odom ([x, y, yaw, v_x, w_z]):", self.odom, self.vel)
         if act.current_control_mode == ControlMode.MPC_Mode:
             self.mpc_rw_lock.acquire_write()

@@ -1,4 +1,5 @@
 import time
+from datetime import datetime
 import copy
 from collections import deque
 import numpy as np
@@ -211,7 +212,9 @@ class Go2Manager():
     
     def send_action(self, act):
         # first check current odom info, [x, y, yaw, v_x, w_z]
-        print("current odom ([x, y, yaw, v_x, w_z]):", self.odom, self.vel)
+        robot_nav_current_state = list(self.odom) + list(self.vel)
+        formatted_values = [f"{num:.2f}" for num in robot_nav_current_state]
+        print(f"current odom ([x, y, yaw, v_x, w_z]): {' , '.join(formatted_values)}")
         if act.current_control_mode == ControlMode.MPC_Mode:
             self.mpc_rw_lock.acquire_write()
             if self.mpc is None:
@@ -290,7 +293,8 @@ class Go2Manager():
             print("Go2 Sport Client NOT initialized!")
             return
         else:
-            print("receive move command.", vx, vy, vyaw)
+            current_time = datetime.now().strftime("%Y-%m-%d %H:%M:%S.%f")[:-3]  # ms precision
+            print(f"[{current_time}] receive move command [vx, vy, vyaw] {vx:.2f}, {vy:.2f}, {vyaw:.2f}")
             #self.go2client.Move(vx, vy, vyaw) #vx, vy, vyaw
 
     def go2_robot_stop(self):

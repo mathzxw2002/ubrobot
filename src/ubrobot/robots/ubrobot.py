@@ -222,7 +222,7 @@ class Go2Manager():
     
     def send_action(self, act):
         # first check current odom info, [x, y, yaw, v_x, v_y, w_z]
-        print("current odom ([x, y, yaw, v_x, v_y, w_z]):", self.odom)
+        print("current odom ([x, y, yaw, v_x, w_z]):", self.odom, self.vel)
         if act.current_control_mode == ControlMode.MPC_Mode:
             self.mpc_rw_lock.acquire_write()
             if self.mpc is None:
@@ -248,7 +248,6 @@ class Go2Manager():
             homo_odom[:2, :2] = R0
             homo_odom[:2, 3] = odom[:2]
             
-            #homo_odom = copy.deepcopy(self.homo_odom) if self.homo_odom is not None else None
             vel = copy.deepcopy(self.vel) if self.vel is not None else None
             if homo_odom is not None and vel is not None and act.homo_goal is not None:
                 v, w, e_p, e_r = self.pid.solve(homo_odom, act.homo_goal, vel)

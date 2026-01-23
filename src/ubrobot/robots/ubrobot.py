@@ -221,6 +221,8 @@ class Go2Manager():
             time.sleep(0.1)
     
     def send_action(self, act):
+        # first check current odom info, [x, y, yaw, v_x, v_y, w_z]
+        print("current odom ([x, y, yaw, v_x, v_y, w_z]):", self.odom)
         if act.current_control_mode == ControlMode.MPC_Mode:
             self.mpc_rw_lock.acquire_write()
             if self.mpc is None:
@@ -235,8 +237,7 @@ class Go2Manager():
                 local_mpc = self.mpc
                 opt_u_controls, opt_x_states = local_mpc.solve(np.array(odom))
                 v, w = opt_u_controls[0, 0], opt_u_controls[0, 1]
-
-                #self.move(v, 0.0, w)
+                self.move(v, 0.0, w)
         elif act.current_control_mode == ControlMode.PID_Mode:
             odom = copy.deepcopy(self.odom) if self.odom is not None else None
             # compute homo_odom by odom
@@ -253,11 +254,8 @@ class Go2Manager():
                 v, w, e_p, e_r = self.pid.solve(homo_odom, act.homo_goal, vel)
                 if v < 0.0:
                     v = 0.0
-
-                #print(v, w)
-                #self.move(v, 0.0, w)
+                self.move(v, 0.0, w)
     
-
     def _planning_thread(self):
         FPS = 30
 
@@ -299,6 +297,13 @@ class Go2Manager():
                   "theta.vel": vyaw
                   }
         # self.lekiwi_base.send_action(action)
+        
+        if self.go2client is None:
+            print("Go2 Sport Client NOT initialized!")
+            return
+        else:
+            print("receive move command.", vx, vy, vyaw)
+            #self.go2client.Move(vx, vy, vyaw) #vx, vy, vyaw
 
     def go2_robot_stop(self):
         if self.go2client is None:

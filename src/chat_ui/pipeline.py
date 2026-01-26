@@ -32,7 +32,7 @@ class ChatPipeline:
 
         print(f"[2/3] Start initializing qwen")
         
-        self.lvm = RobotVLM()
+        self.vlm = RobotVLM()
 
         print(f"[3/3] Start initializing tts")
         self.tts_api = CosyVoice_API()
@@ -40,7 +40,7 @@ class ChatPipeline:
         print("[Done] Initialzation finished")
         self.timeout=180
         self.video_queue = queue.Queue()
-        self.lvm_queue = queue.Queue()
+        self.vlm_queue = queue.Queue()
         self.tts_queue = queue.Queue()
         self.chat_history = []
         self.stop = threading.Event()
@@ -70,7 +70,7 @@ class ChatPipeline:
     def flush_pipeline(self):
         print("Flushing pipeline....")
         self.video_queue = queue.Queue()
-        self.lvm_queue = queue.Queue()
+        self.vlm_queue = queue.Queue()
         self.tts_queue = queue.Queue()
         self.chat_history = []
         self.idx = 0
@@ -132,14 +132,14 @@ class ChatPipeline:
             # LLM streaming out
             #chat_mode = "单轮对话 (一次性回答问题)"
             #chunk_size = 10 
-            #llm_response_txt, user_messages = self.lvm.infer_stream(user_input_txt, user_messages, self.lvm_queue, chunk_size, chat_mode)
+            #llm_response_txt, user_messages = self.vlm.infer_stream(user_input_txt, user_messages, self.vlm_queue, chunk_size, chat_mode)
 
             instruction = user_input_txt
             self.manager.set_user_instruction(instruction)
 
             manipulate_img_output = self.robot_arm.get_observation()
             user_input_txt = user_input_txt + ". Answer shortly."
-            llm_response_txt, user_messages = self.lvm.infer_cosmos_reason(user_input_txt, user_messages, self.lvm_queue, manipulate_img_output)
+            llm_response_txt, user_messages = self.vlm.infer_cosmos_reason(user_input_txt, user_messages, self.vlm_queue, manipulate_img_output)
 
             print("============================================llm_response_txt", llm_response_txt)
 
@@ -245,9 +245,9 @@ class ChatPipeline:
         while not self.stop.is_set():
             print("waiting vlm response...")
             try:
-                llm_response_txt = self.lvm_queue.get(timeout=180)
+                llm_response_txt = self.vlm_queue.get(timeout=180)
                 self.chat_history.append(llm_response_txt)
-                print(f"-----------------[TTS] Get chunk from llm_queue: {llm_response_txt}, llm_queue size: {self.lvm_queue.qsize()}, chat_history {self.chat_history} ")
+                print(f"-----------------[TTS] Get chunk from llm_queue: {llm_response_txt}, llm_queue size: {self.vlm_queue.qsize()}, chat_history {self.chat_history} ")
                 if not llm_response_txt:
                     break
                 infer_start_time = time.time()
@@ -290,10 +290,14 @@ class ChatPipeline:
 
     def get_robot_arm_image_observation(self):
         return self.robot_arm.get_observation()
-    
-    #def get_front_image_observation(self):
-    #    return self.
 
     def get_nav_vis_image(self):
         nav_action, vis_annotated_img = self.manager.get_next_planning()
         return vis_annotated_img
+    
+    def get_robot_arm_manipulate_action(self):
+        instruction = "Locate objects in current image and return theirs coordinates as json format."
+        image = self.robot_arm.get_observation()
+        res = self.vlm.vlm_infer_grounding(image, instruction)
+        print(res)
+        

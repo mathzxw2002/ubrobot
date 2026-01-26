@@ -24,6 +24,33 @@ class RobotVLM:
             base_url=base_url,
         )
     
+    def local_http_service(self, image_pil, instruction, url):
+        print("calling local deployed http service, url:", url)
+        
+        image_bytes = io.BytesIO()
+        image_pil.save(image_bytes, format="JPEG")
+        image_bytes.seek(0)
+
+        data = {"ins": instruction}
+        json_data = json.dumps(data)
+
+        files = {
+            'image': ('rgb_image', image_bytes, 'image/jpeg'),
+        }
+        try:
+            response = requests.post(
+                url,
+                files=files,
+                data={'json': json_data},
+                timeout=100
+            )
+            response.raise_for_status()
+            print(f"cosmos_reason1_infer response {response.text}")
+        except requests.exceptions.RequestException as e:
+            print(f"cosmos_reason1_infer request failed: {e}")
+            return ""
+        return response.text
+    
     def infer(self, user_input, user_messages, chat_mode):
         # prompt 
         if len(user_messages) == 1:
@@ -116,8 +143,6 @@ class RobotVLM:
 
     def infer_cosmos_reason(self, user_input, user_messages, llm_queue, image_pil, url='http://192.168.18.230:5802/eval_cosmos_reason1'):
         """发送图像和指令到HTTP服务，获取推理结果"""
-       
-        print("=================================================== infer_cosmos_reason")
         image_bytes = io.BytesIO()
         image_pil.save(image_bytes, format="JPEG")
         image_bytes.seek(0)
@@ -187,6 +212,21 @@ class RobotVLM:
             return ""
 
         return response.text
+
+    def vlm_infer_vqa(self, image_pil, instruction, url='http://192.168.18.230:5802/eval_reasoning_vqa'):
+        print("eval robobrain 2.5 ...")
+        response_str = self.local_http_service(image_pil, instruction, url)
+        return response_str
+    
+    def vlm_infer_traj(self, image_pil, instruction, url='http://192.168.18.230:5802/eval_reasoning_traj'):
+        print("eval robobrain 2.5 ...")
+        response_str = self.local_http_service(image_pil, instruction, url)
+        return response_str
+
+    def vlm_infer_grounding(self, image_pil, instruction, url='http://192.168.18.230:5802/eval_reasoning_grounding'):
+        print("eval robobrain 2.5 ...")
+        response_str = self.local_http_service(image_pil, instruction, url)
+        return response_str
     
     def decode_json_points(self, text: str):
         """Parse coordinate points from text format"""

@@ -97,3 +97,23 @@ https://blog.csdn.net/python_yjys/article/details/145451271
 python39 gradio启动 报错 TypeError: argument of type ‘bool‘ is not iterable
 https://blog.csdn.net/qq_63234089/article/details/146914002
 
+
+
+
+
+cd [your-coal-build-directory]
+cmake .. -DCOAL_BACKWARD_COMPATIBILITY_WITH_HPP_FCL=ON -DCMAKE_INSTALL_PREFIX=/usr/local/
+make -j$(nproc)
+sudo make install
+
+
+ls /usr/local/lib/cmake/hpp-fcl/hpp-fclConfig.cmake
+
+
+
+cmake .. -DCMAKE_BUILD_TYPE=Release -DCMAKE_INSTALL_PREFIX=/usr/local -DBUILD_WITH_COLLISION_SUPPORT=ON -Dhpp-fcl_DIR=/usr/local/lib/cmake/hpp-fcl  -DBUILD_WITH_PYTHON_INTERFACE=OFF -DBUILD_UNIT_TESTS=OFF
+make -j$(nproc)
+sudo make install
+
+
+sudo ldconfig

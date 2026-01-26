@@ -24,33 +24,6 @@ sys.path.append("/home/unitree/ubrobot/ros_depends_ws/src/rtabmap_odom_py/odom")
 
 import rs_odom_module
 
-'''
-@dataclass
-class TestOption:
-    name: str
-    id: int
-
-option_list = [
-    TestOption(name="damp", id=0),         
-    TestOption(name="stand_up", id=1),     
-    TestOption(name="stand_down", id=2),   
-    TestOption(name="move forward", id=3),         
-    TestOption(name="move lateral", id=4),    
-    TestOption(name="move rotate", id=5),  
-    TestOption(name="stop_move", id=6),  
-    TestOption(name="hand stand", id=7),
-    TestOption(name="balanced stand", id=9),     
-    TestOption(name="recovery", id=10),       
-    TestOption(name="left flip", id=11),      
-    TestOption(name="back flip", id=12),
-    TestOption(name="free walk", id=13),  
-    TestOption(name="free bound", id=14), 
-    TestOption(name="free avoid", id=15),  
-    TestOption(name="walk upright", id=17),
-    TestOption(name="cross step", id=18),
-    TestOption(name="free jump", id=19)       
-]'''
-
 class Go2Manager():
     def __init__(self):
 
@@ -276,13 +249,6 @@ class Go2Manager():
         print("✅ Go2Manager: control thread and planning thread started successfully")
 
     def move(self, vx, vy, vyaw):
-        """发布机器人线速度和角速度控制指令"""
-        #request = Twist()
-        #request.linear.x = vx
-        #request.linear.y = 0.0
-        #request.angular.z = vyaw
-
-        # 发送指令到机器人基座（可根据需要启用）
         action = {"x.vel": vx,
                   "y.vel": 0,
                   "theta.vel": vyaw
@@ -336,7 +302,6 @@ if __name__ == "__main__":
     try:
         # 初始化 Go2Manager 实例
         manager = Go2Manager()
-        # 启动控制线程和规划线程
         manager.start_threads()
     except KeyboardInterrupt:
         print("\n======= Stopping Go2Manager Core =======")

@@ -16,11 +16,11 @@ shutil.rmtree('./workspaces/results', ignore_errors= True)
 chat_pipeline = None
 
 def gradio_planning_txt_update():
+
+    chat_pipeline.get_robot_arm_manipulate_action()
     while True:
         vis_annotated_img =  chat_pipeline.get_nav_vis_image()
         robot_arm_rgb_image = chat_pipeline.get_robot_arm_image_observation()
-        #instruction = "Locate objects in current image and return theirs coordinates as json format."
-        #robot_arm.grounding_objects_2d(robot_arm_rgb_image, instruction)
         yield gr.update(value=vis_annotated_img), gr.update(value=robot_arm_rgb_image)
         time.sleep(1)
 
@@ -44,7 +44,7 @@ def create_gradio():
                         {"avatar": os.path.abspath("assets/icon/qwen.png")},
                     ],
                     height= 500,
-                    )                    
+                    )    
                 user_input = mgr.MultimodalInput(sources=["microphone"])
 
             with gr.Column(scale = 1):

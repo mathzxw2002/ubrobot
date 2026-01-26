@@ -2,15 +2,22 @@
 # coding:utf-8
 
 import rospy
-import sys
-import select
-import tty
-import termios
 import time
 import math
 from enum import Enum
 from collections import deque
 import io
+
+import time
+import random
+import numpy as np
+import pinocchio as pin
+from piper_sdk import C_PiperInterface_V2
+
+from pyroboplan.core import RobotModel
+from pyroboplan.core.robot import RobotModel
+from pyroboplan.models.utils import RobotModel
+from pyroboplan.planning.rrt import RRTPlanner
 
 # ROS消息导入
 from sensor_msgs.msg import PointCloud2
@@ -49,8 +56,6 @@ from mpl_toolkits.mplot3d import Axes3D
 from pointcloud import PointCloudPerception
 
 from pointcloud import GraspPoseCalculator
-
-#from piper_motion_plan import PiperMotionPlan
 
 from piper_sdk import *
 
@@ -269,8 +274,6 @@ class PoseTransformer:
         self.rgb_bytes = None
         self.depth_image = None
         self.depth_bytes = None
-        self.new_image_arrived = False
-        self.rgb_time = 0.0
 
         # 相机内参存储（关键：用于2D转3D）
         self.fx = None
@@ -294,10 +297,6 @@ class PoseTransformer:
         self.ik_success_pose = None  # 保存成功的姿态
         self.motion_complete_time = 0  # 运动完成时间
         self.motion_in_progress = False  # 运动进行中标志
-
-        # 外部请求管理
-        self.task_cmd = 0
-        self.task_reslut = 0
         
         # 动作序列管理
         self.action_sequence = ActionSequence()
@@ -307,13 +306,8 @@ class PoseTransformer:
             position=[0.300, 0.0, 0.360],
             orientation=[0.007, 0.915, 0.009, 0.403]
         )
-
         self.via_pose_list = []
         
-        # 终端设置
-        self.old_settings = termios.tcgetattr(sys.stdin)
-        #self.piper_mp = PiperMotionPlan()
-
     def create_via_pose(self, position, orientation, frame_id="base_link"):
         """创建路径点姿势"""
         pose = PoseStamped()
@@ -413,36 +407,25 @@ class PoseTransformer:
         image_bytes = io.BytesIO()
         image_pil.save(image_bytes, format="JPEG")
         image_bytes.seek(0)
-        instruction = "Locate objects in current image and return theirs coordinates as json format."
-        response_restult_str = self.vlm.reasoning_vlm_infer(image_bytes, instruction)
+        #instruction = "Locate objects in current image and return theirs coordinates as json format."
+        #response_restult_str = self.vlm.reasoning_vlm_infer(image_bytes, instruction)
+        response_restult_str = self.vlm.vlm_infer_grounding(image_bytes, instruction)
+        #response_restult_str = self.vlm.vlm_infer_traj(image_bytes, instruction)
         print(response_restult_str)
         return response_restult_str
-    
-    def camera_info_callback(self, camera_info_msg):
-        """
-        解析相机内参（从CameraInfo消息提取fx, fy, ppx, ppy）
-        内参矩阵K：[fx, 0, ppx; 0, fy, ppy; 0, 0, 1]
-        """
-        self.fx = camera_info_msg.K[0]
-        self.fy = camera_info_msg.K[4]
-        self.ppx = camera_info_msg.K[2]
-        self.ppy = camera_info_msg.K[5]
-        rospy.loginfo("已获取相机内参：fx=%.2f, fy=%.2f, ppx=%.2f, ppy=%.2f",
-                      self.fx, self.fy, self.ppx, self.ppy)
-    
+        
     def rgb_depth_down_callback(self, rgb_msg, depth_msg):
-        print("======================, rgb_depth_down_callback, ")
         """处理下视彩色图像和对齐后的深度图像消息"""
         # 处理彩色图像
-        raw_image = self.cv_bridge.imgmsg_to_cv2(rgb_msg, 'rgb8')[:, :, :]
-        self.rgb_image = raw_image
+        self.rgb_image = self.rgb_depth_camera.read()
         image = PIL_Image.fromarray(self.rgb_image)
         image_bytes = io.BytesIO()
         image.save(image_bytes, format='JPEG')
         image_bytes.seek(0)
 
         # 处理深度图像
-        raw_depth = self.cv_bridge.imgmsg_to_cv2(depth_msg, '16UC1')
+        # np.ndarray: The depth map as a NumPy array (height, width) of type `np.uint16` (raw depth values in millimeters) and rotation.
+        raw_depth = self.rgb_depth_camera.read_depth()
         raw_depth[np.isnan(raw_depth)] = 0
         raw_depth[np.isinf(raw_depth)] = 0
         self.depth_image = raw_depth / 1000.0
@@ -457,15 +440,8 @@ class PoseTransformer:
         # 保存数据和时间戳
         self.rgb_depth_rw_lock.acquire_write()
         self.rgb_bytes = image_bytes
-        self.rgb_time = rgb_msg.header.stamp.secs + rgb_msg.header.stamp.nsecs / 1.0e9
-        self.last_rgb_time = self.rgb_time
         self.depth_bytes = depth_bytes
-        self.depth_time = depth_msg.header.stamp.secs + depth_msg.header.stamp.nsecs / 1.0e9
-        self.last_depth_time = self.depth_time
         self.rgb_depth_rw_lock.release_write()
-
-        # 标记图像更新
-        self.new_image_arrived = True
 
         # get rgbd image and convert to poing cloud
         self.orig_pcd = self.pc.convertRGBD2PointClouds(self.rgb_image, self.depth_image, self.fx, self.fy, self.ppx, self.ppy)
@@ -504,11 +480,6 @@ class PoseTransformer:
     def target_pose_callback(self, msg):
         """TargetPose消息回调"""
         self.target_pose_current = msg
-
-    def tast_callback(self, msg):
-        """外部请求task_cmd消息回调"""
-        self.task_cmd = msg
-
 
     def print_pose_info(self, label, pose):
         """打印姿势信息"""
@@ -550,16 +521,6 @@ class PoseTransformer:
         self.publish_adjusted_pose(0)
         
         return True
-
-    def reset_ik_check_state(self):
-        """重置逆解检查状态"""
-        self.ik_manager.ik_status_received = False
-        self.ik_manager.ik_success = False
-        self.waiting_for_ik = True
-        self.ik_check_start_time = time.time()
-        self.adjustment_attempts = 0
-        self.ik_success_pose = None
-        self.motion_in_progress = False
 
     def publish_adjusted_pose(self, attempt_count):
         """发布调整后的姿态"""
@@ -604,43 +565,6 @@ class PoseTransformer:
         
         return True
 
-    def check_ik_status(self):
-        """检查逆解状态并处理"""
-        if not self.waiting_for_ik:
-            return None
-        
-        current_time = time.time()
-        
-        # 检查是否收到逆解状态
-        if self.ik_manager.ik_status_received:
-            if self.ik_manager.ik_success:
-                # 逆解成功，设置运动进行中标志
-                rospy.loginfo("IK solution found successfully! Motion started...")
-                self.ik_success_pose = self.current_target_pose
-                self.waiting_for_ik = False
-                self.motion_in_progress = True
-                self.motion_complete_time = current_time + 1.5  # 假设运动需要5秒完成
-                return True
-            else:
-                # 逆解失败，等待1秒后尝试下一个调整
-                if current_time - self.ik_check_start_time > 0.01:
-                    self.adjustment_attempts += 1
-                    
-                    if self.adjustment_attempts >= self.max_adjustment_attempts:
-                        rospy.logerr("Maximum adjustment attempts reached, giving up")
-                        self.waiting_for_ik = False
-                        return False
-                    
-                    # 尝试下一个调整值
-                    rospy.loginfo(f"Waiting 1 second before next adjustment...")
-                    self.ik_manager.ik_status_received = False
-                    self.ik_check_start_time = time.time()
-                    
-                    # 发布下一个调整姿态
-                    return self.publish_adjusted_pose(self.adjustment_attempts)
-        
-        return None
-
     def check_motion_completion(self):
         """检查运动是否完成"""
         if self.motion_in_progress and time.time() >= self.motion_complete_time:
@@ -654,12 +578,6 @@ class PoseTransformer:
         self.gripper_cmd = position
         self.gripper_cmd_pub.publish(Float64(self.gripper_cmd))
         rospy.loginfo(f"Gripper set to: {position}")
-        return True
-
-    def wait(self, duration=1.0):
-        """等待指定时间"""
-        rospy.loginfo(f"Waiting for {duration} seconds")
-        rospy.sleep(duration)
         return True
     
     def test_robot_move(self):
@@ -728,11 +646,6 @@ class PoseTransformer:
         self.task_reslut = 2'''
         print("======================== test...")
         self.get_manipulate_pose_camera_link()
-        #print(self.piper.GetArmJointMsgs())
-        #print(self.piper.GetArmGripperMsgs())
-        #print(self.piper.GetArmEndPoseMsgs())
-        #time.sleep(0.005)
-        #self.test_robot_move()
 
     def record_search_route(self):
         """记录搜索路径"""
@@ -751,12 +664,6 @@ class PoseTransformer:
         self.robot_state = RobotState.GRASPING
         rospy.loginfo("Searching...")
 
-    def get_key(self):
-        """获取键盘输入"""
-        if select.select([sys.stdin], [], [], 0) == ([sys.stdin], [], []):
-            return sys.stdin.read(1)
-        return None
-
     def print_instructions(self):
         """打印操作指令"""
         instructions = [
@@ -774,71 +681,96 @@ class PoseTransformer:
         if self.transformed_pose:
             self.print_pose_info("Current Target", self.transformed_pose)
 
-    def handle_key_input(self, key):
-        """处理键盘输入"""
-        key_actions = {
-            's': self.execute_grasp_sequence,
-            'p': lambda: setattr(self, 'continuous_publishing', not self.continuous_publishing),
-            'b': lambda: [self.control_gripper(0.07), self.publish_pose_with_ik_check(self.via_point)],
-            't': lambda: self.control_gripper(0.0 if self.gripper_cmd >= 0.06 else 0.07),
-            'c': self.action_sequence.clear,
-            'i': self.print_instructions,
-            'r': self.record_search_route,
-            'q': self.search_mode
-        }
-        
-        if key in key_actions:
-            key_actions[key]()
-            
-            if key == 'p':
-                state = "Started" if self.continuous_publishing else "Stopped"
-                rospy.loginfo(f"{state} continuous publishing")
-            elif key == 'c':
-                rospy.loginfo("Action sequence cleared")
-        
-        if self.task_cmd:
-            self.execute_grasp_sequence()
+    def deploy_piper_plan(self):
 
-    def run(self):
+        # 2. PLANNER SETUP
+        # Load the Piper model from its URDF for kinematics and collision checking
+        # Replace 'path/to/piper.urdf' with your actual file path
+        urdf_path = "./ros_depends_ws/src/piper_ros/src/piper_description/urdf/piper_description.urdf"
+        model = pin.buildModelFromUrdf(urdf_path)
+
+        collision_model = pin.buildGeomFromUrdf(model, urdf_path, pin.COLLISION)
+
+        #planner = RRTPlanner(model, collision_model)
+
+        # 3. DEFINE START AND GOAL
+        # Get current joint positions from the real robot
+        # piper_sdk returns a list of 6 joint values in radians
+        start_q = np.array(piper.get_joint_states().joint_modules.joint_states)
+        
+        # Define a goal configuration (example: reaching forward)
+        goal_q = np.array([0.5, -0.2, 0.3, 0.0, 1.2, 0.0])
+
+        # 4. GENERATE COLLISION-FREE PATH
+        print("Planning path...")
+        path = planner.plan(start_q, goal_q)
+
+        if not path:
+            print("Planning failed!")
+            return
+
+        # 5. APPLY TOPP-RA SMOOTHING
+        # Define Piper's physical limits (example values for 2026)
+        vel_limits = np.array([1.5, 1.5, 1.5, 2.0, 2.0, 2.0]) 
+        accel_limits = np.array([3.0, 3.0, 3.0, 4.0, 4.0, 4.0])
+        dt = 0.02  # 50Hz control loop
+
+        print("Smoothing trajectory with TOPP-RA...")
+        traj_opt = CubicTrajectoryOptimization(path, dt=dt)
+        trajectory = traj_opt.solve()
+
+        # 6. EXECUTE ON HARDWARE
+        print(f"Executing trajectory ({len(times)} points)...")
+        try:
+            for point in trajectory.points:
+                print(point)
+                # Send joint command to the Piper hardware
+                # The SDK expects values in radians
+                #piper.motion_ctrl.joint_motion(target_q.tolist())
+                
+                # Synchronize with the trajectory time step
+                time.sleep(dt)
+            print("Execution complete.")
+        except KeyboardInterrupt:
+            print("Emergency Stop triggered.")
+            # Optional: send emergency stop command if available in SDK
+        finally:
+            piper.disconnect()
+
+    '''def run(self):
         """主循环"""
-        tty.setcbreak(sys.stdin.fileno())
         self.print_instructions()
         
-        try:
-            while not rospy.is_shutdown():
-                # 处理键盘输入
-                if key := self.get_key() or self.task_cmd:
-                    self.handle_key_input(key)
-                
-                # 检查运动是否完成
-                if self.check_motion_completion():
-                    # 运动完成，等待2秒后继续
-                    rospy.loginfo("Motion completed! Waiting 2 seconds before continuing...")
-                    rospy.sleep(1.0)
-                    # 这里可以添加状态转换逻辑
-                
-                # 检查逆解状态（只有在没有运动进行时才检查）
-                if not self.motion_in_progress:
-                    ik_result = self.check_ik_status()
-                
-                # 执行动作序列（只有在没有运动进行时才执行）
-                if not self.action_sequence.is_empty() and not self.waiting_for_ik and not self.motion_in_progress:
-                    self.action_sequence.execute_next()
-                
-                # 连续发布模式（只有在没有运动进行时才发布）
-                if (self.continuous_publishing and self.transformed_pose and 
-                    not self.waiting_for_ik and not self.motion_in_progress):
-                    pass
-                
-                self.rate.sleep()
-                
-        finally:
-            # 恢复终端设置
-            termios.tcsetattr(sys.stdin, termios.TCSADRAIN, self.old_settings)
+        while not rospy.is_shutdown():
+            # 处理键盘输入
+            if key := self.get_key() or self.task_cmd:
+                self.handle_key_input(key)
+            
+            # 检查运动是否完成
+            if self.check_motion_completion():
+                # 运动完成，等待2秒后继续
+                rospy.loginfo("Motion completed! Waiting 2 seconds before continuing...")
+                rospy.sleep(1.0)
+                # 这里可以添加状态转换逻辑
+            
+            # 检查逆解状态（只有在没有运动进行时才检查）
+            if not self.motion_in_progress:
+                ik_result = self.check_ik_status()
+            
+            # 执行动作序列（只有在没有运动进行时才执行）
+            if not self.action_sequence.is_empty() and not self.waiting_for_ik and not self.motion_in_progress:
+                self.action_sequence.execute_next()
+            
+            # 连续发布模式（只有在没有运动进行时才发布）
+            if (self.continuous_publishing and self.transformed_pose and 
+                not self.waiting_for_ik and not self.motion_in_progress):
+                pass
+            
+            self.rate.sleep()'''
 
 if __name__ == '__main__':
     try:
         transformer = PoseTransformer()
-        transformer.run()
+        #transformer.run()
     except rospy.ROSInterruptException:
         pass

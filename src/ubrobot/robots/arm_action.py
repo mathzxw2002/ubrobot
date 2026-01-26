@@ -11,25 +11,25 @@ import io
 import time
 import random
 import numpy as np
-import pinocchio as pin
+#import pinocchio as pin
 from piper_sdk import C_PiperInterface_V2
 
-from pyroboplan.core import RobotModel
-from pyroboplan.core.robot import RobotModel
-from pyroboplan.models.utils import RobotModel
-from pyroboplan.planning.rrt import RRTPlanner
+#from pyroboplan.core import RobotModel
+#from pyroboplan.core.robot import RobotModel
+#from pyroboplan.models.utils import RobotModel
+#from pyroboplan.planning.rrt import RRTPlanner
 
 # ROS消息导入
-from sensor_msgs.msg import PointCloud2
-import sensor_msgs.point_cloud2 as pc2
-from piper_msgs.msg import PosCmd
+#from sensor_msgs.msg import PointCloud2
+#import sensor_msgs.point_cloud2 as pc2
+#from piper_msgs.msg import PosCmd
 import numpy as np
-import tf2_ros
+#import tf2_ros
 from geometry_msgs.msg import TransformStamped, Point, PoseStamped, Quaternion
-import tf2_geometry_msgs
-from tf2_geometry_msgs import do_transform_pose
-from std_msgs.msg import Bool, Float64, Int32
-import tf.transformations as tf_trans
+#import tf2_geometry_msgs
+#from tf2_geometry_msgs import do_transform_pose
+#from std_msgs.msg import Bool, Float64, Int32
+#import tf.transformations as tf_trans
 
 from message_filters import ApproximateTimeSynchronizer, Subscriber
 from geometry_msgs.msg import Twist
@@ -77,7 +77,7 @@ class IKStatusManager:
     def __init__(self):
         self.ik_success = False
         self.ik_status_received = False
-        self.ik_sub = rospy.Subscriber("/ik_status", Bool, self.ik_status_callback)
+        #self.ik_sub = rospy.Subscriber("/ik_status", Bool, self.ik_status_callback)
         
     def ik_status_callback(self, msg):
         """逆解状态回调"""

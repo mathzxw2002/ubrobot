@@ -135,7 +135,7 @@ class ChatPipeline:
             print(user_messages)
             manipulate_img_output = self.robot_arm.get_observation()
             user_input_txt = user_input_txt + ". Answer shortly."
-            llm_response_txt, user_messages = self.vlm.vlm_infer_vqa(user_input_txt, user_messages, self.vlm_queue, manipulate_img_output)
+            llm_response_txt = self.vlm.vlm_infer_vqa(manipulate_img_output, user_input_txt)
 
             print("============================================llm_response_txt", llm_response_txt)
 

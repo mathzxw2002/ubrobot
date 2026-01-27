@@ -305,15 +305,19 @@ class RobotVLM:
         print("eval robobrain 2.5 ...")
         response_str = self.local_http_service(image_pil, instruction, url)
         boxes = self.decode_json_points(response_str)
-        self.draw_on_image(image_pil, None, boxes, None, None)
+        self.draw_on_image(image_pil, None, [boxes], None, None)
         return response_str
     
     def decode_json_points(self, text: str):
         """Parse coordinate points from text format"""
-        try:        
-            answer_str = text.get("answer", "{}")
-            answer_dict = json.loads(answer_str)
-            bbox_2d = answer_dict.get("bbox_2d", [])
+        try:
+            print("=======================", text)
+            answer_str = json.loads(text).get("answer", "{}")
+            print(answer_str)
+            bbox_2d = json.loads(answer_str).get("bbox_2d", [])
+
+            print(bbox_2d)
+
             bbox_2d_int = [int(num) for num in bbox_2d]
             return bbox_2d_int
         except Exception as e:

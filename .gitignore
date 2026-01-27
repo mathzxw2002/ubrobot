@@ -145,7 +145,8 @@ ros_depends_ws/log/
 third_party/cyclonedds/build/
 third_party/cyclonedds/install/
 third_party/install/
-
 .vscode/
-
 tmp/
+checkpoints/
+output/
+test_data/

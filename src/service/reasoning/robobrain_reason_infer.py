@@ -2,6 +2,7 @@ import os, re, cv2
 from typing import Union
 from qwen_vl_utils import process_vision_info
 from transformers import AutoModelForImageTextToText, AutoProcessor
+from PIL import Image as PIL_Image
 
 class RoboBrainUnifiedInference:
     """
@@ -25,26 +26,31 @@ class RoboBrainUnifiedInference:
         )
         self.processor = AutoProcessor.from_pretrained(model_id)
         
-    def inference(self, text: str, image: Union[list, str], task="general", 
+    def inference(self, text: str, image: PIL_Image, task="general", 
                  plot=False, do_sample=True, temperature=0.7):
         """
         Perform inference with text and images input.
         
         Args:
             text (str): The input text prompt.
-            image (Union[list,str]): The input image(s) as a list of file paths or a single file path.
+            image (PIL Imaghe): The input image as a PIL Image.
             task (str): The task type, e.g., "general", "pointing", "trajectory", "grounding".
             plot (bool): Whether to plot results on image.
             do_sample (bool): Whether to use sampling during generation.
             temperature (float): Temperature for sampling.
         """
 
-        if isinstance(image, str):
-            image = [image]
+        if not isinstance(image, (list, tuple)):
+            image_items = [image]
+        else:
+            image_items = image
+
+        #if isinstance(image, str):
+        #    image = [image]
 
         assert task in ["general", "pointing", "trajectory", "grounding"], \
             f"Invalid task type: {task}. Supported tasks are 'general', 'pointing', 'trajectory', 'grounding'."
-        assert task == "general" or (task in ["pointing", "trajectory", "grounding"] and len(image) == 1), \
+        assert task == "general" or (task in ["pointing", "trajectory", "grounding"] ), \
             "Pointing, grounding, and trajectory tasks require exactly one image."
 
         if task == "pointing":
@@ -65,8 +71,8 @@ class RoboBrainUnifiedInference:
                 "content": [
                     *[
                         {"type": "image", 
-                         "image": path if path.startswith("http") else f"file://{path}"
-                        } for path in image
+                         "image": img_obj
+                        } for img_obj in image_items
                     ],
                     {"type": "text", "text": f"{text}"},
                 ],
@@ -123,7 +129,7 @@ class RoboBrainUnifiedInference:
                 boxes = re.findall(box_pattern, result_text)
                 plot_boxes = [[int(x1), int(y1), int(x2), int(y2)] for x1, y1, x2, y2 in boxes]
                 print(f"Extracted bounding boxes: {plot_boxes}")
-                image_name_to_save = os.path.basename(image[0]).replace(".", "_with_grounding_annotated.")
+                image_name_to_save = "_with_grounding_annotated."
 
             os.makedirs("result", exist_ok=True)
             image_path_to_save = os.path.join("result", image_name_to_save)

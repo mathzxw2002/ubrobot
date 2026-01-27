@@ -1,0 +1,3 @@
+export PYTORCH_CUDA_ALLOC_CONF=expandable_segments:True
+#python http_cosmos_reason1_server.py
+python src/service/reasoning/http_reasoning_server.py

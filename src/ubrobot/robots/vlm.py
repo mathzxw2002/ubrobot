@@ -7,6 +7,8 @@ import json
 import time
 import requests
 
+import numpy as np
+import os, re, cv2
 import random
 import io
 import ast
@@ -218,6 +220,82 @@ class RobotVLM:
         response_str = self.local_http_service(image_pil, instruction, url)
         return response_str
     
+    def draw_on_image(self, image_pil, points=None, boxes=None, trajectories=None, output_path=None):
+        """
+        Draw points, bounding boxes, and trajectories on an image
+
+        Parameters:
+            image_path: Path to the input image
+            points: List of points in format [(x, y), ...] where x,y are relative (0~1000)
+            boxes: List of boxes in format [[x1, y1, x2, y2], ...] where coords are relative (0~1000)
+            trajectories: List of trajectories in format [[(x, y), (x, y), ...], ...]
+                        or [[(x, y, d), ...], ...] where x,y are relative (0~1000)
+            output_path: Path to save the output image. Default adds "_annotated" suffix to input path
+        """
+        try:
+            if image_pil is None:
+                raise FileNotFoundError(f"Unable to load image: {image_pil}")
+
+            image = np.array(image_pil) 
+            h, w = image.shape[:2]
+
+            def rel_to_abs(x_rel, y_rel):
+                """Convert relative (0~1000) to absolute pixel coords, clamped to image bounds."""
+                x = int(round((x_rel / 1000.0) * w))
+                y = int(round((y_rel / 1000.0) * h))
+                x = max(0, min(w - 1, x))
+                y = max(0, min(h - 1, y))
+                return x, y
+
+            # Draw points
+            if points:
+                for point in points:
+                    x_rel, y_rel = point
+                    x, y = rel_to_abs(x_rel, y_rel)
+                    cv2.circle(image, (x, y), 5, (0, 0, 255), -1)  # Red solid circle
+
+            # Draw bounding boxes
+            if boxes:
+                for box in boxes:
+                    x1r, y1r, x2r, y2r = box
+                    x1, y1 = rel_to_abs(x1r, y1r)
+                    x2, y2 = rel_to_abs(x2r, y2r)
+                    cv2.rectangle(image, (x1, y1), (x2, y2), (0, 255, 0), 2)  # Green box
+
+            # Draw trajectories
+            if trajectories:
+                for trajectory in trajectories:
+                    if not trajectory or len(trajectory) < 2:
+                        continue
+
+                    # Convert all trajectory points to absolute pixels
+                    abs_pts = []
+                    for p in trajectory:
+                        # support (x,y) or (x,y,d)
+                        x_rel, y_rel = p[0], p[1]
+                        abs_pts.append(rel_to_abs(x_rel, y_rel))
+
+                    # Connect trajectory points with lines
+                    for i in range(1, len(abs_pts)):
+                        cv2.line(image, abs_pts[i - 1], abs_pts[i], (0, 0, 255), 2)  # Blue line
+
+                    # Draw a larger point at the trajectory end
+                    start_x, start_y = abs_pts[0]
+                    cv2.circle(image, (start_x, start_y), 7, (0, 255, 0), -1)  # Red start point
+
+                    # Draw a larger point at the trajectory end
+                    end_x, end_y = abs_pts[-1]
+                    cv2.circle(image, (end_x, end_y), 7, (255, 0, 0), -1)  # Blue end point
+
+            # Save the result
+            output_path = "./test.png"
+            cv2.imwrite(output_path, image)
+            print(f"Annotated image saved to: {output_path}")
+            return output_path
+        except Exception as e:
+            print(f"Error processing image: {e}")
+            return None
+
     def vlm_infer_traj(self, image_pil, instruction, url='http://192.168.18.230:5802/eval_reasoning_traj'):
         print("eval robobrain 2.5 ...")
         response_str = self.local_http_service(image_pil, instruction, url)
@@ -226,34 +304,21 @@ class RobotVLM:
     def vlm_infer_grounding(self, image_pil, instruction, url='http://192.168.18.230:5802/eval_reasoning_grounding'):
         print("eval robobrain 2.5 ...")
         response_str = self.local_http_service(image_pil, instruction, url)
+        boxes = self.decode_json_points(response_str)
+        self.draw_on_image(image_pil, None, boxes, None, None)
         return response_str
     
     def decode_json_points(self, text: str):
         """Parse coordinate points from text format"""
-        try:
-            # 清理markdown标记
-            if "```json" in text:
-                text = text.split("```json")[1].split("```")[0]
-            
-            # 解析JSON
-            data = json.loads(text)
-            points = []
-            labels = []
-            
-            for item in data:
-                if "point_2d" in item:
-                    x, y = item["point_2d"]
-                    points.append([x, y])
-                    
-                    # 获取label，如果没有则使用默认值
-                    label = item.get("label", f"point_{len(points)}")
-                    labels.append(label)
-            
-            return points, labels
+        try:        
+            answer_str = text.get("answer", "{}")
+            answer_dict = json.loads(answer_str)
+            bbox_2d = answer_dict.get("bbox_2d", [])
+            bbox_2d_int = [int(num) for num in bbox_2d]
+            return bbox_2d_int
         except Exception as e:
             print(f"Error: {e}")
-            return [], []
-        
+            return []        
 
     def grounding_2d_bbox(self, image_bytes):
         json_output = None

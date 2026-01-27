@@ -396,7 +396,7 @@ class PoseTransformer:
                 tf2_ros.ExtrapolationException) as e:
             rospy.logwarn("坐标变换失败: %s", str(e))
             return None
-
+    
     def get_observation(self):
         color_image = self.rgb_depth_camera.read()
         image = PIL_Image.fromarray(color_image).convert('RGB')

@@ -112,7 +112,7 @@ class Piper(Robot):
             raise ConnectionError(f"{self} is not connected.")
         status = self._iface.get_status_deg()
 
-        print("------------------------ in get_observation")
+        #print("------------------------ in get_observation")
         if not self.config.use_degrees:
             oriented_min, oriented_max = self._get_oriented_limits()
 

@@ -304,5 +304,10 @@ class ChatPipeline:
         instruction = "Locate objects in current image and return theirs coordinates as json format."
         image = self.robot_arm.get_observation()
         res = self.vlm.vlm_infer_grounding(image, instruction)
+        
+        instruction = "reach for the small wooden square block without collision"
+        response_restult_str_traj = self.vlm.vlm_infer_traj(image, instruction)
+        print(response_restult_str_traj)
+
         print(res)
         

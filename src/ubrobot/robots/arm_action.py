@@ -11,7 +11,6 @@ import io
 import time
 import random
 import numpy as np
-#import pinocchio as pin
 from piper_sdk import C_PiperInterface_V2
 
 from ubrobot.robots.piper.piper_client import PiperClient, PiperClientConfig
@@ -410,22 +409,6 @@ class PoseTransformer:
         #color_image = self.rgb_depth_camera.read()
         image = PIL_Image.fromarray(color_image).convert('RGB')
         return image
-    
-    def grounding_objects_2d(self, image_pil: PIL_Image.Image, instruction:str):
-        response_restult_str = None
-        image_bytes = io.BytesIO()
-        image_pil.save(image_bytes, format="JPEG")
-        image_bytes.seek(0)
-        #instruction = "Locate objects in current image and return theirs coordinates as json format."
-        #response_restult_str = self.vlm.reasoning_vlm_infer(image_bytes, instruction)
-        response_restult_str = self.vlm.vlm_infer_grounding(image_bytes, instruction)
-        instruction = "reach for the small wooden square block without collision"
-        print(response_restult_str)
-
-        response_restult_str_traj = self.vlm.vlm_infer_traj(image_bytes, instruction)
-        print(response_restult_str_traj)
-        
-        return response_restult_str
         
     def rgb_depth_down_callback(self, rgb_msg, depth_msg):
         """处理下视彩色图像和对齐后的深度图像消息"""

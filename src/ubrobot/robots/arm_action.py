@@ -405,8 +405,9 @@ class PoseTransformer:
     
     def get_observation(self):
         observation = self.robot.get_observation()
+        color_image = observation["wrist"] # TODO get "wrist" from configuration, avoid hard coding
         print("get observation in arm action...", observation)
-        color_image = self.rgb_depth_camera.read()
+        #color_image = self.rgb_depth_camera.read()
         image = PIL_Image.fromarray(color_image).convert('RGB')
         return image
     

@@ -14,6 +14,8 @@ import numpy as np
 #import pinocchio as pin
 from piper_sdk import C_PiperInterface_V2
 
+from ubrobot.robots.piper.piper_client import PiperClient, PiperClientConfig
+
 #from pyroboplan.core import RobotModel
 #from pyroboplan.core.robot import RobotModel
 #from pyroboplan.models.utils import RobotModel
@@ -225,9 +227,6 @@ class ActionSequence:
 
 class PoseTransformer:
     def __init__(self):
-        # 初始化ROS节点
-        #rospy.init_node('piper_pose_transformer', anonymous=True)
-
         # Point Cloud from RealSense (RGBD)
         self.orig_pcd = None
         self.pc = PointCloudPerception()
@@ -251,7 +250,7 @@ class PoseTransformer:
         #self.piper.ConnectPort()
         
         # Example with depth capture and custom settings
-        custom_config = RealSenseCameraConfig(
+        '''custom_config = RealSenseCameraConfig(
             serial_number_or_name="336222070923", # Replace with actual SN
             fps=30,
             width=1280,
@@ -264,7 +263,14 @@ class PoseTransformer:
         self.rgb_depth_camera.connect()
 
         # TODO When done, properly disconnect the camera using
-        #self.rgb_depth_camera.disconnect() # TODO disconnect finally
+        #self.rgb_depth_camera.disconnect() # TODO disconnect finally'''
+
+        self.robot_config = PiperClientConfig(remote_ip="192.168.18.113", id="robot_arm_piper")
+        # Initialize the robot and teleoperator
+        self.robot = PiperClient(self.robot_config)
+        # Connect to the robot and teleoperator
+        # To connect you already should have this script running on LeKiwi: `python -m lerobot.robots.lekiwi.lekiwi_host --robot.id=my_awesome_kiwi`
+        self.robot.connect()
         
         # 逆解状态管理
         self.ik_manager = IKStatusManager()
@@ -398,6 +404,8 @@ class PoseTransformer:
             return None
     
     def get_observation(self):
+        observation = self.robot.get_observation()
+        print("get observation in arm action...", observation)
         color_image = self.rgb_depth_camera.read()
         image = PIL_Image.fromarray(color_image).convert('RGB')
         return image

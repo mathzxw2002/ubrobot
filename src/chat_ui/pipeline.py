@@ -1,18 +1,12 @@
 import os
-import sys
-import argparse
-import numpy as np
-from tqdm import tqdm
 import torch
 import time
 import numpy as np
-import copy
 import shutil
 import threading
 import queue
 import time
 import gradio as gr
-import subprocess
 import threading
 import gradio as gr
 
@@ -137,11 +131,22 @@ class ChatPipeline:
             instruction = user_input_txt
             self.manager.set_user_instruction(instruction)
 
+            user_messages.append({'role': 'user', 'content': user_input})
+            print(user_messages)
             manipulate_img_output = self.robot_arm.get_observation()
             user_input_txt = user_input_txt + ". Answer shortly."
-            llm_response_txt, user_messages = self.vlm.infer_cosmos_reason(user_input_txt, user_messages, self.vlm_queue, manipulate_img_output)
+            llm_response_txt, user_messages = self.vlm.vlm_infer_vqa(user_input_txt, user_messages, self.vlm_queue, manipulate_img_output)
 
             print("============================================llm_response_txt", llm_response_txt)
+
+            if llm_response_txt:
+                self.vlm_queue.put(llm_response_txt)
+                print(f"[LLM] Put into queue: {llm_response_txt}")
+
+            self.vlm_queue.put(None) 
+            user_messages.append({'role': 'assistant', 'content': llm_response_txt})
+            if len(user_messages) > 10:
+                user_messages.pop(0)
 
             self.tts_thread.join()
             self.ffmpeg_thread.join()

@@ -406,7 +406,7 @@ class PoseTransformer:
     def get_observation(self):
         observation = self.robot.get_observation()
         color_image = observation["wrist"] # TODO get "wrist" from configuration, avoid hard coding
-        print("get observation in arm action...", observation)
+        #print("get observation in arm action...", observation)
         #color_image = self.rgb_depth_camera.read()
         image = PIL_Image.fromarray(color_image).convert('RGB')
         return image
@@ -419,8 +419,12 @@ class PoseTransformer:
         #instruction = "Locate objects in current image and return theirs coordinates as json format."
         #response_restult_str = self.vlm.reasoning_vlm_infer(image_bytes, instruction)
         response_restult_str = self.vlm.vlm_infer_grounding(image_bytes, instruction)
-        #response_restult_str = self.vlm.vlm_infer_traj(image_bytes, instruction)
+        instruction = "reach for the small wooden square block without collision"
         print(response_restult_str)
+
+        response_restult_str_traj = self.vlm.vlm_infer_traj(image_bytes, instruction)
+        print(response_restult_str_traj)
+        
         return response_restult_str
         
     def rgb_depth_down_callback(self, rgb_msg, depth_msg):

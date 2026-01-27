@@ -39,31 +39,4 @@ def get_version_from_toml() -> str:
         raise ValueError("Version not found in pyproject.toml")
     return version
 
-
-def read_long_description() -> str:
-    """Read and return the project's long description for setup.
-
-    This function reads `README.md` and replaces image links that point
-    to the local `./media/` directory with absolute raw GitHub URLs that
-    reference the release tag corresponding to the version parsed from
-    `pyproject.toml` (for example, ``v1.2.3``). The modified README
-    content is returned as a string suitable for passing to
-    ``setuptools.setup(long_description=...)``.
-
-    Returns:
-        The README content with rewritten media links.
-    """
-
-    with open("README.md", encoding="utf-8") as f:
-        content = f.read()
-
-    version = get_version_from_toml()
-    git_tag = f"v{version}"
-
-    return content
-
-
-setup(
-    long_description=read_long_description(),
-    long_description_content_type="text/markdown",
-)
+setup()

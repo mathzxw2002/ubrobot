@@ -8,7 +8,9 @@ import sys
 from unitree_sdk2py.core.channel import ChannelFactoryInitialize
 from unitree_sdk2py.go2.sport.sport_client import SportClient
 
-from ubrobot.robots.piper.piper_client import PiperClient, PiperClientConfig
+#from ubrobot.robots.piper.piper_client import PiperClient, PiperClientConfig
+from ubrobot.robots.piper.piper_host import PiperHost, PiperServerConfig
+
 
 from PIL import Image as PIL_Image
 from .controllers import Mpc_controller, PID_controller
@@ -71,6 +73,7 @@ class Go2Manager():
 
         self.control_thread_instance = threading.Thread(target=self._control_thread, daemon=True)
         self.planning_thread_instance = threading.Thread(target=self._planning_thread, daemon=True)
+        self.robot_arm_serving_thread_instance = threading.Thread(target=self._robot_arm_serving_thread, daemon=True)
         
         # unitree go2 dog
         self.go2client = None
@@ -81,14 +84,16 @@ class Go2Manager():
         # TODO set slow mode
         self.go2client.SpeedLevel(-1)
 
-        self.robot_config = PiperClientConfig(remote_ip="192.168.18.113", id="robot_arm_piper")
+        #self.robot_config = PiperClientConfig(remote_ip="192.168.18.113", id="robot_arm_piper")
         # Initialize the robot and teleoperator
-        self.robot = PiperClient(self.robot_config)
+        #self.robot = PiperClient(self.robot_config)
         # Connect to the robot and teleoperator
         # To connect you already should have this script running on LeKiwi: `python -m lerobot.robots.lekiwi.lekiwi_host --robot.id=my_awesome_kiwi`
-        self.robot.connect()
+        #self.robot.connect()
         # TODO
         # finally need to close the robot arm connection
+        self.cfg = PiperServerConfig()
+        self.host = PiperHost(self.cfg.host)
     
     def get_observation(self):
 
@@ -231,6 +236,9 @@ class Go2Manager():
                     v = 0.0
                 self.move(v, 0.0, w)
     
+    def _robot_arm_serving_thread(self):
+        self.host.start_serving_teleoperation(self.cfg)
+
     def _planning_thread(self):
         FPS = 30
 
@@ -257,6 +265,7 @@ class Go2Manager():
     def start_threads(self):
         self.planning_thread_instance.start()
         self.control_thread_instance.start()
+        self.robot_arm_serving_thread_instance.start()
         print("✅ Go2Manager: control thread and planning thread started successfully")
 
     def move(self, vx, vy, vyaw):

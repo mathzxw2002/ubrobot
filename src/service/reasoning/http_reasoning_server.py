@@ -19,7 +19,7 @@ import cv2
 from cosmos_reason_infer import CosmosReasonInfer
 from robobrain_reason_infer import RoboBrainUnifiedInference
 
-from service.reasoning.grasp_plan import RobotArmMotionPlan
+from grasp_plan import RobotArmMotionPlan
 
 app = Flask(__name__)
 output_dir = ''
@@ -87,8 +87,21 @@ def eval_robobrain2_5_traj():
     # TODO
     # temporaly use a hard code camera intrinsics
     workspace_mask = None # TODO 
-    intrinsic = None # TODO
-    factor_depth = 1000.0 # TODO
+    
+    fx = 907.7446899414062
+    fy = 907.4523315429688
+    cx = 644.997802734375
+    cy = 369.12054443359375
+    width = 1280
+    height = 720
+    intrinsic = np.eye(3, dtype=np.float32)
+
+    intrinsic[0][0] = fx
+    intrinsic[1][1] = fy
+    intrinsic[0][2] = cx
+    intrinsic[1][2] = cy
+    
+    factor_depth = 1000.0
     gg = rmp.generate_6d_grasp_pose(image, depth, workspace_mask, intrinsic, factor_depth)
     
     # optimize the initial path given by vlm 

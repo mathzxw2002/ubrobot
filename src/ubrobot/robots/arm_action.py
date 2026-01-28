@@ -9,29 +9,16 @@ from collections import deque
 import io
 
 import time
-import random
 import numpy as np
 from piper_sdk import C_PiperInterface_V2
 
 from ubrobot.robots.piper.piper_client import PiperClient, PiperClientConfig
 
-# ROS消息导入
-#from sensor_msgs.msg import PointCloud2
-#import sensor_msgs.point_cloud2 as pc2
-#from piper_msgs.msg import PosCmd
 import numpy as np
-#import tf2_ros
 from geometry_msgs.msg import TransformStamped, Point, PoseStamped, Quaternion
-#import tf2_geometry_msgs
-#from tf2_geometry_msgs import do_transform_pose
-#from std_msgs.msg import Bool, Float64, Int32
-#import tf.transformations as tf_trans
 
 from thread_utils import ReadWriteLock
 from PIL import Image as PIL_Image
-
-import cv2
-import open3d as o3d
 
 from scipy.linalg import qr
 import transforms3d.quaternions as tfq
@@ -59,19 +46,6 @@ class RobotState(Enum):
     GRASPING = 3
     RETREATING = 4
     ERROR = 5
-
-class IKStatusManager:
-    """逆解状态管理器"""
-    def __init__(self):
-        self.ik_success = False
-        self.ik_status_received = False
-        #self.ik_sub = rospy.Subscriber("/ik_status", Bool, self.ik_status_callback)
-        
-    def ik_status_callback(self, msg):
-        """逆解状态回调"""
-        self.ik_success = msg.data
-        self.ik_status_received = True
-        rospy.logdebug(f"IK status: {self.ik_success}")
 
 class PoseAdjuster:
     """姿态调整器"""
@@ -242,8 +216,6 @@ class PoseTransformer:
         # To connect you already should have this script running on LeKiwi: `python -m lerobot.robots.lekiwi.lekiwi_host --robot.id=my_awesome_kiwi`
         self.robot.connect()
         
-        # 逆解状态管理
-        self.ik_manager = IKStatusManager()
         self.pose_adjuster = PoseAdjuster()
         
         self.rgb_image = None
@@ -383,7 +355,7 @@ class PoseTransformer:
         depth_image_pil = PIL_Image.fromarray(depth_image)
         return color_image_pil, depth_image_pil
         
-    def rgb_depth_down_callback(self, rgb_msg, depth_msg):
+    '''def rgb_depth_down_callback(self, rgb_msg, depth_msg):
         """处理下视彩色图像和对齐后的深度图像消息"""
         # 处理彩色图像
         self.rgb_image = self.rgb_depth_camera.read()
@@ -413,7 +385,7 @@ class PoseTransformer:
         self.rgb_depth_rw_lock.release_write()
 
         # get rgbd image and convert to poing cloud
-        self.orig_pcd = self.pc.convertRGBD2PointClouds(self.rgb_image, self.depth_image, self.fx, self.fy, self.ppx, self.ppy)
+        self.orig_pcd = self.pc.convertRGBD2PointClouds(self.rgb_image, self.depth_image, self.fx, self.fy, self.ppx, self.ppy)'''
     
     def get_manipulate_pose_camera_link(self):
         """

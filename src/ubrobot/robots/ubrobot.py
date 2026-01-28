@@ -8,6 +8,8 @@ import sys
 from unitree_sdk2py.core.channel import ChannelFactoryInitialize
 from unitree_sdk2py.go2.sport.sport_client import SportClient
 
+from ubrobot.robots.piper.piper_client import PiperClient, PiperClientConfig
+
 from PIL import Image as PIL_Image
 from .controllers import Mpc_controller, PID_controller
 from thread_utils import ReadWriteLock
@@ -78,6 +80,15 @@ class Go2Manager():
         self.go2client.Init()
         # TODO set slow mode
         self.go2client.SpeedLevel(-1)
+
+        self.robot_config = PiperClientConfig(remote_ip="192.168.18.113", id="robot_arm_piper")
+        # Initialize the robot and teleoperator
+        self.robot = PiperClient(self.robot_config)
+        # Connect to the robot and teleoperator
+        # To connect you already should have this script running on LeKiwi: `python -m lerobot.robots.lekiwi.lekiwi_host --robot.id=my_awesome_kiwi`
+        self.robot.connect()
+        # TODO
+        # finally need to close the robot arm connection
     
     def get_observation(self):
 
@@ -295,6 +306,26 @@ class Go2Manager():
 
             self.go2client.StopMove()
             return ret
+    
+    def get_robot_arm_image_observation(self):
+        observation = self.robot.get_observation()
+        color_image = observation["wrist"] # TODO get "wrist" from configuration, avoid hard coding
+        depth_image = observation["wrist_depth"]
+        #print("get observation in arm action...", observation)
+        # TODO rgb for vis, possible need to revise for algorithm
+        color_image_pil = PIL_Image.fromarray(color_image)
+        depth_image_pil = PIL_Image.fromarray(depth_image)
+        return color_image_pil, depth_image_pil
+    
+    def get_robot_arm_manipulate_action(self):
+        instruction = "Locate objects in current image and return theirs coordinates as json format."
+        rgb_image, depth_image = self.robot_arm.get_observation()
+        res = self.vlm.vlm_infer_grounding(rgb_image, instruction)
+        
+        instruction = "reach for the small wooden square block without collision"
+        response_restult_str_traj = self.vlm.vlm_infer_traj(rgb_image, depth_image, instruction)
+        print(response_restult_str_traj)
+        print(res)
 
 if __name__ == "__main__":
 

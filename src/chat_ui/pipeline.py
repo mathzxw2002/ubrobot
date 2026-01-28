@@ -14,7 +14,7 @@ from utils import get_timestamp_str, merge_videos, merge_audios, merge_frames_wi
 from ubrobot.robots.tts import CosyVoice_API
 from ubrobot.robots.asr import Fun_ASR
 from ubrobot.robots.ubrobot import Go2Manager
-from ubrobot.robots.arm_action import PoseTransformer
+#from ubrobot.robots.arm_action import PoseTransformer
 from ubrobot.robots.vlm import RobotVLM
 
 @torch.no_grad()
@@ -39,7 +39,7 @@ class ChatPipeline:
         self.chat_history = []
         self.stop = threading.Event()
         
-        self.robot_arm = PoseTransformer()
+        #self.robot_arm = PoseTransformer()
         self.manager = Go2Manager()
         self.manager.start_threads()
     
@@ -294,7 +294,8 @@ class ChatPipeline:
         self.video_queue.put(None)
 
     def get_robot_arm_image_observation(self):
-        rgb_image, _ = self.robot_arm.get_observation()
+        #rgb_image, _ = self.robot_arm.get_observation()
+        rgb_image, _ = self.get_robot_arm_image_observation()
         return rgb_image
 
     def get_nav_vis_image(self):
@@ -302,11 +303,12 @@ class ChatPipeline:
         return vis_annotated_img
     
     def get_robot_arm_manipulate_action(self):
-        instruction = "Locate objects in current image and return theirs coordinates as json format."
+        '''instruction = "Locate objects in current image and return theirs coordinates as json format."
         rgb_image, depth_image = self.robot_arm.get_observation()
         res = self.vlm.vlm_infer_grounding(rgb_image, instruction)
         
         instruction = "reach for the small wooden square block without collision"
         response_restult_str_traj = self.vlm.vlm_infer_traj(rgb_image, depth_image, instruction)
         print(response_restult_str_traj)
-        print(res)
+        print(res)'''
+        self.manager.get_robot_arm_manipulate_action()

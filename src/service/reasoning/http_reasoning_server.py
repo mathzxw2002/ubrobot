@@ -68,6 +68,7 @@ def eval_robobrain2_5_traj():
 
     image = Image.open(image_file.stream)
     image = image.convert('RGB')
+    image_np = np.asarray(image)
 
     depth_pil = Image.open(depth_file.stream)
     if depth_pil.mode != 'I;16':
@@ -111,7 +112,7 @@ def eval_robobrain2_5_traj():
     intrinsic[1][2] = cy
     
     factor_depth = 1000.0
-    gg = rmp.generate_6d_grasp_pose(image, depth, workspace_mask, intrinsic, factor_depth)
+    gg = rmp.generate_6d_grasp_pose(image_np, depth, workspace_mask, intrinsic, factor_depth)
     
     # optimize the initial path given by vlm 
     

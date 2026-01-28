@@ -64,7 +64,8 @@ class RobotArmMotionPlan:
         cloud = create_point_cloud_from_depth_image(depth, camera, organized=True)
 
         # get valid points
-        mask = (workspace_mask & (depth > 0))
+        #mask = (workspace_mask & (depth > 0))
+        mask = (depth > 0)
         cloud_masked = cloud[mask]
         color_masked = color[mask]
 

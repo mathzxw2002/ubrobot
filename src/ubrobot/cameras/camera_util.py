@@ -98,4 +98,4 @@ if __name__ == "__main__":
         use_depth=True
     )
     rs_camera = EnhancedRealSenseCamera(cfg_param)
-    rs_camera.get_intrinsics()
+    rs_camera._load_camera_intrinsics()

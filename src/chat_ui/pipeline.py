@@ -295,7 +295,7 @@ class ChatPipeline:
 
     def get_robot_arm_image_observation(self):
         #rgb_image, _ = self.robot_arm.get_observation()
-        rgb_image, _ = self.get_robot_arm_image_observation()
+        rgb_image, _ = self.manager.get_robot_arm_image_observation()
         return rgb_image
 
     def get_nav_vis_image(self):

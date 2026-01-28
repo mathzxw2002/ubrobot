@@ -319,11 +319,14 @@ class Go2Manager():
     
     def get_robot_arm_manipulate_action(self):
         instruction = "Locate objects in current image and return theirs coordinates as json format."
-        rgb_image, depth_image = self.robot_arm.get_robot_arm_observation_local()
-        res = self.vlm.vlm_infer_grounding(rgb_image, instruction)
+        observation = self.robot_arm.get_robot_arm_observation_local()
+        color_image = observation["wrist"] # TODO get "wrist" from configuration, avoid hard coding
+        depth_image = observation["wrist_depth"]
+        
+        res = self.vlm.vlm_infer_grounding(color_image, instruction)
         
         instruction = "reach for the small wooden square block without collision"
-        response_restult_str_traj = self.vlm.vlm_infer_traj(rgb_image, depth_image, instruction)
+        response_restult_str_traj = self.vlm.vlm_infer_traj(color_image, depth_image, instruction)
         print(response_restult_str_traj)
         print(res)
 

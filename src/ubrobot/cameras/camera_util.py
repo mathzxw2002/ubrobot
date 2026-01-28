@@ -98,4 +98,7 @@ if __name__ == "__main__":
         use_depth=True
     )
     rs_camera = EnhancedRealSenseCamera(cfg_param)
+    rs_camera.connect()
     rs_camera._load_camera_intrinsics()
+
+    rs_camera.disconnect()

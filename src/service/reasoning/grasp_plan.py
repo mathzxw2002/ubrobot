@@ -125,6 +125,8 @@ class RobotArmMotionPlan:
 
 if __name__=='__main__':
     # TODO
+    # load camera intrinsic by runing camera_util.py
+    # fx: 907.7446899414062, fy: 907.4523315429688, ppx: 644.997802734375, ppy: 369.12054443359375, width: 1280, height: 720
     checkpoint_path_param = ""
     rmp = RobotArmMotionPlan(checkpoint_path_param)
 

@@ -158,11 +158,14 @@ class Piper(Robot):
             # revised code
             obs[cam_key] = cam.read()
             if isinstance(cam, RealSenseCamera):
+                depth = cam.read_depth()
                 try:
-                    obs[f"{cam_key}_depth"] = cam.read_depth()
+                    obs[f"{cam_key}_depth"] = depth
+                    #print(depth)
+                    print("testing depth info reading ok")
                 except Exception as e:
-                    #logger.error(f"Fail to Read RealSense Camera [{cam_key}] Frame: {e}")
-                    obs[f"{cam_key}_depth"] = None
+                    logger.error(f"Fail to Read RealSense Camera [{cam_key}] Frame: {e}")
+                    #obs[f"{cam_key}_depth"] = None
         return obs
 
     def send_action(self, action: dict[str, Any]) -> dict[str, Any]:

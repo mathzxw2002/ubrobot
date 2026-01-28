@@ -159,7 +159,10 @@ class Piper(Robot):
             obs[cam_key] = cam.read()
             if isinstance(cam, RealSenseCamera):
                 try:
-                    obs[f"{cam_key}_depth"] = cam.read_depth()
+                    depth = cam.read_depth()
+                    if len(depth.shape) == 3:
+                        depth = depth[:, :, 0]
+                    obs[f"{cam_key}_depth"] = depth
                     print("============= in piper get_observation, depth image shape:", obs[f"{cam_key}_depth"].shape)
                 except Exception as e:
                     #logger.error(f"Fail to Read RealSense Camera [{cam_key}] Frame: {e}")

@@ -89,9 +89,9 @@ class PiperHost:
                     logging.error("Message fetching failed: %s", e)
 
                 now = time.time()
-                if (now - last_cmd_time > host.watchdog_timeout_ms / 1000) and not watchdog_active:
+                if (now - last_cmd_time > self.watchdog_timeout_ms / 1000) and not watchdog_active:
                     logging.warning(
-                        f"Command not received for more than {host.watchdog_timeout_ms} milliseconds. Stopping the base."
+                        f"Command not received for more than {self.watchdog_timeout_ms} milliseconds. Stopping the base."
                     )
                     watchdog_active = True
                     #TODO how to revise for piper
@@ -111,14 +111,14 @@ class PiperHost:
 
                 # Send the observation to the remote agent
                 try:
-                    host.zmq_observation_socket.send_string(json.dumps(last_observation), flags=zmq.NOBLOCK)
+                    self.zmq_observation_socket.send_string(json.dumps(last_observation), flags=zmq.NOBLOCK)
                 except zmq.Again:
                     logging.info("Dropping observation, no client connected")
 
                 # Ensure a short sleep to avoid overloading the CPU.
                 elapsed = time.time() - loop_start_time
 
-                time.sleep(max(1 / host.max_loop_freq_hz - elapsed, 0))
+                time.sleep(max(1 / self.max_loop_freq_hz - elapsed, 0))
                 duration = time.perf_counter() - start
             print("Cycle time reached.")
 

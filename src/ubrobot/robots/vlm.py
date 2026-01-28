@@ -93,7 +93,6 @@ class RobotVLM:
         print(f'[Qwen API] {chat_response}')
         return chat_response, user_messages
 
-
     def infer_stream(self, user_input, user_messages, llm_queue, chunk_size, chat_mode):
         print(f"[LLM] User input: {user_input}")
         time_cost = []

@@ -30,6 +30,7 @@ class RobotVLM:
         print("calling local deployed http service, url:", url)
         
         color_image_pil = PIL_Image.fromarray(color_image_np)
+        depth_image_pil = None
 
         image_bytes = io.BytesIO()
         color_image_pil.save(image_bytes, format="JPEG")

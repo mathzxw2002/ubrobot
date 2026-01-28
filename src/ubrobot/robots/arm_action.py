@@ -15,11 +15,6 @@ from piper_sdk import C_PiperInterface_V2
 
 from ubrobot.robots.piper.piper_client import PiperClient, PiperClientConfig
 
-#from pyroboplan.core import RobotModel
-#from pyroboplan.core.robot import RobotModel
-#from pyroboplan.models.utils import RobotModel
-#from pyroboplan.planning.rrt import RRTPlanner
-
 # ROS消息导入
 #from sensor_msgs.msg import PointCloud2
 #import sensor_msgs.point_cloud2 as pc2
@@ -31,14 +26,6 @@ from geometry_msgs.msg import TransformStamped, Point, PoseStamped, Quaternion
 #from tf2_geometry_msgs import do_transform_pose
 #from std_msgs.msg import Bool, Float64, Int32
 #import tf.transformations as tf_trans
-
-from message_filters import ApproximateTimeSynchronizer, Subscriber
-from geometry_msgs.msg import Twist
-from nav_msgs.msg import Odometry
-from sensor_msgs.msg import Image
-from sensor_msgs.msg import CameraInfo
-
-from sensor_msgs.msg import JointState
 
 from thread_utils import ReadWriteLock
 from PIL import Image as PIL_Image
@@ -248,22 +235,6 @@ class PoseTransformer:
         #self.piper = C_PiperInterface_V2()
         #self.piper.ConnectPort()
         
-        # Example with depth capture and custom settings
-        '''custom_config = RealSenseCameraConfig(
-            serial_number_or_name="336222070923", # Replace with actual SN
-            fps=30,
-            width=1280,
-            height=720,
-            color_mode=ColorMode.BGR, # Request BGR output
-            rotation=Cv2Rotation.NO_ROTATION,
-            use_depth=True
-        )
-        self.rgb_depth_camera = RealSenseCamera(custom_config)
-        self.rgb_depth_camera.connect()
-
-        # TODO When done, properly disconnect the camera using
-        #self.rgb_depth_camera.disconnect() # TODO disconnect finally'''
-
         self.robot_config = PiperClientConfig(remote_ip="192.168.18.113", id="robot_arm_piper")
         # Initialize the robot and teleoperator
         self.robot = PiperClient(self.robot_config)
@@ -405,10 +376,12 @@ class PoseTransformer:
     def get_observation(self):
         observation = self.robot.get_observation()
         color_image = observation["wrist"] # TODO get "wrist" from configuration, avoid hard coding
+        depth_image = observation["wrist_depth"]
         #print("get observation in arm action...", observation)
-        #color_image = self.rgb_depth_camera.read()
-        image = PIL_Image.fromarray(color_image).convert('RGB')
-        return image
+        # TODO rgb for vis, possible need to revise for algorithm
+        color_image_pil = PIL_Image.fromarray(color_image)
+        depth_image_pil = PIL_Image.fromarray(depth_image)
+        return color_image_pil, depth_image_pil
         
     def rgb_depth_down_callback(self, rgb_msg, depth_msg):
         """处理下视彩色图像和对齐后的深度图像消息"""
@@ -676,93 +649,6 @@ class PoseTransformer:
         
         if self.transformed_pose:
             self.print_pose_info("Current Target", self.transformed_pose)
-
-    def deploy_piper_plan(self):
-
-        # 2. PLANNER SETUP
-        # Load the Piper model from its URDF for kinematics and collision checking
-        # Replace 'path/to/piper.urdf' with your actual file path
-        urdf_path = "./ros_depends_ws/src/piper_ros/src/piper_description/urdf/piper_description.urdf"
-        model = pin.buildModelFromUrdf(urdf_path)
-
-        collision_model = pin.buildGeomFromUrdf(model, urdf_path, pin.COLLISION)
-
-        #planner = RRTPlanner(model, collision_model)
-
-        # 3. DEFINE START AND GOAL
-        # Get current joint positions from the real robot
-        # piper_sdk returns a list of 6 joint values in radians
-        start_q = np.array(piper.get_joint_states().joint_modules.joint_states)
-        
-        # Define a goal configuration (example: reaching forward)
-        goal_q = np.array([0.5, -0.2, 0.3, 0.0, 1.2, 0.0])
-
-        # 4. GENERATE COLLISION-FREE PATH
-        print("Planning path...")
-        path = planner.plan(start_q, goal_q)
-
-        if not path:
-            print("Planning failed!")
-            return
-
-        # 5. APPLY TOPP-RA SMOOTHING
-        # Define Piper's physical limits (example values for 2026)
-        vel_limits = np.array([1.5, 1.5, 1.5, 2.0, 2.0, 2.0]) 
-        accel_limits = np.array([3.0, 3.0, 3.0, 4.0, 4.0, 4.0])
-        dt = 0.02  # 50Hz control loop
-
-        print("Smoothing trajectory with TOPP-RA...")
-        traj_opt = CubicTrajectoryOptimization(path, dt=dt)
-        trajectory = traj_opt.solve()
-
-        # 6. EXECUTE ON HARDWARE
-        print(f"Executing trajectory ({len(times)} points)...")
-        try:
-            for point in trajectory.points:
-                print(point)
-                # Send joint command to the Piper hardware
-                # The SDK expects values in radians
-                #piper.motion_ctrl.joint_motion(target_q.tolist())
-                
-                # Synchronize with the trajectory time step
-                time.sleep(dt)
-            print("Execution complete.")
-        except KeyboardInterrupt:
-            print("Emergency Stop triggered.")
-            # Optional: send emergency stop command if available in SDK
-        finally:
-            piper.disconnect()
-
-    '''def run(self):
-        """主循环"""
-        self.print_instructions()
-        
-        while not rospy.is_shutdown():
-            # 处理键盘输入
-            if key := self.get_key() or self.task_cmd:
-                self.handle_key_input(key)
-            
-            # 检查运动是否完成
-            if self.check_motion_completion():
-                # 运动完成，等待2秒后继续
-                rospy.loginfo("Motion completed! Waiting 2 seconds before continuing...")
-                rospy.sleep(1.0)
-                # 这里可以添加状态转换逻辑
-            
-            # 检查逆解状态（只有在没有运动进行时才检查）
-            if not self.motion_in_progress:
-                ik_result = self.check_ik_status()
-            
-            # 执行动作序列（只有在没有运动进行时才执行）
-            if not self.action_sequence.is_empty() and not self.waiting_for_ik and not self.motion_in_progress:
-                self.action_sequence.execute_next()
-            
-            # 连续发布模式（只有在没有运动进行时才发布）
-            if (self.continuous_publishing and self.transformed_pose and 
-                not self.waiting_for_ik and not self.motion_in_progress):
-                pass
-            
-            self.rate.sleep()'''
 
 if __name__ == '__main__':
     try:

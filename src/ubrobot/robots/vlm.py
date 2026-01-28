@@ -26,19 +26,31 @@ class RobotVLM:
             base_url=base_url,
         )
     
-    def local_http_service(self, image_pil, instruction, url):
+    def local_http_service(self, color_image_pil, depth_image_pil, instruction, url):
         print("calling local deployed http service, url:", url)
         
         image_bytes = io.BytesIO()
-        image_pil.save(image_bytes, format="JPEG")
+        color_image_pil.save(image_bytes, format="JPEG")
         image_bytes.seek(0)
+
+        if depth_image_pil is not None:
+            depth_bytes = io.BytesIO()
+            depth_image_pil.save(depth_bytes, format='PNG')
+            depth_bytes.seek(0)
 
         data = {"ins": instruction}
         json_data = json.dumps(data)
 
-        files = {
-            'image': ('rgb_image', image_bytes, 'image/jpeg'),
-        }
+        if depth_image_pil is not None:
+            files = {
+                'image': ('rgb_image', image_bytes, 'image/jpeg'),
+                'depth': ('depth_image', depth_bytes, 'image/png'),
+            }
+        else:
+            files = {
+                'image': ('rgb_image', image_bytes, 'image/jpeg')
+            }
+        
         try:
             response = requests.post(
                 url,
@@ -217,7 +229,7 @@ class RobotVLM:
 
     def vlm_infer_vqa(self, image_pil, instruction, url='http://192.168.18.230:5802/eval_reasoning_vqa'):
         print("eval robobrain 2.5 ...")
-        response_str = self.local_http_service(image_pil, instruction, url)
+        response_str = self.local_http_service(image_pil, None, instruction, url)
         return response_str
     
     def draw_on_image(self, image_pil, points=None, boxes=None, trajectories=None, output_path=None):
@@ -296,14 +308,14 @@ class RobotVLM:
             print(f"Error processing image: {e}")
             return None
 
-    def vlm_infer_traj(self, image_pil, instruction, url='http://192.168.18.230:5802/eval_reasoning_traj'):
+    def vlm_infer_traj(self, rgb_image_pil, depth_image_pil, instruction, url='http://192.168.18.230:5802/eval_reasoning_traj'):
         print("eval robobrain 2.5 ...")
-        response_str = self.local_http_service(image_pil, instruction, url)
+        response_str = self.local_http_service(rgb_image_pil, depth_image_pil, instruction, url)
         return response_str
 
     def vlm_infer_grounding(self, image_pil, instruction, url='http://192.168.18.230:5802/eval_reasoning_grounding'):
         print("eval robobrain 2.5 ...")
-        response_str = self.local_http_service(image_pil, instruction, url)
+        response_str = self.local_http_service(image_pil, None, instruction, url)
         boxes = self.decode_json_points(response_str)
         self.draw_on_image(image_pil, None, [boxes], None, None)
         return response_str

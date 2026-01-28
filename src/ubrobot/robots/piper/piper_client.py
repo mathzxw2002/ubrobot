@@ -267,7 +267,6 @@ class PiperClient(Robot):
                 logging.warning("Frame is None")
                 frame = np.zeros((640, 480, 3), dtype=np.uint8)
             obs_dict[cam_name] = frame
-
         return obs_dict
 
     def _from_keyboard_to_base_action(self, pressed_keys: np.ndarray):

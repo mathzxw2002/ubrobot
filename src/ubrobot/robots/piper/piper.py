@@ -4,6 +4,8 @@ import logging
 from lerobot.cameras import make_cameras_from_configs
 from lerobot.robots import Robot
 
+from lerobot.cameras.realsense import RealSenseCamera
+
 from .config_piper import PiperConfig
 from .piper_sdk_interface import PiperSDKInterface
 
@@ -112,7 +114,6 @@ class Piper(Robot):
             raise ConnectionError(f"{self} is not connected.")
         status = self._iface.get_status_deg()
 
-        #print("------------------------ in get_observation")
         if not self.config.use_degrees:
             oriented_min, oriented_max = self._get_oriented_limits()
 
@@ -152,7 +153,16 @@ class Piper(Robot):
                 obs[alias_key] = obs[target_key]
 
         for cam_key, cam in self.cameras.items():
-            obs[cam_key] = cam.async_read()
+            #TODO original code
+            #obs[cam_key] = cam.async_read()
+            # revised code
+            obs[cam_key] = cam.read()
+            if isinstance(cam, RealSenseCamera):
+                try:
+                    obs[f"{cam_key}_depth"] = cam.read_depth()
+                except Exception as e:
+                    #logger.error(f"Fail to Read RealSense Camera [{cam_key}] Frame: {e}")
+                    obs[f"{cam_key}_depth"] = None
         return obs
 
     def send_action(self, action: dict[str, Any]) -> dict[str, Any]:
@@ -219,8 +229,7 @@ class Piper(Robot):
             joints_hw_deg.append(deg_hw)
 
         if self.config.include_gripper:
-
-            print("include gripper......")
+            #print("include gripper......")
             g_raw = action.get("gripper.pos", obs.get("gripper.pos", None))
             gripper_mm = None
             if g_raw is not None:
@@ -238,13 +247,10 @@ class Piper(Robot):
         else:
             gripper_mm = None
 
-
-        print("++++++++++++++++++++++ final action in piper.", gripper_mm)
-
+        #print("++++++++++++++++++++++ final action in piper.", gripper_mm)
         try:
             self._iface.set_joint_positions_deg(joints_hw_deg, gripper_mm)
         except Exception as e:
             logger.exception("Failed to send joint positions: %s", e)
             raise
-
         return action

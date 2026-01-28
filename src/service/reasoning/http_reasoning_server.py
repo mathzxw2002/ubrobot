@@ -19,6 +19,8 @@ import cv2
 from cosmos_reason_infer import CosmosReasonInfer
 from robobrain_reason_infer import RoboBrainUnifiedInference
 
+from service.grasp_plan import RobotArmMotionPlan
+
 app = Flask(__name__)
 output_dir = ''
 
@@ -60,12 +62,19 @@ def eval_robobrain2_5_traj():
     print("eval robobrain 2.5 ...")
 
     image_file = request.files['image']
+    depth_file = request.files['depth']
     json_data = request.form['json']
     data = json.loads(json_data)
 
     image = Image.open(image_file.stream)
     image = image.convert('RGB')
 
+    depth = Image.open(depth_file.stream)
+    #depth = depth.convert('I')
+    #depth = np.asarray(depth)
+    #depth = depth.astype(np.float32) / 10000.0
+    #print(f"read http data cost {time.time() - start_time}")
+    
     instruction = data['ins']
 
     # Visualization results will be saved to ./result, if `plot=True`. 
@@ -73,6 +82,17 @@ def eval_robobrain2_5_traj():
     # where each tuple contains the x and y coordinates and the depth of the point.
     resut_str = robobrain_infer.inference(instruction, image, task="trajectory", plot=False, do_sample=False)
     print(f"Prediction:\n{resut_str}")
+
+    # check and optimize traj by pyroboplan instead of moveit
+    # TODO
+    # temporaly use a hard code camera intrinsics
+    workspace_mask = None # TODO 
+    intrinsic = None # TODO
+    factor_depth = 1000.0 # TODO
+    gg = rmp.generate_6d_grasp_pose(image, depth, workspace_mask, intrinsic, factor_depth)
+    
+    # optimize the initial path given by vlm 
+    
     return resut_str
 
 @app.route("/eval_reasoning_grounding", methods=['POST'])
@@ -96,6 +116,9 @@ if __name__ == '__main__':
 
     #model_name = "/home/sany/.cache/modelscope/hub/models/nv-community/Cosmos-Reason2-8B"
     #cosmos_infer = CosmosReasonInfer(model_name)
+
+    checkpoint_path_param = "/home/sany/ubrobot/assets/checkpoint-rs.tar"
+    rmp = RobotArmMotionPlan(checkpoint_path_param)
 
     model_name = "/home/sany/.cache/modelscope/hub/models/BAAI/RoboBrain2.5-8B-NV"
     robobrain_infer = RoboBrainUnifiedInference(model_name)

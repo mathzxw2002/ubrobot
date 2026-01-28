@@ -76,7 +76,6 @@ def eval_robobrain2_5_traj():
     #depth = depth.convert('I')
     #depth = np.asarray(depth)
     #depth = depth.astype(np.float32) / 10000.0
-    #print(f"read http data cost {time.time() - start_time}")
     
     instruction = data['ins']
 
@@ -98,7 +97,6 @@ def eval_robobrain2_5_traj():
     save_pil = Image.fromarray(depth, mode='I;16')
     save_pil.save("./depth.png", format='PNG')
 
-    
     fx = 907.7446899414062
     fy = 907.4523315429688
     cx = 644.997802734375

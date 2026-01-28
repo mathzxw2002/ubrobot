@@ -8,9 +8,7 @@ import sys
 from unitree_sdk2py.core.channel import ChannelFactoryInitialize
 from unitree_sdk2py.go2.sport.sport_client import SportClient
 
-#from ubrobot.robots.piper.piper_client import PiperClient, PiperClientConfig
 from ubrobot.robots.piper.piper_host import PiperHost, PiperServerConfig
-
 
 from PIL import Image as PIL_Image
 from .controllers import Mpc_controller, PID_controller
@@ -84,16 +82,9 @@ class Go2Manager():
         # TODO set slow mode
         self.go2client.SpeedLevel(-1)
 
-        #self.robot_config = PiperClientConfig(remote_ip="192.168.18.113", id="robot_arm_piper")
-        # Initialize the robot and teleoperator
-        #self.robot = PiperClient(self.robot_config)
-        # Connect to the robot and teleoperator
-        # To connect you already should have this script running on LeKiwi: `python -m lerobot.robots.lekiwi.lekiwi_host --robot.id=my_awesome_kiwi`
-        #self.robot.connect()
-        # TODO
-        # finally need to close the robot arm connection
+        # robot arm config
         self.cfg = PiperServerConfig()
-        self.host = PiperHost(self.cfg.host)
+        self.robot_arm = PiperHost(self.cfg.host)
     
     def get_observation(self):
 
@@ -161,10 +152,10 @@ class Go2Manager():
         vis_annotated_img = self.nav_annotated_img
         return nav_action, vis_annotated_img
     
-    def reasoning_vlm(self, image_pil: PIL_Image.Image, instruction:str):
+    '''def reasoning_vlm(self, image_pil: PIL_Image.Image, instruction:str):
         response_restult_str = None
         response_restult_str = self.vlm.reasoning_vlm_infer(image_pil, instruction)
-        return response_restult_str
+        return response_restult_str'''
     
     def set_user_instruction(self, instruction: str):
         # TODO implement this by LLM
@@ -237,7 +228,7 @@ class Go2Manager():
                 self.move(v, 0.0, w)
     
     def _robot_arm_serving_thread(self):
-        self.host.start_serving_teleoperation(self.cfg)
+        self.robot_arm.start_serving_teleoperation(self.cfg)
 
     def _planning_thread(self):
         FPS = 30
@@ -317,7 +308,7 @@ class Go2Manager():
             return ret
     
     def get_robot_arm_image_observation(self):
-        observation = self.robot.get_observation()
+        observation = self.robot_arm.get_robot_arm_observation_local()
         color_image = observation["wrist"] # TODO get "wrist" from configuration, avoid hard coding
         depth_image = observation["wrist_depth"]
         #print("get observation in arm action...", observation)
@@ -328,7 +319,7 @@ class Go2Manager():
     
     def get_robot_arm_manipulate_action(self):
         instruction = "Locate objects in current image and return theirs coordinates as json format."
-        rgb_image, depth_image = self.robot_arm.get_observation()
+        rgb_image, depth_image = self.robot_arm.get_robot_arm_observation_local()
         res = self.vlm.vlm_infer_grounding(rgb_image, instruction)
         
         instruction = "reach for the small wooden square block without collision"

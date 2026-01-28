@@ -24,16 +24,19 @@ class RobotVLM:
         self.client = OpenAI(
             api_key="sk-479fdd23120c4201bff35a107883c7c3",
             base_url=base_url,
-        )
+        )            
     
-    def local_http_service(self, color_image_pil, depth_image_pil, instruction, url):
+    def local_http_service(self, color_image_np, depth_image_np, instruction, url):
         print("calling local deployed http service, url:", url)
         
+        color_image_pil = PIL_Image.fromarray(color_image_np)
+
         image_bytes = io.BytesIO()
         color_image_pil.save(image_bytes, format="JPEG")
         image_bytes.seek(0)
 
-        if depth_image_pil is not None:
+        if depth_image_np is not None:
+            depth_image_pil = PIL_Image.fromarray(depth_image_np)
             depth_bytes = io.BytesIO()
             depth_image_pil.save(depth_bytes, format='PNG')
             depth_bytes.seek(0)
@@ -227,12 +230,12 @@ class RobotVLM:
 
         return response.text
 
-    def vlm_infer_vqa(self, image_pil, instruction, url='http://192.168.18.230:5802/eval_reasoning_vqa'):
+    def vlm_infer_vqa(self, image_np, instruction, url='http://192.168.18.230:5802/eval_reasoning_vqa'):
         print("eval robobrain 2.5 ...")
-        response_str = self.local_http_service(image_pil, None, instruction, url)
+        response_str = self.local_http_service(image_np, None, instruction, url)
         return response_str
     
-    def draw_on_image(self, image_pil, points=None, boxes=None, trajectories=None, output_path=None):
+    def draw_on_image(self, image, points=None, boxes=None, trajectories=None, output_path=None):
         """
         Draw points, bounding boxes, and trajectories on an image
 
@@ -245,10 +248,9 @@ class RobotVLM:
             output_path: Path to save the output image. Default adds "_annotated" suffix to input path
         """
         try:
-            if image_pil is None:
-                raise FileNotFoundError(f"Unable to load image: {image_pil}")
+            if image is None:
+                raise FileNotFoundError(f"Unable to load image: {image}")
 
-            image = np.array(image_pil) 
             h, w = image.shape[:2]
 
             def rel_to_abs(x_rel, y_rel):
@@ -300,24 +302,24 @@ class RobotVLM:
                     cv2.circle(image, (end_x, end_y), 7, (255, 0, 0), -1)  # Blue end point
 
             # Save the result
-            output_path = "./test.png"
-            cv2.imwrite(output_path, image)
-            print(f"Annotated image saved to: {output_path}")
+            #output_path = "./test.png"
+            #cv2.imwrite(output_path, image)
+            #print(f"Annotated image saved to: {output_path}")
             return output_path
         except Exception as e:
             print(f"Error processing image: {e}")
             return None
 
-    def vlm_infer_traj(self, rgb_image_pil, depth_image_pil, instruction, url='http://192.168.18.230:5802/eval_reasoning_traj'):
+    def vlm_infer_traj(self, rgb_image_np, depth_image_np, instruction, url='http://192.168.18.230:5802/eval_reasoning_traj'):
         print("eval robobrain 2.5 ...")
-        response_str = self.local_http_service(rgb_image_pil, depth_image_pil, instruction, url)
+        response_str = self.local_http_service(rgb_image_np, depth_image_np, instruction, url)
         return response_str
 
-    def vlm_infer_grounding(self, image_pil, instruction, url='http://192.168.18.230:5802/eval_reasoning_grounding'):
+    def vlm_infer_grounding(self, image_np, instruction, url='http://192.168.18.230:5802/eval_reasoning_grounding'):
         print("eval robobrain 2.5 ...")
-        response_str = self.local_http_service(image_pil, None, instruction, url)
+        response_str = self.local_http_service(image_np, None, instruction, url)
         boxes = self.decode_json_points(response_str)
-        self.draw_on_image(image_pil, None, [boxes], None, None)
+        self.draw_on_image(image_np, None, [boxes], None, None)
         return response_str
     
     def decode_json_points(self, text: str):

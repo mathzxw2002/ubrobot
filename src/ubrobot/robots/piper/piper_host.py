@@ -110,7 +110,8 @@ class PiperHost:
                         last_observation[cam_key] = ""
 
                     # if depth info exists
-                    depth_key = f"{cam_key}_depth"
+                    # comment this for saving net transfer cost, directly get depth and rgb image fro local, i.e. get_robot_arm_observation_local
+                    '''depth_key = f"{cam_key}_depth"
                     if last_observation[depth_key] is not None:
                         ret, buffer = cv2.imencode(
                             ".png", last_observation[depth_key]
@@ -118,7 +119,7 @@ class PiperHost:
                         if ret:
                             last_observation[depth_key] = base64.b64encode(buffer).decode("utf-8")
                         else:
-                            last_observation[depth_key] = ""
+                            last_observation[depth_key] = "" '''
 
                 # Send the observation to the remote agent
                 try:

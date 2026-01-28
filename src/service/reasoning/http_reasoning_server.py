@@ -69,7 +69,10 @@ def eval_robobrain2_5_traj():
     image = Image.open(image_file.stream)
     image = image.convert('RGB')
 
-    depth = Image.open(depth_file.stream)
+    depth_pil = Image.open(depth_file.stream)
+    if depth_pil.mode != 'I;16':
+        raise ValueError(f" Depth Image Format Error! Expected'I;16'，Received {depth_pil.mode}")
+    depth = np.asarray(depth_pil).astype(np.uint16)
     #depth = depth.convert('I')
     #depth = np.asarray(depth)
     #depth = depth.astype(np.float32) / 10000.0
@@ -87,6 +90,14 @@ def eval_robobrain2_5_traj():
     # TODO
     # temporaly use a hard code camera intrinsics
     workspace_mask = None # TODO 
+    intrinsic = None # TODO
+    factor_depth = 1000.0 # TODO
+    
+    # save color and depth image
+    image.save("./rgb.jpg", quality=95)
+    save_pil = Image.fromarray(depth, mode='I;16')
+    save_pil.save("./depth.png", format='PNG')
+
     
     fx = 907.7446899414062
     fy = 907.4523315429688

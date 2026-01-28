@@ -117,3 +117,16 @@ sudo make install
 
 
 sudo ldconfig
+
+
+
+
+
+++++++++++++++++++++++ final action in piper. 0.22222222222222224
+in piper sdk................... [-82435, 1041, -231, 5908, 6471, -112484] 0.22222222222222224
+-------------host, {'shoulder_pan.pos': 54.956601187756974, 'shoulder_lift.pos': -98.84345311854605, 'elbow_flex.pos': 99.72850678733033, 'wrist_flex.pos': 9.243697478991592, 'wrist_roll.pos': 62.49084249084248, 'gripper.pos': 2.2222222222222223}
+include gripper......
+++++++++++++++++++++++ final action in piper. 0.22222222222222224
+in piper sdk................... [-82435, 1041, -231, 5908, 6471, -112484] 0.22222222222222224
+-------------host, {'shoulder_pan.pos': 54.956601187756974, 'shoulder_lift.pos': -98.84345311854605, 'elbow_flex.pos': 99.72850678733033, 'wrist_flex.pos': 9.243697478991592, 'wrist_roll.pos': 62.49084249084248, 'gripper.pos': 2.2222222222222223}
+include gripper......

@@ -37,7 +37,25 @@ class RobotVLM:
         image_bytes.seek(0)
 
         if depth_image_np is not None:
-            depth_image_pil = PIL_Image.fromarray(depth_image_np)
+            # The depth map as a NumPy array (height, width) of type `np.uint16` (raw depth values in millimeters) and rotation.
+            if depth_image_np.dtype != np.uint16:
+                raise ValueError(f"Shape of Depth image must be np.uint16，Now is {depth_image_np.dtype}")
+            if len(depth_image_np.shape) != 2:
+                raise ValueError(f"Shape of Depth image must be (H,W)，Now is {depth_image_np.shape}")
+    
+            #save_dir = os.path.dirname(save_path)
+            #if save_dir and not os.path.exists(save_dir):
+            #    os.makedirs(save_dir, exist_ok=True)
+    
+            # 3. 核心：将np.uint16数组转为PIL的16位深度图并保存
+            # 'I;16' = PIL专用16位无符号整型模式，完美匹配np.uint16
+            depth_image_pil = PIL_Image.fromarray(depth_image_np, mode='I;16')
+            #depth_pil.save(save_path)
+            # 验证存储结果（可选，调试用）
+            #print(f"深度图已保存为16位PNG：{save_path}")
+            #print(f"  形状：{depth_array.shape} | 类型：{depth_array.dtype} | 数值范围：{depth_array.min()}~{depth_array.max()} mm")
+
+            #depth_image_pil = PIL_Image.fromarray(depth_image_np)
             depth_bytes = io.BytesIO()
             depth_image_pil.save(depth_bytes, format='PNG')
             depth_bytes.seek(0)

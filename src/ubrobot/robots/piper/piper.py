@@ -257,7 +257,6 @@ class Piper(Robot):
             joints_hw_deg.append(deg_hw)
 
         if self.config.include_gripper:
-            #print("include gripper......")
             g_raw = action.get("gripper.pos", obs.get("gripper.pos", None))
             gripper_mm = None
             if g_raw is not None:
@@ -275,7 +274,6 @@ class Piper(Robot):
         else:
             gripper_mm = None
 
-        #print("++++++++++++++++++++++ final action in piper.", gripper_mm)
         try:
             self._iface.set_joint_positions_deg(joints_hw_deg, gripper_mm)
         except Exception as e:

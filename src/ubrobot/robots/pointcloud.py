@@ -168,43 +168,22 @@ class PointCloudPerception:
         #self.vlm = RobotVLM()
         print("========== init PointCloudPerception")
        
+    # get rgbd image and convert to poing cloud
     def convertRGBD2PointClouds(self, rgb_image, depth_image, cam_intrin, save_ply_path):
-
         print(f"input data type, rgb {rgb_image.dtype}, depth {depth_image.dtype}")
-        # get rgbd image and convert to poing cloud
-        #print("----------------------------- convertRGBD2PointClouds...")
         #rgb_image = cv2.cvtColor(rgb_image, cv2.COLOR_BGR2RGB)
         rgb_np = np.ascontiguousarray(rgb_image, dtype=np.uint8)
-        #if not rgb_np.flags['WRITEABLE']:
-        #    rgb_np = rgb_np.copy()
-
         depth_uint16 = np.ascontiguousarray(depth_image).astype(np.uint16)
-        #if not depth_uint16.flags['WRITEABLE']:
-        #    depth_uint16 = depth_uint16.copy()
-        
-        #rgb_o3d = o3d.geometry.Image(rgb_np)
-        #depth_o3d = o3d.geometry.Image(depth_uint16)
-        
-        #rgbd_image = o3d.geometry.RGBDImage.create_from_color_and_depth(
-        #    rgb_o3d,
-        #    depth_o3d,
-        #    depth_scale=1000.0,
-        #    depth_trunc=3.0,    # 深度截断
-        #    convert_rgb_to_intensity=False #convert_rgb_to_intensity=False：保留彩色信息（否则转为灰度图）
-        #)
 
         if cam_intrin is None:
             print("Camera Intrinsic Not Received...")
             return
         else:
-            #print("===============================================")
-            #orig_pcd = None
             try:
-                #intrinsic = o3d.camera.PinholeCameraIntrinsic()
                 h, w = rgb_np.shape[:2]
                 c, r = np.meshgrid(np.arange(w), np.arange(h), indexing='xy')
+                 # TODO 0, 3000, 1000.0 as param
                 valid_mask = (depth_uint16 > 0) & (depth_uint16 < 3000)
-
                 z = depth_uint16[valid_mask] / 1000.0
 
                 fx = cam_intrin.fx
@@ -221,22 +200,9 @@ class PointCloudPerception:
                 pcd = o3d.geometry.PointCloud()
                 pcd.points = o3d.utility.Vector3dVector(points.astype(np.float64))
                 pcd.colors = o3d.utility.Vector3dVector(colors.astype(np.float64))
-
-                #intrinsic.set_intrinsics(w, h, fx, fy, ppx, ppy)
-
-                #print("after intrinsic.set_intrinsics(w, h, fx, fy, ppx, ppy)", w, h, fx, fy, ppx, ppy)
-
-                #orig_pcd = o3d.geometry.PointCloud.create_from_rgbd_image(rgbd_image, intrinsic)
-                #orig_pcd.remove_non_finite_points()
-
                 o3d.io.write_point_cloud(save_ply_path, pcd)
             except Exception as e:
-                print("--------------------------", e)
-
-            #print("save point cloud--------------------------------------------------------")
-            #print(orig_pcd)
-            #o3d.io.write_point_cloud("./rgbd_point_cloud.ply", orig_pcd)
-            #return orig_pcd
+                print("convertRGBD2PointClouds--------------------------", e)
 
     def pixel_to_3d(self, u, v, z, fx, fy, ppx, ppy):
         """

@@ -21,6 +21,8 @@ from robobrain_reason_infer import RoboBrainUnifiedInference
 
 from grasp_plan import RobotArmMotionPlan
 
+from ubrobot.robots.pointcloud import PointCloudPerception
+
 app = Flask(__name__)
 output_dir = ''
 
@@ -66,19 +68,20 @@ def eval_robobrain2_5_traj():
     json_data = request.form['json']
     data = json.loads(json_data)
 
+    # decode rgb
     image = Image.open(image_file.stream)
-    image = image.convert('RGB')
-    image_np = np.asarray(image)
+    #image = image.convert('RGB')
+    image_np = np.asarray(image) # Standard uint8 array
 
+    # decode depth
+    # Pillow handles 16-bit PNGs automatically as mode "I;16"
     depth_pil = Image.open(depth_file.stream)
-    if depth_pil.mode != 'I;16':
-        raise ValueError(f" Depth Image Format Error! Expected'I;16'，Received {depth_pil.mode}")
-    depth = np.asarray(depth_pil).astype(np.uint16)
-    #depth = depth.convert('I')
-    #depth = np.asarray(depth)
-    #depth = depth.astype(np.float32) / 10000.0
+    depth = np.asarray(depth_pil).astype(np.uint16) # uint16 array preserving 0-65535 range
     
+    # decode camera intrinsic and instruction
     instruction = data['ins']
+    camera_intrinsic_list = data['intrinsic']
+    print("camera_intrinsic_list:", camera_intrinsic_list)
 
     # Visualization results will be saved to ./result, if `plot=True`. 
     # Output is formatted as a list of tuples, i.e., [(x1, y1, d1), (x2, y2, d2), ...], 
@@ -91,13 +94,15 @@ def eval_robobrain2_5_traj():
     # TODO
     # temporaly use a hard code camera intrinsics
     workspace_mask = None # TODO 
-    intrinsic = None # TODO
-    factor_depth = 1000.0 # TODO
+    factor_depth = 1000.0
     
     # save color and depth image
     image.save("./rgb.jpg", quality=95)
-    save_pil = Image.fromarray(depth, mode='I;16')
-    save_pil.save("./depth.png", format='PNG')
+    #save_pil = Image.fromarray(depth, mode='I;16')
+    depth.save("./depth.png", format='PNG')
+
+    pc = PointCloudPerception()
+    #pc.convertRGBD2PointClouds(image, depth, intrin, "./rgbd_point_cloud.ply")
 
     fx = 907.7446899414062
     fy = 907.4523315429688
@@ -112,8 +117,7 @@ def eval_robobrain2_5_traj():
     intrinsic[0][2] = cx
     intrinsic[1][2] = cy
     
-    factor_depth = 1000.0
-    gg = rmp.generate_6d_grasp_pose(image_np, depth, workspace_mask, intrinsic, factor_depth)
+    #gg = rmp.generate_6d_grasp_pose(image_np, depth, workspace_mask, intrinsic, factor_depth)
     
     # optimize the initial path given by vlm 
     

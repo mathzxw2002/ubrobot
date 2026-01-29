@@ -121,7 +121,8 @@ class PiperHost:
                         else:
                             last_observation[depth_key] = "" '''
                         last_observation[depth_key] = ""
-                        last_observation[f"{cam_key}_intrinsics"] = ""
+                        cam_intrin = f"{cam_key}_intrinsics"
+                        last_observation[cam_intrin] = last_observation[cam_intrin].tolist()
 
                 # Send the observation to the remote agent
                 try:

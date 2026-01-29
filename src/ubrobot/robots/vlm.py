@@ -26,41 +26,37 @@ class RobotVLM:
             base_url=base_url,
         )            
     
-    def local_http_service(self, color_image_np, depth_image_np, instruction, url):
+    def local_http_service(self, color_image_np, depth_image_np, camera_intrinsic, instruction, url):
         print("calling local deployed http service, url:", url)
         
-        color_image_pil = PIL_Image.fromarray(color_image_np)
-        depth_image_pil = None
-
+        print(f"input data type, rgb {color_image_np.dtype}")
+        rgb_np = np.ascontiguousarray(color_image_np, dtype=np.uint8)
+        
+        color_image_pil = PIL_Image.fromarray(rgb_np)
         image_bytes = io.BytesIO()
         color_image_pil.save(image_bytes, format="JPEG")
         image_bytes.seek(0)
-
+        
+        depth_image_pil = None
         if depth_image_np is not None:
+            print(f"input data type, depth {depth_image_np.dtype}")
             # The depth map as a NumPy array (height, width) of type `np.uint16` (raw depth values in millimeters) and rotation.
             if depth_image_np.dtype != np.uint16:
                 raise ValueError(f"Shape of Depth image must be np.uint16，Now is {depth_image_np.dtype}")
             if len(depth_image_np.shape) != 2:
                 raise ValueError(f"Shape of Depth image must be (H,W)，Now is {depth_image_np.shape}")
-    
-            #save_dir = os.path.dirname(save_path)
-            #if save_dir and not os.path.exists(save_dir):
-            #    os.makedirs(save_dir, exist_ok=True)
-    
-            # 3. 核心：将np.uint16数组转为PIL的16位深度图并保存
-            # 'I;16' = PIL专用16位无符号整型模式，完美匹配np.uint16
-            depth_image_pil = PIL_Image.fromarray(depth_image_np, mode='I;16')
-            #depth_pil.save(save_path)
-            # 验证存储结果（可选，调试用）
-            #print(f"深度图已保存为16位PNG：{save_path}")
-            #print(f"  形状：{depth_array.shape} | 类型：{depth_array.dtype} | 数值范围：{depth_array.min()}~{depth_array.max()} mm")
-
-            #depth_image_pil = PIL_Image.fromarray(depth_image_np)
+            depth_uint16 = np.ascontiguousarray(depth_image_np).astype(np.uint16)
+            
+            # Mode "I;16" is specific for 16-bit unsigned integer pixels
+            depth_image_pil = PIL_Image.fromarray(depth_uint16, mode='I;16')
             depth_bytes = io.BytesIO()
             depth_image_pil.save(depth_bytes, format='PNG')
             depth_bytes.seek(0)
 
-        data = {"ins": instruction}
+        data = {
+            "ins": instruction,
+            "intrinsic": camera_intrinsic.tolist()
+        }
         json_data = json.dumps(data)
 
         if depth_image_pil is not None:
@@ -250,7 +246,7 @@ class RobotVLM:
 
     def vlm_infer_vqa(self, image_np, instruction, url='http://192.168.18.230:5802/eval_reasoning_vqa'):
         print("eval robobrain 2.5 ...")
-        response_str = self.local_http_service(image_np, None, instruction, url)
+        response_str = self.local_http_service(image_np, None, None, instruction, url)
         return response_str
     
     def draw_on_image(self, image, points=None, boxes=None, trajectories=None, output_path=None):
@@ -328,14 +324,14 @@ class RobotVLM:
             print(f"Error processing image: {e}")
             return None
 
-    def vlm_infer_traj(self, rgb_image_np, depth_image_np, instruction, url='http://192.168.18.230:5802/eval_reasoning_traj'):
+    def vlm_infer_traj(self, rgb_image_np, depth_image_np, intrin, instruction, url='http://192.168.18.230:5802/eval_reasoning_traj'):
         print("eval robobrain 2.5 ...")
-        response_str = self.local_http_service(rgb_image_np, depth_image_np, instruction, url)
+        response_str = self.local_http_service(rgb_image_np, depth_image_np, intrin, instruction, url)
         return response_str
 
     def vlm_infer_grounding(self, image_np, instruction, url='http://192.168.18.230:5802/eval_reasoning_grounding'):
         print("eval robobrain 2.5 ...")
-        response_str = self.local_http_service(image_np, None, instruction, url)
+        response_str = self.local_http_service(image_np, None, None, instruction, url)
         boxes = self.decode_json_points(response_str)
         self.draw_on_image(image_np, None, [boxes], None, None)
         return response_str

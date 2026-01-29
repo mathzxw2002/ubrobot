@@ -18,8 +18,8 @@ def piper_cameras_config() -> dict[str, CameraConfig]:
         "wrist": RealSenseCameraConfig(
             serial_number_or_name="336222070923", # Replace with actual SN
             fps=30,
-            width=1280,
-            height=720,
+            width=640,
+            height=480,
             color_mode=ColorMode.BGR, # Request BGR output
             rotation=Cv2Rotation.NO_ROTATION,
             use_depth=True
@@ -66,8 +66,8 @@ class PiperConfig(RobotConfig):
             "wrist": RealSenseCameraConfig(
                 serial_number_or_name="336222070923", # Replace with actual SN
                 fps=30,
-                width=1280,
-                height=720,
+                width=640,
+                height=480,
                 color_mode=ColorMode.BGR, # Request BGR output
                 rotation=Cv2Rotation.NO_ROTATION,
                 use_depth=True

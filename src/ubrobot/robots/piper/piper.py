@@ -186,8 +186,9 @@ class Piper(Robot):
                         depth = depth[:, :, 0]
                     obs[f"{cam_key}_depth"] = depth_image
                 except Exception as e:
-                    obs[cam_key] = None
-                    obs[f"{cam_key}_depth"] = None
+                    #obs[cam_key] = None
+                    #obs[f"{cam_key}_depth"] = None
+                    print("exception in piper get_observation...")
         return obs
 
     def send_action(self, action: dict[str, Any]) -> dict[str, Any]:
@@ -197,7 +198,7 @@ class Piper(Robot):
         try:
             obs = self.get_observation()
         except Exception:
-            print("exception in piper get_observation...")
+            print("exception in piper send_action...")
             # If observation can't be read, fallback to zeros for safety
             obs = {f"{name}.pos": 0.0 for name in self.config.joint_names}
             if self.config.include_gripper:

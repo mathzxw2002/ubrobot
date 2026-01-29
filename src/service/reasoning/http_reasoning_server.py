@@ -99,7 +99,7 @@ def eval_robobrain2_5_traj():
     # save color and depth image
     image.save("./rgb.jpg", quality=95)
     #save_pil = Image.fromarray(depth, mode='I;16')
-    depth.save("./depth.png", format='PNG')
+    depth_pil.save("./depth.png", format='PNG')
 
     pc = PointCloudPerception()
     #pc.convertRGBD2PointClouds(image, depth, intrin, "./rgbd_point_cloud.ply")

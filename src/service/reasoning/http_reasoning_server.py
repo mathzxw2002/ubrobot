@@ -83,8 +83,9 @@ def eval_robobrain2_5_traj():
     # Visualization results will be saved to ./result, if `plot=True`. 
     # Output is formatted as a list of tuples, i.e., [(x1, y1, d1), (x2, y2, d2), ...], 
     # where each tuple contains the x and y coordinates and the depth of the point.
-    resut_str = robobrain_infer.inference(instruction, image, task="trajectory", plot=False, do_sample=False)
-    print(f"Prediction:\n{resut_str}")
+    #result_str = robobrain_infer.inference(instruction, image, task="trajectory", plot=False, do_sample=False)
+    result_str = ""
+    print(f"Prediction:\n{result_str}")
 
     # check and optimize traj by pyroboplan instead of moveit
     # TODO
@@ -116,7 +117,7 @@ def eval_robobrain2_5_traj():
     
     # optimize the initial path given by vlm 
     
-    return resut_str
+    return result_str
 
 @app.route("/eval_reasoning_grounding", methods=['POST'])
 def eval_robobrain2_5_grounding():

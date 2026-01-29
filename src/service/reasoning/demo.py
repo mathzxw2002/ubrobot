@@ -50,6 +50,24 @@ def get_net():
 
 import cv2
 import matplotlib.pyplot as plt
+
+
+def visualize_depth_pseudocolor(depth_img, alpha=0.03):
+    """
+    伪彩色可视化深度图
+    :param depth_img: 原始深度图（np.uint16，shape (H,W)）
+    :param alpha: 缩放系数，调优对比度（关键参数，0.02~0.05为宜）
+    :return: 伪彩色深度图（np.uint8，shape (H,W,3)）
+    """
+    # 核心：16位深度图 → 8位可视化图（缩放+归一化）
+    # convertScaleAbs：缩放深度值并转换为8位无符号整数，alpha控制对比度
+    depth_8bit = cv2.convertScaleAbs(depth_img, alpha=alpha)
+    # 应用色彩映射（COLORMAP_JET：蓝近红远，最常用）
+    depth_color = cv2.applyColorMap(depth_8bit, cv2.COLORMAP_JET)
+    # 可选：将无效深度区域（0）标为黑色（默认已为黑色，可省略）
+    depth_color[depth_img == 0] = [0, 0, 0]
+    return depth_color
+
 def get_and_process_data(data_dir):
     # load data
     color = np.array(Image.open(os.path.join(data_dir, 'rgb.jpg')), dtype=np.float32) / 255.0
@@ -58,6 +76,11 @@ def get_and_process_data(data_dir):
     #depth_normalized = cv2.normalize(depth, None, 0, 255, cv2.NORM_MINMAX, dtype=cv2.CV_8U)
     # 3. 伪彩色映射（jet 色阶，红色代表远，蓝色代表近）
     #depth_color = cv2.applyColorMap(depth_normalized, cv2.COLORMAP_JET)
+
+    depth_color = visualize_depth_pseudocolor(depth, alpha=0.03)
+
+    cv2.namedWindow("RGB + Pseudocolor Depth", cv2.WINDOW_NORMAL)
+    cv2.imshow("RGB + Pseudocolor Depth", depth_color)
 
     workspace_mask = np.array(Image.open(os.path.join(data_dir, 'workspace_mask.png')))
     #meta = scio.loadmat(os.path.join(data_dir, 'meta.mat'))

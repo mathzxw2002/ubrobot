@@ -10,6 +10,8 @@ from unitree_sdk2py.go2.sport.sport_client import SportClient
 
 from ubrobot.robots.piper.piper_host import PiperHost, PiperServerConfig
 
+from ubrobot.robots.pointcloud import PointCloudPerception
+
 from PIL import Image as PIL_Image
 from .controllers import Mpc_controller, PID_controller
 from thread_utils import ReadWriteLock
@@ -85,6 +87,8 @@ class Go2Manager():
         # robot arm config
         self.cfg = PiperServerConfig()
         self.robot_arm = PiperHost(self.cfg.host)
+
+        self.pc = PointCloudPerception()
     
     def get_observation(self):
 
@@ -327,6 +331,10 @@ class Go2Manager():
         
         instruction = "reach for the small wooden square block without collision"
         response_restult_str_traj = self.vlm.vlm_infer_traj(color_image, depth_image, instruction)
+
+        intrin = self.robot_arm.get_robot_arm_camera_intrinsic("wrist")
+        self.pc.convertRGBD2PointClouds(color_image, depth_image, intrin, "./rgbd_point_cloud.ply")
+
         print(response_restult_str_traj)
         print(res)
 

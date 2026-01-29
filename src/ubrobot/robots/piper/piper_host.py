@@ -145,6 +145,11 @@ class PiperHost:
 
     def get_robot_arm_observation_local(self):
         return self.robot.get_observation()
+    
+    def get_robot_arm_camera_intrinsic(self, camera_key):
+        obser = self.robot.get_observation()
+        intrinsic_key = f"{camera_key}_intrinsics"
+        return obser[intrinsic_key]
 
 # comment this to avoid conflict with ubrobot robot arm serving
 '''if __name__ == "__main__":

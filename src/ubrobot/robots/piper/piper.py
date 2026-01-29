@@ -186,9 +186,9 @@ class Piper(Robot):
                 try:
                     color_image, depth_image = cam.get_aligned_rgb_depth()
                     obs[cam_key] = color_image
-
                     obs[f"{cam_key}_depth"] = depth_image
-                    self.pc.convertRGBD2PointClouds(color_image, depth_image, cam.get_camera_intrinsics())
+                    obs[f"{cam_key}_intrinsics"] = cam.get_camera_intrinsics()
+                    #self.pc.convertRGBD2PointClouds(color_image, depth_image, cam.get_camera_intrinsics())
                 except Exception as e:
                     RuntimeError("exception in piper get_observation...")
         return obs

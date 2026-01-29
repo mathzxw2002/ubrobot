@@ -3,6 +3,7 @@ import numpy as np
 from numpy.typing import NDArray
 from typing import Any, Tuple, Dict, Optional
 from lerobot.cameras.configs import CameraConfig, Cv2Rotation
+import time
 
 try:
     import pyrealsense2 as rs
@@ -87,6 +88,36 @@ class EnhancedRealSenseCamera(RealSenseCamera):
         print("camera info:\n")
         print(f"fx: {intrin.fx}, fy: {intrin.fy}, ppx: {intrin.ppx}, ppy: {intrin.ppy}, width: {intrin.width}, height: {intrin.height}")
 
+    #
+    def get_aligned_rgb_depth(self, timeout_ms: int = 200) -> NDArray[Any]:
+        if not self.is_connected:
+            raise DeviceNotConnectedError(f"{self} is not connected.")
+        start_time = time.perf_counter()
+        if self.rs_pipeline is None:
+            raise RuntimeError(f"{self}: rs_pipeline must be initialized before use.")
+
+        # align_to=rs.stream.depth → 彩色帧适配深度帧的分辨率和视角
+        align = rs.align(rs.stream.depth)
+
+        ret, frame = self.rs_pipeline.try_wait_for_frames(timeout_ms=timeout_ms)
+        if not ret or frame is None:
+            raise RuntimeError(f"{self} read failed (status={ret}).")
+                
+        aligned_frames = align.process(frame)
+        
+        aligned_depth_frame = aligned_frames.get_depth_frame()
+        aligned_color_frame = aligned_frames.get_color_frame()
+        
+        if not aligned_depth_frame or not aligned_color_frame:
+            raise RuntimeError(f"{self} read depth or color frame failed.")
+        
+        depth_image = np.asanyarray(aligned_depth_frame.get_data())
+        color_image = np.asanyarray(aligned_color_frame.get_data())
+        
+        read_duration_ms = (time.perf_counter() - start_time) * 1e3
+        logger.debug(f"{self} read took: {read_duration_ms:.1f}ms")
+        return color_image, depth_image
+
 if __name__ == "__main__":
     cfg_param = RealSenseCameraConfig(
         serial_number_or_name="336222070923", # Replace with actual SN
@@ -101,4 +132,6 @@ if __name__ == "__main__":
     rs_camera.connect()
     rs_camera._load_camera_intrinsics()
 
+    olor_image, depth_image = rs_camera.get_aligned_rgb_depth()
+    
     rs_camera.disconnect()

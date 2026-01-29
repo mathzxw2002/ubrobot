@@ -6,6 +6,10 @@ from lerobot.robots import Robot
 
 from lerobot.cameras.realsense import RealSenseCamera
 
+from ubrobot.cameras.camera_util import EnhancedRealSenseCamera
+from lerobot.cameras.opencv import OpenCVCamera
+from lerobot.cameras.camera import Camera
+
 from .config_piper import PiperConfig
 from .piper_sdk_interface import PiperSDKInterface
 
@@ -21,7 +25,15 @@ class Piper(Robot):
         self.config = config
         # Lazily initialize the SDK interface in connect()
         self._iface: PiperSDKInterface | None = None
-        self.cameras = make_cameras_from_configs(config.cameras) if config.cameras else {}
+        #self.cameras = make_cameras_from_configs(config.cameras) if config.cameras else {}
+        cameras: dict[str, Camera] = {}
+
+        if config.cameras is not None:
+            for key, cfg in config.cameras.items():
+                if cfg.type == "opencv":
+                    cameras[key] = OpenCVCamera(cfg)
+                elif cfg.type == "intelrealsense":
+                    cameras[key] = EnhancedRealSenseCamera(cfg)
 
     @property
     def is_connected(self) -> bool:
@@ -156,16 +168,25 @@ class Piper(Robot):
             #TODO original code
             #obs[cam_key] = cam.async_read()
             # revised code
-            obs[cam_key] = cam.read()
-            if isinstance(cam, RealSenseCamera):
+            #obs[cam_key] = cam.read()
+            '''if isinstance(cam, RealSenseCamera):
                 try:
+                    obs[cam_key] = cam.read()
                     depth = cam.read_depth()
                     if len(depth.shape) == 3:
                         depth = depth[:, :, 0]
                     obs[f"{cam_key}_depth"] = depth
-                    #print("============= in piper get_observation, depth image shape:", obs[f"{cam_key}_depth"].shape)
                 except Exception as e:
-                    #logger.error(f"Fail to Read RealSense Camera [{cam_key}] Frame: {e}")
+                    obs[f"{cam_key}_depth"] = None'''
+            if isinstance(cam, EnhancedRealSenseCamera):
+                try:
+                    color_image, depth_image = cam.get_aligned_rgb_depth()
+                    obs[cam_key] = color_image
+                    if len(depth.shape) == 3:
+                        depth = depth[:, :, 0]
+                    obs[f"{cam_key}_depth"] = depth_image
+                except Exception as e:
+                    obs[cam_key] = None
                     obs[f"{cam_key}_depth"] = None
         return obs
 

@@ -26,14 +26,14 @@ class Piper(Robot):
         # Lazily initialize the SDK interface in connect()
         self._iface: PiperSDKInterface | None = None
         #self.cameras = make_cameras_from_configs(config.cameras) if config.cameras else {}
-        cameras: dict[str, Camera] = {}
+        self.cameras: dict[str, Camera] = {}
 
         if config.cameras is not None:
             for key, cfg in config.cameras.items():
                 if cfg.type == "opencv":
-                    cameras[key] = OpenCVCamera(cfg)
+                    self.cameras[key] = OpenCVCamera(cfg)
                 elif cfg.type == "intelrealsense":
-                    cameras[key] = EnhancedRealSenseCamera(cfg)
+                    self.cameras[key] = EnhancedRealSenseCamera(cfg)
 
     @property
     def is_connected(self) -> bool:

@@ -39,15 +39,10 @@ class EnhancedRealSenseCamera(RealSenseCamera):
 
     def connect(self, warmup: bool = True) -> None:
         super().connect(warmup=warmup)
-        self._load_camera_intrinsics()
+        self.load_camera_intrinsics()
         logger.info(f"{self} load intrinsics successful.")
 
-    def _load_camera_intrinsics(self) -> None:
-        """
-        核心新增功能1：读取并解析相机内参
-        - 彩色流内参（fx/fy/ppx/ppy + 内参矩阵 + 畸变系数）
-        - 深度流内参（同上）
-        """
+    def load_camera_intrinsics(self) -> None:
         if not self.is_connected:
             raise DeviceNotConnectedError(f"{self} fail to connect, can not get intrinsics.")
         
@@ -79,13 +74,16 @@ class EnhancedRealSenseCamera(RealSenseCamera):
             ], dtype=np.float32)
             self.intrinsics["depth_dist"] = np.array(depth_intrin.coeffs, dtype=np.float32)
 
-        # 打印内参信息（调试用）
         logger.debug(f"彩色流内参矩阵：\n{self.intrinsics['color_K']}")
         if self.use_depth:
             logger.debug(f"深度流内参矩阵：\n{self.intrinsics['depth_K']}")
 
         intrin = self.intrinsics["color"]
-        print("camera info:\n")
+        print("camera color info:\n")
+        print(f"fx: {intrin.fx}, fy: {intrin.fy}, ppx: {intrin.ppx}, ppy: {intrin.ppy}, width: {intrin.width}, height: {intrin.height}")
+
+        intrin = self.intrinsics["depth"]
+        print("camera depth info:\n")
         print(f"fx: {intrin.fx}, fy: {intrin.fy}, ppx: {intrin.ppx}, ppy: {intrin.ppy}, width: {intrin.width}, height: {intrin.height}")
 
     #
@@ -130,8 +128,8 @@ if __name__ == "__main__":
     )
     rs_camera = EnhancedRealSenseCamera(cfg_param)
     rs_camera.connect()
-    rs_camera._load_camera_intrinsics()
+    rs_camera.load_camera_intrinsics()
 
     olor_image, depth_image = rs_camera.get_aligned_rgb_depth()
-    
+
     rs_camera.disconnect()

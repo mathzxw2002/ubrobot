@@ -12,7 +12,7 @@ matplotlib.use('Agg')
 import matplotlib.pyplot as plt
 from mpl_toolkits.mplot3d import Axes3D
 
-from vlm import RobotVLM
+#from vlm import RobotVLM
 import io
 from PIL import Image as PIL_Image
 
@@ -162,32 +162,87 @@ class GraspPoseCalculator:
 
 class PointCloudPerception:
     def __init__(self):
-        self.yolo_model = YOLO('./assets/models/yolo/yolo11n-seg.pt')
+        #self.yolo_model = YOLO('./assets/models/yolo/yolo11n-seg.pt')
         #self.orig_pcd = None
         #self.grasp_calc = GraspPoseCalculator()
-        self.vlm = RobotVLM()
+        #self.vlm = RobotVLM()
+        print("========== init PointCloudPerception")
        
-    def convertRGBD2PointClouds(self, rgb_image, depth_image, fx, fy, ppx, ppy):
+    def convertRGBD2PointClouds(self, rgb_image, depth_image, cam_intrin):
+
+        print(f"input data type, rgb {rgb_image.dtype}, depth {depth_image.dtype}")
         # get rgbd image and convert to poing cloud
-        rgb_o3d = o3d.geometry.Image(rgb_image)
-        depth_o3d = o3d.geometry.Image(depth_image.astype(np.float32))
+        print("----------------------------- convertRGBD2PointClouds...")
+        #rgb_image = cv2.cvtColor(rgb_image, cv2.COLOR_BGR2RGB)
+        rgb_np = np.ascontiguousarray(rgb_image, dtype=np.uint8)
+        if not rgb_np.flags['WRITEABLE']:
+            rgb_np = rgb_np.copy()
+
+        depth_uint16 = np.ascontiguousarray(depth_image).astype(np.uint16)
+        if not depth_uint16.flags['WRITEABLE']:
+            depth_uint16 = depth_uint16.copy()
+        
+        rgb_o3d = o3d.geometry.Image(rgb_np)
+        depth_o3d = o3d.geometry.Image(depth_uint16)
+        
         rgbd_image = o3d.geometry.RGBDImage.create_from_color_and_depth(
             rgb_o3d,
             depth_o3d,
-            depth_scale=1.0,
+            depth_scale=1000.0,
             depth_trunc=3.0,    # 深度截断
             convert_rgb_to_intensity=False #convert_rgb_to_intensity=False：保留彩色信息（否则转为灰度图）
         )
 
-        if fx is None or fy is None or ppx is None or ppy is None:
+        if cam_intrin is None:
             print("Camera Intrinsic Not Received...")
             return None
         else:
-            intrinsic = o3d.camera.PinholeCameraIntrinsic()
-            h, w = rgb_image.shape[:2]
-            intrinsic.set_intrinsics(w, h, fx, fy, ppx, ppy)
-            orig_pcd = o3d.geometry.PointCloud.create_from_rgbd_image(rgbd_image, intrinsic)
-            #o3d.io.write_point_cloud("./tmp/rgbd_point_cloud.ply", orig_pcd)
+            print("===============================================")
+            orig_pcd = None
+            try:
+                #intrinsic = o3d.camera.PinholeCameraIntrinsic()
+
+
+                h, w = rgb_np.shape[:2]
+                c, r = np.meshgrid(np.arange(w), np.arange(h), indexing='xy')
+                valid_mask = (depth_uint16 > 0) & (depth_uint16 < 3000)
+
+                z = depth_uint16[valid_mask] / 1000.0
+
+                fx = cam_intrin.fx
+                fy = cam_intrin.fy
+                ppx = cam_intrin.ppx
+                ppy = cam_intrin.ppy
+
+                x = (c[valid_mask] - ppx) * z / fx
+                y = (r[valid_mask] - ppy) * z / fy
+
+                points = np.stack((x, y, z), axis=-1)
+                colors = rgb_np[valid_mask] / 255.0
+
+                pcd = o3d.geometry.PointCloud()
+                pcd.points = o3d.utility.Vector3dVector(points.astype(np.float64))
+                pcd.colors = o3d.utility.Vector3dVector(colors.astype(np.float64))
+
+                #fx = cam_intrin.fx
+                #fy = cam_intrin.fy
+                #ppx = cam_intrin.ppx
+                #ppy = cam_intrin.ppy
+                #intrinsic.set_intrinsics(w, h, fx, fy, ppx, ppy)
+
+                print("after intrinsic.set_intrinsics(w, h, fx, fy, ppx, ppy)", w, h, fx, fy, ppx, ppy)
+
+                #orig_pcd = o3d.geometry.PointCloud.create_from_rgbd_image(rgbd_image, intrinsic)
+                #orig_pcd.remove_non_finite_points()
+
+                o3d.io.write_point_cloud("./rgbd_point_cloud.ply", pcd)
+            except Exception as e:
+                print("--------------------------", e)
+
+            print("save point cloud--------------------------------------------------------")
+
+            #print(orig_pcd)
+            #o3d.io.write_point_cloud("./rgbd_point_cloud.ply", orig_pcd)
             return orig_pcd
 
     def pixel_to_3d(self, u, v, z, fx, fy, ppx, ppy):

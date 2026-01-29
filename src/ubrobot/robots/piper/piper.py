@@ -13,6 +13,8 @@ from lerobot.cameras.camera import Camera
 from .config_piper import PiperConfig
 from .piper_sdk_interface import PiperSDKInterface
 
+from ubrobot.robots.pointcloud import PointCloudPerception
+
 logger = logging.getLogger(__name__)
 
 
@@ -27,6 +29,8 @@ class Piper(Robot):
         self._iface: PiperSDKInterface | None = None
         #self.cameras = make_cameras_from_configs(config.cameras) if config.cameras else {}
         self.cameras: dict[str, Camera] = {}
+
+        self.pc = PointCloudPerception()
 
         if config.cameras is not None:
             for key, cfg in config.cameras.items():
@@ -182,13 +186,11 @@ class Piper(Robot):
                 try:
                     color_image, depth_image = cam.get_aligned_rgb_depth()
                     obs[cam_key] = color_image
-                    if len(depth.shape) == 3:
-                        depth = depth[:, :, 0]
+
                     obs[f"{cam_key}_depth"] = depth_image
+                    self.pc.convertRGBD2PointClouds(color_image, depth_image, cam.get_camera_intrinsics())
                 except Exception as e:
-                    #obs[cam_key] = None
-                    #obs[f"{cam_key}_depth"] = None
-                    print("exception in piper get_observation...")
+                    RuntimeError("exception in piper get_observation...")
         return obs
 
     def send_action(self, action: dict[str, Any]) -> dict[str, Any]:

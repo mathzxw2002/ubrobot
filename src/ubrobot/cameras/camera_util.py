@@ -29,6 +29,7 @@ class EnhancedRealSenseCamera(RealSenseCamera):
             "depth_K": None,  # 深度流内参矩阵（OpenCV格式）
             "color_dist": None,  # 彩色流畸变系数
             "depth_dist": None,  # 深度流畸变系数
+            "aligned_depth_K": None, # 對齊後的深度內參矩陣
         }
         
         self.latest_rgbd_data: Dict[str, NDArray[Any]] = {
@@ -43,13 +44,9 @@ class EnhancedRealSenseCamera(RealSenseCamera):
         logger.info(f"{self} load intrinsics successful.")
 
     def load_camera_intrinsics(self) -> None:
-        if not self.is_connected:
+        if not self.is_connected or self.rs_profile is None:
             raise DeviceNotConnectedError(f"{self} fail to connect, can not get intrinsics.")
         
-        if self.rs_profile is None:
-            raise RuntimeError(f"{self}: rs_profile not initialized, can not get intrinsics.")
-
-        # 1. 读取彩色流内参
         color_stream = self.rs_profile.get_stream(rs.stream.color).as_video_stream_profile()
         color_intrin = color_stream.get_intrinsics()
         self.intrinsics["color"] = color_intrin
@@ -73,10 +70,12 @@ class EnhancedRealSenseCamera(RealSenseCamera):
                 [0, 0, 1]
             ], dtype=np.float32)
             self.intrinsics["depth_dist"] = np.array(depth_intrin.coeffs, dtype=np.float32)
+            # 重要：因為是對齊到 color，對齊後的深度內參等於彩色內參
+            self.intrinsics["aligned_depth_K"] = self.intrinsics["color_K"]
 
-        logger.debug(f"彩色流内参矩阵：\n{self.intrinsics['color_K']}")
-        if self.use_depth:
-            logger.debug(f"深度流内参矩阵：\n{self.intrinsics['depth_K']}")
+        # align_to=rs.stream.depth → 彩色帧适配深度帧的分辨率和视角
+        #self.align = rs.align(rs.stream.depth)
+        self.align = rs.align(rs.stream.color)
 
         intrin = self.intrinsics["color"]
         print("camera color info:\n")
@@ -86,34 +85,37 @@ class EnhancedRealSenseCamera(RealSenseCamera):
         print("camera depth info:\n")
         print(f"fx: {intrin.fx}, fy: {intrin.fy}, ppx: {intrin.ppx}, ppy: {intrin.ppy}, width: {intrin.width}, height: {intrin.height}")
 
+    def get_camera_intrinsics(self):
+        # TODO
+        return self.intrinsics["color"]
     #
     def get_aligned_rgb_depth(self, timeout_ms: int = 200) -> NDArray[Any]:
-        if not self.is_connected:
+        if not self.is_connected or self.rs_pipeline is None:
             raise DeviceNotConnectedError(f"{self} is not connected.")
         start_time = time.perf_counter()
-        if self.rs_pipeline is None:
-            raise RuntimeError(f"{self}: rs_pipeline must be initialized before use.")
 
-        # align_to=rs.stream.depth → 彩色帧适配深度帧的分辨率和视角
-        align = rs.align(rs.stream.depth)
-
-        ret, frame = self.rs_pipeline.try_wait_for_frames(timeout_ms=timeout_ms)
-        if not ret or frame is None:
+        frames = self.rs_pipeline.wait_for_frames(timeout_ms)
+        if frames is None:
             raise RuntimeError(f"{self} read failed (status={ret}).")
-                
-        aligned_frames = align.process(frame)
-        
+       
+        aligned_frames = self.align.process(frames)
         aligned_depth_frame = aligned_frames.get_depth_frame()
         aligned_color_frame = aligned_frames.get_color_frame()
-        
-        if not aligned_depth_frame or not aligned_color_frame:
+
+        if aligned_depth_frame is None or aligned_color_frame is None:
             raise RuntimeError(f"{self} read depth or color frame failed.")
         
         depth_image = np.asanyarray(aligned_depth_frame.get_data())
         color_image = np.asanyarray(aligned_color_frame.get_data())
+
+        with self.rgbd_lock:
+            self.latest_rgbd_data["color"] = color_image.copy()
+            self.latest_rgbd_data["depth"] = depth_image.copy()
         
         read_duration_ms = (time.perf_counter() - start_time) * 1e3
         logger.debug(f"{self} read took: {read_duration_ms:.1f}ms")
+
+        #print("==================== get aligned rgb and depth image, ", color_image, depth_image)
         return color_image, depth_image
 
 if __name__ == "__main__":
@@ -130,6 +132,5 @@ if __name__ == "__main__":
     rs_camera.connect()
     rs_camera.load_camera_intrinsics()
 
-    olor_image, depth_image = rs_camera.get_aligned_rgb_depth()
-
+    color_image, depth_image = rs_camera.get_aligned_rgb_depth()
     rs_camera.disconnect()

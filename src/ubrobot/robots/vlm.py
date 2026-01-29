@@ -53,22 +53,28 @@ class RobotVLM:
             depth_image_pil.save(depth_bytes, format='PNG')
             depth_bytes.seek(0)
 
-        data = {
-            "ins": instruction,
-            "intrinsic": camera_intrinsic.tolist()
-        }
-        json_data = json.dumps(data)
-
-        if depth_image_pil is not None:
+        if depth_image_pil is not None and camera_intrinsic is not None:
+            intrinsic_matrix = [
+                [camera_intrinsic.fx, 0.0, camera_intrinsic.ppx],
+                [0.0, camera_intrinsic.fy, camera_intrinsic.ppy],
+                [0.0, 0.0, 1.0]
+            ]
+            data = {
+                "ins": instruction,
+                "intrinsic": intrinsic_matrix
+            }
             files = {
                 'image': ('rgb_image', image_bytes, 'image/jpeg'),
                 'depth': ('depth_image', depth_bytes, 'image/png'),
             }
         else:
+            data = {
+                "ins": instruction,
+            }
             files = {
                 'image': ('rgb_image', image_bytes, 'image/jpeg')
             }
-        
+        json_data = json.dumps(data)
         try:
             response = requests.post(
                 url,

@@ -187,10 +187,13 @@ class Piper(Robot):
                     color_image, depth_image = cam.get_aligned_rgb_depth()
                     obs[cam_key] = color_image
                     obs[f"{cam_key}_depth"] = depth_image
-                    obs[f"{cam_key}_intrinsics"] = cam.get_camera_intrinsics()
-                    #self.pc.convertRGBD2PointClouds(color_image, depth_image, cam.get_camera_intrinsics())
+                    intrinsics = cam.get_camera_intrinsics()
+                    obs[f"{cam_key}_intrinsics"] = intrinsics
+                    #self.pc.convertRGBD2PointClouds(color_image, depth_image, intrinsics)
                 except Exception as e:
                     RuntimeError("exception in piper get_observation...")
+
+        #print("================= get observation in piper...", obs)
         return obs
 
     def send_action(self, action: dict[str, Any]) -> dict[str, Any]:

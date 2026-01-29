@@ -330,9 +330,9 @@ class Go2Manager():
         res = self.vlm.vlm_infer_grounding(color_image, instruction)
         
         instruction = "reach for the small wooden square block without collision"
+        intrin = observation["wrist_intrinsics"]
         response_restult_str_traj = self.vlm.vlm_infer_traj(color_image, depth_image, intrin, instruction)
 
-        intrin = self.robot_arm.get_robot_arm_camera_intrinsic("wrist")
         self.pc.convertRGBD2PointClouds(color_image, depth_image, intrin, "./rgbd_point_cloud.ply")
 
         print(response_restult_str_traj)

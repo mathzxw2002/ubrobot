@@ -80,8 +80,8 @@ def eval_robobrain2_5_traj():
     
     # decode camera intrinsic and instruction
     instruction = data['ins']
-    camera_intrinsic_list = data['intrinsic']
-    print("camera_intrinsic_list:", camera_intrinsic_list)
+    camera_intrinsics = data['intrinsic']
+    print("camera_intrinsics fx:", camera_intrinsics[0][0])
 
     # Visualization results will be saved to ./result, if `plot=True`. 
     # Output is formatted as a list of tuples, i.e., [(x1, y1, d1), (x2, y2, d2), ...], 

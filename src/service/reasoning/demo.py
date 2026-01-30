@@ -26,7 +26,7 @@ from data_utils import CameraInfo, create_point_cloud_from_depth_image
 
 parser = argparse.ArgumentParser()
 parser.add_argument('--checkpoint_path', required=True, help='Model checkpoint path')
-parser.add_argument('--num_point', type=int, default=20000, help='Point Number [default: 20000]')
+parser.add_argument('--num_point', type=int, default=200000, help='Point Number [default: 20000]')
 parser.add_argument('--num_view', type=int, default=300, help='View Number [default: 300]')
 parser.add_argument('--collision_thresh', type=float, default=0.01, help='Collision Threshold in collision detection [default: 0.01]')
 parser.add_argument('--voxel_size', type=float, default=0.01, help='Voxel Size to process point clouds before collision detection [default: 0.01]')
@@ -51,22 +51,17 @@ def get_net():
 import cv2
 import matplotlib.pyplot as plt
 
+def create_binary_mask_from_rect(rect, img_w, img_h):
+    x1, y1, x2, y2 = rect
+    x1 = max(0, min(x1, img_w - 1))  # x范围限制在[0, 宽-1]
+    x2 = max(0, min(x2, img_w - 1))
+    y1 = max(0, min(y1, img_h - 1))  # y范围限制在[0, 高-1]
+    y2 = max(0, min(y2, img_h - 1))
 
-def visualize_depth_pseudocolor(depth_img, alpha=0.03):
-    """
-    伪彩色可视化深度图
-    :param depth_img: 原始深度图（np.uint16，shape (H,W)）
-    :param alpha: 缩放系数，调优对比度（关键参数，0.02~0.05为宜）
-    :return: 伪彩色深度图（np.uint8，shape (H,W,3)）
-    """
-    # 核心：16位深度图 → 8位可视化图（缩放+归一化）
-    # convertScaleAbs：缩放深度值并转换为8位无符号整数，alpha控制对比度
-    depth_8bit = cv2.convertScaleAbs(depth_img, alpha=alpha)
-    # 应用色彩映射（COLORMAP_JET：蓝近红远，最常用）
-    depth_color = cv2.applyColorMap(depth_8bit, cv2.COLORMAP_JET)
-    # 可选：将无效深度区域（0）标为黑色（默认已为黑色，可省略）
-    depth_color[depth_img == 0] = [0, 0, 0]
-    return depth_color
+    # 3. 生成「矩形区域」二值掩码（shape=(H, W)，bool类型，矩形内为True）
+    rect_mask = np.zeros((img_h, img_w), dtype=np.bool_)
+    rect_mask[y1:y2, x1:x2] = True  # 关键：NumPy索引[y, x]匹配像素坐标[x, y]
+    return rect_mask
 
 def get_and_process_data(data_dir):
     # load data
@@ -84,26 +79,25 @@ def get_and_process_data(data_dir):
     # generate cloud
     camera = CameraInfo(width, height, fx, fy, cx, cy, factor_depth)
     cloud = create_point_cloud_from_depth_image(depth, camera, organized=True)
-    
-    valid_mask = (cloud[:, :, 2] > 0.3) & (cloud[:, :, 2] < 3.0)
-    cloud_xyz = cloud[valid_mask]
-    cloud_rgb = color[valid_mask] / 255.0
+   
+    #rect = [122, 98, 209, 186]
+    rect = [304, 115, 389, 193]
+    object_rect_mask = create_binary_mask_from_rect(rect, int(width), int(height))
 
-    pcd = o3d.geometry.PointCloud()
-    pcd.points = o3d.utility.Vector3dVector(cloud_xyz.astype(np.float64)) 
-    pcd.colors = o3d.utility.Vector3dVector(cloud_rgb.astype(np.float64))
+    valid_mask = (cloud[:, :, 2] > 0.3) & (cloud[:, :, 2] < 1.5)
+    cloud_xyz = cloud[valid_mask & object_rect_mask]
+    cloud_rgb = color[valid_mask & object_rect_mask] / 255.0
 
-    #pcd_filtered, _ = pcd.remove_statistical_outlier(nb_neighbors=20, std_ratio=1.5)
-    #pcd_filtered, _ = pcd_filtered.remove_radius_outlier(nb_points=16, radius=0.08)
-    o3d.visualization.draw_geometries([pcd], window_name="Open3D 3D点云可视化")
+    #pcd = o3d.geometry.PointCloud()
+    #pcd.points = o3d.utility.Vector3dVector(cloud_xyz.astype(np.float64)) 
+    #pcd.colors = o3d.utility.Vector3dVector(cloud_rgb.astype(np.float64))
 
-    o3d.io.write_point_cloud("./test.ply", pcd)
+    #o3d.visualization.draw_geometries([pcd], window_name="Open3D 3D点云可视化")
+    #o3d.io.write_point_cloud("./test.ply", pcd)
     
     # get valid points
-    workspace_mask = np.array(Image.open(os.path.join(data_dir, 'workspace_mask.png')))
-    mask = (workspace_mask & (depth > 0))
-    cloud_masked = cloud[mask]
-    color_masked = color[mask]
+    cloud_masked = cloud_xyz
+    color_masked = cloud_rgb
 
     # sample points
     if len(cloud_masked) >= cfgs.num_point:
@@ -119,13 +113,15 @@ def get_and_process_data(data_dir):
     cloud = o3d.geometry.PointCloud()
     cloud.points = o3d.utility.Vector3dVector(cloud_masked.astype(np.float32))
     cloud.colors = o3d.utility.Vector3dVector(color_masked.astype(np.float32))
+
+    o3d.visualization.draw_geometries([cloud], window_name="Cloud")
+    
     end_points = dict()
     cloud_sampled = torch.from_numpy(cloud_sampled[np.newaxis].astype(np.float32))
     device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
     cloud_sampled = cloud_sampled.to(device)
     end_points['point_clouds'] = cloud_sampled
     end_points['cloud_colors'] = color_sampled
-
     return end_points, cloud
 
 def get_grasps(net, end_points):
@@ -146,20 +142,21 @@ def collision_detection(gg, cloud):
 def vis_grasps(gg, cloud):
     gg.nms()
     gg.sort_by_score()
-    gg = gg[:50]
+    gg = gg[3:5]
     grippers = gg.to_open3d_geometry_list()
 
     print("===================")
-    print(grippers)
+    #print(grippers)
+    #print(gg[:1].shape)
     o3d.visualization.draw_geometries([cloud, *grippers])
 
 def demo(data_dir):
     net = get_net()
     end_points, cloud = get_and_process_data(data_dir)
-    #gg = get_grasps(net, end_points)
-    #if cfgs.collision_thresh > 0:
-    #    gg = collision_detection(gg, np.array(cloud.points))
-    #vis_grasps(gg, cloud)
+    gg = get_grasps(net, end_points)
+    if cfgs.collision_thresh > 0:
+        gg = collision_detection(gg, np.array(cloud.points))
+    vis_grasps(gg, cloud)
 
 if __name__=='__main__':
     #data_dir = 'doc/example_data'

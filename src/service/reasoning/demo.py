@@ -70,76 +70,37 @@ def visualize_depth_pseudocolor(depth_img, alpha=0.03):
 
 def get_and_process_data(data_dir):
     # load data
-    color = np.array(Image.open(os.path.join(data_dir, 'rgb.jpg')), dtype=np.float32) / 255.0
+    color = np.array(Image.open(os.path.join(data_dir, 'rgb.jpg')), dtype=np.uint8)
     depth = np.array(Image.open(os.path.join(data_dir, 'depth.png')))
-
-    #depth_normalized = cv2.normalize(depth, None, 0, 255, cv2.NORM_MINMAX, dtype=cv2.CV_8U)
-    # 3. 伪彩色映射（jet 色阶，红色代表远，蓝色代表近）
-    #depth_color = cv2.applyColorMap(depth_normalized, cv2.COLORMAP_JET)
-
-    depth_color = visualize_depth_pseudocolor(depth, alpha=0.03)
-
-    cv2.namedWindow("RGB + Pseudocolor Depth", cv2.WINDOW_NORMAL)
-    cv2.imshow("RGB + Pseudocolor Depth", depth_color)
-
-    workspace_mask = np.array(Image.open(os.path.join(data_dir, 'workspace_mask.png')))
-    #meta = scio.loadmat(os.path.join(data_dir, 'meta.mat'))
-    #intrinsic = meta['intrinsic_matrix']
-    #factor_depth = meta['factor_depth']
-
-    #fx = 907.7446899414062
-    #fy = 907.4523315429688
-    #cx = 644.997802734375
-    #cy = 369.12054443359375
-
-    fx = 648.0599975585938
-    fy = 648.0599975585938
-    cx = 637.3280639648438
-    cy = 365.7637939453125
-
-    width = 1280
-    height = 720
-    intrinsic = np.eye(3, dtype=np.float32)
-
-    intrinsic[0][0] = fx
-    intrinsic[1][1] = fy
-    intrinsic[0][2] = cx
-    intrinsic[1][2] = cy
-
+    
+    width = 640.0
+    height = 480.0
     factor_depth = 1000.0
+    fx = 605.163
+    fy = 604.968
+    cx = 323.332
+    cy = 246.080
 
     # generate cloud
-    camera = CameraInfo(1280.0, 720.0, intrinsic[0][0], intrinsic[1][1], intrinsic[0][2], intrinsic[1][2], factor_depth)
+    camera = CameraInfo(width, height, fx, fy, cx, cy, factor_depth)
     cloud = create_point_cloud_from_depth_image(depth, camera, organized=True)
     
-    cloud_xyz = cloud.reshape(-1, 3)
-    cloud_rgb = color.reshape(-1, 3)
-
-    valid_mask = (cloud_xyz[:, 2] > 0.3) & (cloud_xyz[:, 2] < 1.0)
-    cloud_xyz = cloud_xyz[valid_mask]
-    #cloud_rgb = cloud_rgb[valid_mask]
-
-    x_min, y_min, z_min = np.min(cloud_xyz, axis=0)
-    x_max, y_max, z_max = np.max(cloud_xyz, axis=0)
-    x_mean, y_mean, z_mean = np.mean(cloud_xyz, axis=0)
-
-    print("\n=== 点云坐标验证 ===")
-    print(f"X坐标范围（米）：{x_min:.2f} ~ {x_max:.2f}")
-    print(f"Y坐标范围（米）：{y_min:.2f} ~ {y_max:.2f}")
-    print(f"Z坐标范围（米）：{z_min:.2f} ~ {z_max:.2f}")
-    print(f"平均Z深度（米）：{z_mean:.2f}")
+    valid_mask = (cloud[:, :, 2] > 0.3) & (cloud[:, :, 2] < 3.0)
+    cloud_xyz = cloud[valid_mask]
+    cloud_rgb = color[valid_mask] / 255.0
 
     pcd = o3d.geometry.PointCloud()
-    pcd.points = o3d.utility.Vector3dVector(cloud_xyz) 
-    pcd.colors = o3d.utility.Vector3dVector(cloud_rgb)
+    pcd.points = o3d.utility.Vector3dVector(cloud_xyz.astype(np.float64)) 
+    pcd.colors = o3d.utility.Vector3dVector(cloud_rgb.astype(np.float64))
 
-    pcd_filtered, _ = pcd.remove_statistical_outlier(nb_neighbors=20, std_ratio=1.5)
-    pcd_filtered, _ = pcd_filtered.remove_radius_outlier(nb_points=16, radius=0.08)
-    o3d.visualization.draw_geometries([pcd_filtered], window_name="Open3D 3D点云可视化")
+    #pcd_filtered, _ = pcd.remove_statistical_outlier(nb_neighbors=20, std_ratio=1.5)
+    #pcd_filtered, _ = pcd_filtered.remove_radius_outlier(nb_points=16, radius=0.08)
+    o3d.visualization.draw_geometries([pcd], window_name="Open3D 3D点云可视化")
 
-    o3d.io.write_point_cloud("./test.ply", pcd_filtered)
+    o3d.io.write_point_cloud("./test.ply", pcd)
     
     # get valid points
+    workspace_mask = np.array(Image.open(os.path.join(data_dir, 'workspace_mask.png')))
     mask = (workspace_mask & (depth > 0))
     cloud_masked = cloud[mask]
     color_masked = color[mask]

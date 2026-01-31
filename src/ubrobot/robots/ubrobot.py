@@ -315,10 +315,6 @@ class Go2Manager():
         observation = self.robot_arm.get_robot_arm_observation_local()
         color_image = observation["wrist"] # TODO get "wrist" from configuration, avoid hard coding
         depth_image = observation["wrist_depth"]
-        #print("get observation in arm action...", observation)
-        # TODO rgb for vis, possible need to revise for algorithm
-        #color_image_pil = PIL_Image.fromarray(color_image)
-        #depth_image_pil = PIL_Image.fromarray(depth_image)
         return color_image, depth_image
     
     def get_robot_arm_manipulate_action(self):
@@ -326,17 +322,12 @@ class Go2Manager():
         observation = self.robot_arm.get_robot_arm_observation_local()
         color_image = observation["wrist"] # TODO get "wrist" from configuration, avoid hard coding
         depth_image = observation["wrist_depth"]
-        
         #res = self.vlm.vlm_infer_grounding(color_image, instruction)
-        
         #instruction = "reach for the small wooden square block without collision"
         intrin = observation["wrist_intrinsics"]
         #response_restult_str_traj = self.vlm.vlm_infer_traj(color_image, depth_image, intrin, instruction)
-
         response_restult_str_traj = self.vlm.reasoning_vlm_infer(color_image, depth_image, intrin, instruction)
-
         #self.pc.convertRGBD2PointClouds(color_image, depth_image, intrin, "./rgbd_point_cloud.ply")
-
         print(response_restult_str_traj)
         #print(res)
 

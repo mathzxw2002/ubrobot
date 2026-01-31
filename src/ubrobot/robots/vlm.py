@@ -217,34 +217,13 @@ class RobotVLM:
         return chat_response, user_messages'''
     
     def reasoning_vlm_infer(self, image_np, depth_np, intrinc, instruction, url='http://192.168.18.230:5802/eval_reasoning_vqa_cosmos'):
-        #return self._cosmos_reason1_infer(image_pil, instruction)
-
-    #def _cosmos_reason1_infer(self, image_pil, instruction):
         """发送图像和指令到HTTP服务，获取推理结果"""
         print("=================================================== infer_cosmos_reason")
-        '''image_bytes = io.BytesIO()
-        image_pil.save(image_bytes, format="JPEG")
-        image_bytes.seek(0)
 
-        data = {"ins": instruction}
-        json_data = json.dumps(data)
-
-        files = {
-            'image': ('rgb_image', image_bytes, 'image/jpeg'),
-        }
-        try:
-            response = requests.post(
-                self.url,
-                files=files,
-                data={'json': json_data},
-                timeout=100
-            )
-            response.raise_for_status()
-            print(f"cosmos_reason1_infer response {response.text}")
-        except requests.exceptions.RequestException as e:
-            print(f"cosmos_reason1_infer request failed: {e}")
-            return ""
-        '''
+        instruction = "Identify the carrot and provide a 3D trajectory for the gripper (which is at the bottom right of the image) to grasp the carrot. Output the trajectory as a JSON list of waypoints with x, y, z, and gripper_width. Format: <think>your reasoning</think> <answer>your JSON</answer>"
+        
+        #"Locate the screwdriver. Provide a 7-step 3D trajectory (x,y,z) for the gripper to pick it up and place it in the toolbox. Output as JSON."
+        
         response_str = self.local_http_service(image_np, None, None, instruction, url)
         return response_str
 

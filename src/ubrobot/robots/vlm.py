@@ -216,7 +216,7 @@ class RobotVLM:
 
         return chat_response, user_messages'''
     
-    def get_vla_rgbd_with_check_prompt(target_object: str) -> str:
+    def get_vla_rgbd_prompt(self, target_object: str) -> str:
         """
         Generates a prompt for Cosmos Reason 2 that outputs a 2D verification 
         center before the full 3D RGB-D trajectory.
@@ -236,7 +236,7 @@ class RobotVLM:
             "Provide reasoning in <think> tags, then a JSON object in <answer> tags:\n"
             "{\n"
             f"  \"target\": \"{target_object}\",\n"
-            "  \"detection_check\": {\"u\": pixel_x, \"v\": pixel_y},\n"
+            "  \"bbox_2d\": [x1, y1, x2, y2],\n"
             "  \"trajectory\": [\n"
             "    {\"point\": [u, v, d], \"action\": \"string\", \"gripper_width\": int}\n"
             "  ]\n"
@@ -249,7 +249,7 @@ class RobotVLM:
 
         #instruction = "Identify the carrot and provide a 3D trajectory for the gripper (which is at the bottom right of the image) to grasp the carrot. Output the trajectory as a JSON list of waypoints with x, y, z, and gripper_width. Format: <answer>your JSON</answer>"
 
-        instruction = self.get_vla_rgbd_prompt("carrot")
+        instruction = self.get_vla_rgbd_prompt("bottle")
         response_str = self.local_http_service(image_np, None, None, instruction, url)
         return response_str
 

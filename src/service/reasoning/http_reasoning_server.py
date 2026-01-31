@@ -142,13 +142,13 @@ def eval_robobrain2_5_grounding():
 
 if __name__ == '__main__':
 
-    #model_name = "/home/sany/.cache/modelscope/hub/models/nv-community/Cosmos-Reason2-8B"
-    #cosmos_infer = CosmosReasonInfer(model_name)
+    model_name = "/home/sany/.cache/modelscope/hub/models/nv-community/Cosmos-Reason2-8B"
+    cosmos_infer = CosmosReasonInfer(model_name)
 
-    model_name = "/home/sany/.cache/modelscope/hub/models/BAAI/RoboBrain2.5-8B-NV"
-    robobrain_infer = RoboBrainUnifiedInference(model_name)
+    #model_name = "/home/sany/.cache/modelscope/hub/models/BAAI/RoboBrain2.5-8B-NV"
+    #robobrain_infer = RoboBrainUnifiedInference(model_name)
 
-    checkpoint_path_param = "/home/sany/ubrobot/assets/checkpoint-rs.tar"
-    rmp = RobotArmMotionPlan(checkpoint_path_param)
+    #checkpoint_path_param = "/home/sany/ubrobot/assets/checkpoint-rs.tar"
+    #rmp = RobotArmMotionPlan(checkpoint_path_param)
 
     app.run(host='0.0.0.0', port=5802)

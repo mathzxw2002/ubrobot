@@ -333,7 +333,7 @@ class Go2Manager():
         intrin = observation["wrist_intrinsics"]
         response_restult_str_traj = self.vlm.vlm_infer_traj(color_image, depth_image, intrin, instruction)
 
-        self.pc.convertRGBD2PointClouds(color_image, depth_image, intrin, "./rgbd_point_cloud.ply")
+        #self.pc.convertRGBD2PointClouds(color_image, depth_image, intrin, "./rgbd_point_cloud.ply")
 
         print(response_restult_str_traj)
         print(res)

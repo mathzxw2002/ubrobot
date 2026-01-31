@@ -1,20 +1,17 @@
 from openai import OpenAI
 from threading import Thread
-import re
-import queue
-import os
 import json
 import time
 import requests
 
 import numpy as np
 import os, re, cv2
-import random
+#import random
 import io
-import ast
-from io import BytesIO
-from PIL import ImageColor
-import xml.etree.ElementTree as ET
+#import ast
+#from io import BytesIO
+#from PIL import ImageColor
+#import xml.etree.ElementTree as ET
 
 from PIL import Image as PIL_Image
 
@@ -178,7 +175,7 @@ class RobotVLM:
         
         return chat_response, user_messages
 
-    def infer_cosmos_reason(self, user_input, user_messages, llm_queue, image_pil, url='http://192.168.18.230:5802/eval_cosmos_reason1'):
+    '''def infer_cosmos_reason(self, user_input, user_messages, llm_queue, image_pil, url='http://192.168.18.230:5802/eval_reasoning_vqa_cosmos'):
         """发送图像和指令到HTTP服务，获取推理结果"""
         image_bytes = io.BytesIO()
         image_pil.save(image_bytes, format="JPEG")
@@ -217,15 +214,15 @@ class RobotVLM:
         if len(user_messages) > 10:
             user_messages.pop(0)
 
-        return chat_response, user_messages
+        return chat_response, user_messages'''
     
-    def reasoning_vlm_infer(self, image_pil, instruction):
-        return self._cosmos_reason1_infer(image_pil, instruction)
+    def reasoning_vlm_infer(self, image_np, instruction, url='http://192.168.18.230:5802/eval_reasoning_vqa_cosmos'):
+        #return self._cosmos_reason1_infer(image_pil, instruction)
 
-    def _cosmos_reason1_infer(self, image_pil, instruction):
+    #def _cosmos_reason1_infer(self, image_pil, instruction):
         """发送图像和指令到HTTP服务，获取推理结果"""
         print("=================================================== infer_cosmos_reason")
-        image_bytes = io.BytesIO()
+        '''image_bytes = io.BytesIO()
         image_pil.save(image_bytes, format="JPEG")
         image_bytes.seek(0)
 
@@ -247,11 +244,12 @@ class RobotVLM:
         except requests.exceptions.RequestException as e:
             print(f"cosmos_reason1_infer request failed: {e}")
             return ""
-
-        return response.text
+        '''
+        response_str = self.local_http_service(image_np, None, None, instruction, url)
+        return response_str
 
     def vlm_infer_vqa(self, image_np, instruction, url='http://192.168.18.230:5802/eval_reasoning_vqa'):
-        print("eval robobrain 2.5 ...")
+        #print("eval robobrain 2.5 ...")
         response_str = self.local_http_service(image_np, None, None, instruction, url)
         return response_str
     
@@ -331,12 +329,12 @@ class RobotVLM:
             return None
 
     def vlm_infer_traj(self, rgb_image_np, depth_image_np, intrin, instruction, url='http://192.168.18.230:5802/eval_reasoning_traj'):
-        print("eval robobrain 2.5 ...")
+        #print("eval robobrain 2.5 ...")
         response_str = self.local_http_service(rgb_image_np, depth_image_np, intrin, instruction, url)
         return response_str
 
     def vlm_infer_grounding(self, image_np, instruction, url='http://192.168.18.230:5802/eval_reasoning_grounding'):
-        print("eval robobrain 2.5 ...")
+        #print("eval robobrain 2.5 ...")
         response_str = self.local_http_service(image_np, None, None, instruction, url)
         boxes = self.decode_json_points(response_str)
         self.draw_on_image(image_np, None, [boxes], None, None)
@@ -356,7 +354,7 @@ class RobotVLM:
             return bbox_2d_int
         except Exception as e:
             print(f"Error: {e}")
-            return []        
+            return []
 
     def grounding_2d_bbox(self, image_bytes):
         json_output = None

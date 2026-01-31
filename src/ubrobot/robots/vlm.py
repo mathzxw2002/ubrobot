@@ -220,8 +220,24 @@ class RobotVLM:
         """发送图像和指令到HTTP服务，获取推理结果"""
         print("=================================================== infer_cosmos_reason")
 
-        instruction = "Identify the carrot and provide a 3D trajectory for the gripper (which is at the bottom right of the image) to grasp the carrot. Output the trajectory as a JSON list of waypoints with x, y, z, and gripper_width. Format: <think>your reasoning</think> <answer>your JSON</answer>"
-        
+        #instruction = "Identify the carrot and provide a 3D trajectory for the gripper (which is at the bottom right of the image) to grasp the carrot. Output the trajectory as a JSON list of waypoints with x, y, z, and gripper_width. Format: <answer>your JSON</answer>"
+
+        instruction = (
+    "Analyze the provided image frame from the RealSense camera. Your task is to generate "
+    "a robotic manipulation plan to pick up the carrot on the table.\n\n"
+    "**Spatial Requirements:**\n"
+    "- Perform 3D point localization for the target object.\n"
+    "- Provide waypoints in meters [x, y, z] relative to the camera's optical center.\n"
+    "- Ensure the trajectory includes an approach, a grasp at the surface, and a vertical lift.\n\n"
+    "**Action Logic:**\n"
+    "1. Move to an approach point 5cm above the object with the gripper open (80mm).\n"
+    "2. Descend to 1cm depth to secure the grasp (20mm).\n"
+    "3. Lift the object to 15cm height while maintaining the grasp.\n\n"
+    "**Output Format:**\n"
+    "Provide your physical reasoning in <think> tags, followed by a structured JSON trajectory "
+    "in <answer> tags matching this schema:\n"
+    '{"trajectory": [{"point": [x, y, z], "action": "string", "gripper_width": int}]}'
+)
         #"Locate the screwdriver. Provide a 7-step 3D trajectory (x,y,z) for the gripper to pick it up and place it in the toolbox. Output as JSON."
         
         response_str = self.local_http_service(image_np, None, None, instruction, url)

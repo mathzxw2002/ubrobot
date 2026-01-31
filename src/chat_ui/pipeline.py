@@ -130,7 +130,7 @@ class ChatPipeline:
             #llm_response_txt, user_messages = self.vlm.infer_stream(user_input_txt, user_messages, self.vlm_queue, chunk_size, chat_mode)
 
             instruction = user_input_txt
-            self.manager.set_user_instruction(instruction)
+            #self.manager.set_user_instruction(instruction)
 
             user_messages.append({'role': 'user', 'content': user_input})
             print(user_messages)

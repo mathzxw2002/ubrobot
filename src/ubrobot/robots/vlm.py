@@ -216,7 +216,7 @@ class RobotVLM:
 
         return chat_response, user_messages'''
     
-    def reasoning_vlm_infer(self, image_np, instruction, url='http://192.168.18.230:5802/eval_reasoning_vqa_cosmos'):
+    def reasoning_vlm_infer(self, image_np, depth_np, intrinc, instruction, url='http://192.168.18.230:5802/eval_reasoning_vqa_cosmos'):
         #return self._cosmos_reason1_infer(image_pil, instruction)
 
     #def _cosmos_reason1_infer(self, image_pil, instruction):

@@ -216,28 +216,31 @@ class RobotVLM:
 
         return chat_response, user_messages'''
     
-    def get_vla_rgbd_prompt(self, target_object: str) -> str:
+    def get_vla_rgbd_with_check_prompt(target_object: str) -> str:
         """
-        Generates a prompt for Cosmos Reason 2 to output trajectories 
-        in RGB-D Image Space [pixel_x, pixel_y, depth_z].
+        Generates a prompt for Cosmos Reason 2 that outputs a 2D verification 
+        center before the full 3D RGB-D trajectory.
         """
         return (
-            f"Analyze the provided video stream from the RealSense camera. Your task is to generate "
-            f"a robotic manipulation plan to pick up the {target_object} on the table.\n\n"
-            "**Spatial Requirements:**\n"
-            f"- Perform 2D/3D point localization for the {target_object}.\n"
-            "- Provide waypoints in Image Space coordinates: [u, v, d].\n"
-            "  - 'u': Horizontal pixel coordinate (0 to width).\n"
-            "  - 'v': Vertical pixel coordinate (0 to height).\n"
-            "  - 'd': Depth distance from the sensor lens in meters.\n\n"
-            "**Action Logic:**\n"
-            "1. Identify the pixel center (u, v) and surface depth (d) of the object.\n"
-            "2. Approach: [u, v, d - 0.05] (5cm above) with gripper 80mm.\n"
-            "3. Grasp: [u, v, d] with gripper 20mm.\n"
-            "4. Lift: [u, v, d - 0.15] (15cm retreat toward camera) with gripper 20mm.\n"
-            "\n**Output Format:**\n"
-            "Provide your reasoning in <think> tags, followed by the JSON in <answer> tags:\n"
-            '{"trajectory": [{"point": [u, v, d], "action": "string", "gripper_width": int}]}'
+            f"Analyze the provided video stream from the RealSense camera. Your task is to "
+            f"plan a pick-and-place trajectory for the {target_object}.\n\n"
+            "**Step 1: Detection Check**\n"
+            f"- First, identify the 2D pixel center [u, v] of the {target_object}. "
+            "This will be used to verify the detection on the visual feed.\n\n"
+            "**Step 2: RGB-D Trajectory Planning**\n"
+            "- Generate waypoints in [u, v, d] space (u/v = pixels, d = depth in meters).\n"
+            "1. Approach: 5cm above the object center (d - 0.05) | Gripper: 80mm.\n"
+            "2. Grasp: At the object center depth (d) | Gripper: 20mm.\n"
+            "3. Lift: 15cm toward the camera (d - 0.15) | Gripper: 20mm.\n\n"
+            "**Output Format:**\n"
+            "Provide reasoning in <think> tags, then a JSON object in <answer> tags:\n"
+            "{\n"
+            f"  \"target\": \"{target_object}\",\n"
+            "  \"detection_check\": {\"u\": pixel_x, \"v\": pixel_y},\n"
+            "  \"trajectory\": [\n"
+            "    {\"point\": [u, v, d], \"action\": \"string\", \"gripper_width\": int}\n"
+            "  ]\n"
+            "}"
         )
     
     def reasoning_vlm_infer(self, image_np, depth_np, intrinc, instruction, url='http://192.168.18.230:5802/eval_reasoning_vqa_cosmos'):

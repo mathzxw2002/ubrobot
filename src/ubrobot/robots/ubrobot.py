@@ -317,9 +317,9 @@ class Go2Manager():
         depth_image = observation["wrist_depth"]
         #print("get observation in arm action...", observation)
         # TODO rgb for vis, possible need to revise for algorithm
-        color_image_pil = PIL_Image.fromarray(color_image)
-        depth_image_pil = PIL_Image.fromarray(depth_image)
-        return color_image_pil, depth_image_pil
+        #color_image_pil = PIL_Image.fromarray(color_image)
+        #depth_image_pil = PIL_Image.fromarray(depth_image)
+        return color_image, depth_image
     
     def get_robot_arm_manipulate_action(self):
         instruction = "Locate objects in current image and return theirs coordinates as json format. answer shortly."

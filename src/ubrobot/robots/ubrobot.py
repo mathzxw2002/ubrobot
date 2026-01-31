@@ -315,6 +315,10 @@ class Go2Manager():
         observation = self.robot_arm.get_robot_arm_observation_local()
         color_image = observation["wrist"] # TODO get "wrist" from configuration, avoid hard coding
         depth_image = observation["wrist_depth"]
+
+        color_image_pil = PIL_Image.fromarray(color_image)
+
+        color_image_pil.save("./output_image.png") 
         return color_image, depth_image
     
     def get_robot_arm_manipulate_action(self):

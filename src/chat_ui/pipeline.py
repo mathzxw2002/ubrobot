@@ -16,6 +16,7 @@ from ubrobot.robots.asr import Fun_ASR
 from ubrobot.robots.ubrobot import Go2Manager
 #from ubrobot.robots.arm_action import PoseTransformer
 from ubrobot.robots.vlm import RobotVLM
+from PIL import Image as PIL_Image
 
 @torch.no_grad()
 class ChatPipeline:
@@ -133,7 +134,8 @@ class ChatPipeline:
 
             user_messages.append({'role': 'user', 'content': user_input})
             print(user_messages)
-            manipulate_img_output = self.robot_arm.get_observation()
+            
+            manipulate_img_output, _ = self.manager.get_robot_arm_image_observation()
             user_input_txt = user_input_txt + ". Answer shortly."
             llm_response_txt = self.vlm.reasoning_vlm_infer(manipulate_img_output, None, None, user_input_txt)
 
@@ -294,9 +296,9 @@ class ChatPipeline:
         self.video_queue.put(None)
 
     def get_robot_arm_image_observation(self):
-        #rgb_image, _ = self.robot_arm.get_observation()
         rgb_image, _ = self.manager.get_robot_arm_image_observation()
-        return rgb_image
+        color_image_pil = PIL_Image.fromarray(rgb_image)
+        return color_image_pil
 
     def get_nav_vis_image(self):
         nav_action, vis_annotated_img = self.manager.get_next_planning()

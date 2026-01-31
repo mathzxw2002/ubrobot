@@ -216,30 +216,37 @@ class RobotVLM:
 
         return chat_response, user_messages'''
     
+    def get_vla_rgbd_prompt(self, target_object: str) -> str:
+        """
+        Generates a prompt for Cosmos Reason 2 to output trajectories 
+        in RGB-D Image Space [pixel_x, pixel_y, depth_z].
+        """
+        return (
+            f"Analyze the provided video stream from the RealSense camera. Your task is to generate "
+            f"a robotic manipulation plan to pick up the {target_object} on the table.\n\n"
+            "**Spatial Requirements:**\n"
+            f"- Perform 2D/3D point localization for the {target_object}.\n"
+            "- Provide waypoints in Image Space coordinates: [u, v, d].\n"
+            "  - 'u': Horizontal pixel coordinate (0 to width).\n"
+            "  - 'v': Vertical pixel coordinate (0 to height).\n"
+            "  - 'd': Depth distance from the sensor lens in meters.\n\n"
+            "**Action Logic:**\n"
+            "1. Identify the pixel center (u, v) and surface depth (d) of the object.\n"
+            "2. Approach: [u, v, d - 0.05] (5cm above) with gripper 80mm.\n"
+            "3. Grasp: [u, v, d] with gripper 20mm.\n"
+            "4. Lift: [u, v, d - 0.15] (15cm retreat toward camera) with gripper 20mm.\n"
+            "\n**Output Format:**\n"
+            "Provide your reasoning in <think> tags, followed by the JSON in <answer> tags:\n"
+            '{"trajectory": [{"point": [u, v, d], "action": "string", "gripper_width": int}]}'
+        )
+    
     def reasoning_vlm_infer(self, image_np, depth_np, intrinc, instruction, url='http://192.168.18.230:5802/eval_reasoning_vqa_cosmos'):
         """发送图像和指令到HTTP服务，获取推理结果"""
         print("=================================================== infer_cosmos_reason")
 
         #instruction = "Identify the carrot and provide a 3D trajectory for the gripper (which is at the bottom right of the image) to grasp the carrot. Output the trajectory as a JSON list of waypoints with x, y, z, and gripper_width. Format: <answer>your JSON</answer>"
 
-        instruction = (
-    "Analyze the provided image frame from the RealSense camera. Your task is to generate "
-    "a robotic manipulation plan to pick up the carrot on the table.\n\n"
-    "**Spatial Requirements:**\n"
-    "- Perform 3D point localization for the target object.\n"
-    "- Provide waypoints in meters [x, y, z] relative to the camera's optical center.\n"
-    "- Ensure the trajectory includes an approach, a grasp at the surface, and a vertical lift.\n\n"
-    "**Action Logic:**\n"
-    "1. Move to an approach point 5cm above the object with the gripper open (80mm).\n"
-    "2. Descend to 1cm depth to secure the grasp (20mm).\n"
-    "3. Lift the object to 15cm height while maintaining the grasp.\n\n"
-    "**Output Format:**\n"
-    "Provide your physical reasoning in <think> tags, followed by a structured JSON trajectory "
-    "in <answer> tags matching this schema:\n"
-    '{"trajectory": [{"point": [x, y, z], "action": "string", "gripper_width": int}]}'
-)
-        #"Locate the screwdriver. Provide a 7-step 3D trajectory (x,y,z) for the gripper to pick it up and place it in the toolbox. Output as JSON."
-        
+        instruction = self.get_vla_rgbd_prompt("carrot")
         response_str = self.local_http_service(image_np, None, None, instruction, url)
         return response_str
 

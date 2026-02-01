@@ -47,7 +47,7 @@ class Go2Manager():
         print("Initializing D435i in front and Odometry...")
         self.tracker = None
         try:
-            self.tracker = rs_odom_module.RealsenseOdom(camera_serial="419522070679")
+            #self.tracker = rs_odom_module.RealsenseOdom(camera_serial="419522070679")
             print("Waiting for camera data...")
             # Give the camera and RTAB-Map 2-3 seconds to sync and receive the first frame
             time.sleep(3.0)
@@ -85,8 +85,8 @@ class Go2Manager():
         self.go2client.SpeedLevel(-1)
 
         # robot arm config
-        self.cfg = PiperServerConfig()
-        self.robot_arm = PiperHost(self.cfg.host)
+        #self.cfg = PiperServerConfig()
+        #self.robot_arm = PiperHost(self.cfg.host)
 
         self.pc = PointCloudPerception()
     
@@ -101,9 +101,9 @@ class Go2Manager():
         print(f"  深度缩放因子：{intrinsics['scale']}")'''
 
         # get the current pose on-demand
-        pose = self.tracker.get_pose_with_twist()
+        #pose = self.tracker.get_pose_with_twist()
         # get speed info, including linear.x and angular.z
-        twist = self.tracker.get_odom_twist()
+        #twist = self.tracker.get_odom_twist()
         
         #if pose:
         #    print(f"\r位姿：x={pose[0]:.4f}, y={pose[1]:.4f}, yaw={pose[5]:.4f} | "
@@ -258,9 +258,9 @@ class Go2Manager():
             time.sleep(max(0, 1.0 / FPS - (time.time() - t0)))
     
     def start_threads(self):
-        self.planning_thread_instance.start()
+        #self.planning_thread_instance.start()
         self.control_thread_instance.start()
-        self.robot_arm_serving_thread_instance.start()
+        #self.robot_arm_serving_thread_instance.start()
         print("✅ Go2Manager: control thread and planning thread started successfully")
 
     def move(self, vx, vy, vyaw):
@@ -317,8 +317,7 @@ class Go2Manager():
         depth_image = observation["wrist_depth"]
 
         color_image_pil = PIL_Image.fromarray(color_image)
-
-        color_image_pil.save("./output_image.png") 
+        #color_image_pil.save("./output_image.png") 
         return color_image, depth_image
     
     def get_robot_arm_manipulate_action(self):

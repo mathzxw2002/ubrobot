@@ -209,6 +209,11 @@ class RobotVLM:
         #instruction = "Identify the carrot and provide a 3D trajectory for the gripper (which is at the bottom right of the image) to grasp the carrot. Output the trajectory as a JSON list of waypoints with x, y, z, and gripper_width. Format: <answer>your JSON</answer>"
 
         instruction = self.get_vla_rgbd_prompt("bottle")
+        #instruction = "Locate the bounding box of the bottle. Return a json."
+
+        # testing
+        image_orig = cv2.imread("./output_image.png")
+        image_np = cv2.cvtColor(image_orig, cv2.COLOR_BGR2RGB)
         response_str = self.local_http_service(image_np, None, None, instruction, url)
         return response_str
 

@@ -101,7 +101,6 @@ if __name__ == '__main__':
 
     model_name = "/home/sany/.cache/modelscope//hub/models/nv-community/Cosmos-Reason2-8B"
     cosmos_infer = CosmosReasonInfer(model_name)
-
     
     image = cv2.imread("./segment_result.jpg", flags=cv2.IMREAD_COLOR)
     instruction = "please recognize the objects in this picture, and give the coordinate of each object."

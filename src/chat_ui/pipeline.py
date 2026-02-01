@@ -21,26 +21,27 @@ from PIL import Image as PIL_Image
 class ChatPipeline:
     def __init__(self):
 
-        print(f"[1/3] Start initializing funasr")
+        print(f"[1/4] Start initializing funasr")
         self.asr = Fun_ASR()
 
-        print(f"[2/3] Start initializing qwen")
+        print(f"[2/4] Start initializing qwen")
         
         self.vlm = RobotVLM()
 
-        print(f"[3/3] Start initializing tts")
+        print(f"[3/4] Start initializing tts")
         self.tts_api = CosyVoice_API()
         
-        print("[Done] Initialzation finished")
         self.timeout=180
         self.video_queue = queue.Queue()
         self.vlm_queue = queue.Queue()
         self.tts_queue = queue.Queue()
         self.chat_history = []
         self.stop = threading.Event()
-        
+
+        print(f"[4/4] Start initializing Go2Manager")
         self.manager = Go2Manager()
         self.manager.start_threads()
+        print("[Done] Initialzation finished")
     
     def load_voice(self, avatar_voice = None, tts_module = None):
         start_time = time.time()

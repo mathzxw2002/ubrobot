@@ -2,7 +2,6 @@ import time
 import cv2
 import open3d as o3d
 
-#from ultralytics.models.yolo.model import YOLO
 from scipy.linalg import qr
 import transforms3d.quaternions as tfq
 import numpy as np
@@ -12,7 +11,6 @@ matplotlib.use('Agg')
 import matplotlib.pyplot as plt
 from mpl_toolkits.mplot3d import Axes3D
 
-#from vlm import RobotVLM
 import io
 from PIL import Image as PIL_Image
 

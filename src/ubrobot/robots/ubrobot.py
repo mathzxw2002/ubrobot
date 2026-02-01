@@ -4,13 +4,10 @@ import copy
 from collections import deque
 import numpy as np
 
-import sys
-from unitree_sdk2py.core.channel import ChannelFactoryInitialize
-from unitree_sdk2py.go2.sport.sport_client import SportClient
+#import sys
 
-from ubrobot.robots.piper.piper_host import PiperHost, PiperServerConfig
-
-from ubrobot.robots.pointcloud import PointCloudPerception
+from ubrobot.robots.unitree_go2_robot import UnitreeGo2Robot
+#from ubrobot.robots.piper.piper_host import PiperHost, PiperServerConfig
 
 from PIL import Image as PIL_Image
 from .controllers import Mpc_controller, PID_controller
@@ -24,12 +21,16 @@ from ubrobot.robots.nav import RobotNav, ControlMode
 
 from dataclasses import dataclass
 
+from ubrobot.robots.lekiwi.config_lekiwi_base import LeKiwiConfig
+from ubrobot.robots.lekiwi.lekiwi_base import LeKiwi
+
 import cv2
 
-sys.path.append("/home/china/ubrobot/ros_depends_ws/src/rtabmap_odom_py/odom")
-import rs_odom_module
+from ubrobot.cameras.camera_odom import CameraOdom
 
 class Go2Manager():
+
+    
     def __init__(self):
 
         # 控制模式相关
@@ -43,27 +44,16 @@ class Go2Manager():
         self.nav_action = None
         self.nav_annotated_img = None
 
-        # odom manager
-        # Initialize the hardware and RTAB-Map
-        print("Initializing D435i in front and Odometry...")
-        self.tracker = None
-        try:
-            #self.tracker = rs_odom_module.RealsenseOdom(camera_serial="419522070679")
-            print("Waiting for camera data...")
-            # Give the camera and RTAB-Map 2-3 seconds to sync and receive the first frame
-            time.sleep(3.0)
-        except RuntimeError as e:
-            print("Failed to Initialize D435i in front", e)
-            exit(1)
+        self.camera_odom = CameraOdom()
 
         # 读写锁相关
         self.mpc_rw_lock = ReadWriteLock()
 
-        self.rgb_image = None
-        self.depth_image = None
+        #self.rgb_image = None
+        #self.depth_image = None
 
         self.odom = None
-        self.odom_queue = deque(maxlen=50)
+        #self.odom_queue = deque(maxlen=50)
         self.vel = None
 
         # vlm model
@@ -77,81 +67,19 @@ class Go2Manager():
         #self.robot_arm_serving_thread_instance = threading.Thread(target=self._robot_arm_serving_thread, daemon=True)
         
         # unitree go2 dog
-        self.go2client = None
-        #ChannelFactoryInitialize(0, "eth0") # default net card
-        #self.go2client = SportClient()
-        #self.go2client.SetTimeout(10.0)
-        #self.go2client.Init()
-        # TODO set slow mode
-        #self.go2client.SpeedLevel(-1)
+        self.go2client = UnitreeGo2Robot()
 
         # robot arm config
         #self.cfg = PiperServerConfig()
         #self.robot_arm = PiperHost(self.cfg.host)
 
-        self.pc = PointCloudPerception()
+        self.lekiwi_cfg = LeKiwiConfig()
+        self.lekiwi_base = LeKiwi(self.lekiwi_cfg)
     
     def get_observation(self):
+        rgb_image, depth_image, self.odom, self.vel = self.camera_odom.get_odom_observation()
+        return rgb_image, depth_image, self.odom
 
-        # 1. 获取相机内参
-        '''intrinsics = self.tracker.get_camera_intrinsics()
-        print("相机内参：")
-        print(f"  焦距：fx={intrinsics['fx']:.2f}, fy={intrinsics['fy']:.2f}")
-        print(f"  主点：cx={intrinsics['cx']:.2f}, cy={intrinsics['cy']:.2f}")
-        print(f"  分辨率：{intrinsics['width']}x{intrinsics['height']}")
-        print(f"  深度缩放因子：{intrinsics['scale']}")'''
-
-        # get the current pose on-demand
-        #pose = self.tracker.get_pose_with_twist()
-        # get speed info, including linear.x and angular.z
-        #twist = self.tracker.get_odom_twist()
-        
-        #if pose:
-        #    print(f"\r位姿：x={pose[0]:.4f}, y={pose[1]:.4f}, yaw={pose[5]:.4f} | "
-        #        f"速度：线速度={twist.linear_x:.2f}m/s, 角速度={twist.angular_z:.2f}rad/s", 
-        #        end="")
-        #else:
-        #    print("\r位姿跟踪丢失 | 速度：0.00m/s, 0.00rad/s", end="")
-
-        # get rgb image
-        rgb_img = self.tracker.get_rgb_image()
-        if not rgb_img.size == 0:
-            # numpy数组可直接用于OpenCV处理（注意：RGB转BGR）
-            self.rgb_image = rgb_img
-
-        # get depth image
-        depth_img = self.tracker.get_depth_image()
-        if not depth_img.size == 0:
-            self.depth_image = depth_img
-            self.depth_image -= 0.0
-            self.depth_image[np.where(self.depth_image < 0)] = 0
-            self.depth_image[np.isnan(self.depth_image)] = 0
-            self.depth_image[np.isinf(self.depth_image)] = 0
-        
-        if pose:
-            # update pose info
-            self.odom = [pose[0], pose[1], pose[5]]
-            self.odom_queue.append((time.time(), copy.deepcopy(self.odom)))
-            self.vel = [twist.linear_x, twist.angular_z]
-        
-        #image = PIL_Image.fromarray(self.rgb_image).convert('RGB')
-        depth = (np.clip(self.depth_image * 10000.0, 0, 65535)).astype(np.uint16)
-
-        #rgb_time = self.rgb_time
-        #self.rgb_depth_rw_lock.release_read()
-
-        #self.odom_rw_lock.acquire_read()
-        #min_diff = 1e10
-        odom_infer = None
-        #for odom in self.odom_queue:
-        #    diff = abs(odom[0] - rgb_time)
-        #    if diff < min_diff:
-        #        min_diff = diff
-        #        odom_infer = copy.deepcopy(odom[1])
-        #self.odom_rw_lock.release_read()
-        odom_infer = self.odom
-        return self.rgb_image, depth, odom_infer
-        
     def get_next_planning(self):
         nav_action = self.nav_action
         vis_annotated_img = self.nav_annotated_img
@@ -278,39 +206,6 @@ class Go2Manager():
             current_time = datetime.now().strftime("%Y-%m-%d %H:%M:%S.%f")[:-3]  # ms precision
             print(f"[{current_time}] receive move command [vx, vy, vyaw] {vx:.2f}, {vy:.2f}, {vyaw:.2f}")
             #self.go2client.Move(vx, vy, vyaw) #vx, vy, vyaw
-
-    def go2_robot_stop(self):
-        if self.go2client is None:
-            print("Go2 Sport Client NOT initialized!")
-            return
-        else:
-            self.go2client.StopMove()
-
-    def go2_robot_standup(self):
-        if self.go2client is None:
-            print("Go2 Sport Client NOT initialized!")
-            return
-        else:
-            self.go2client.StandUp()
-
-    def go2_robot_standdown(self):
-        if self.go2client is None:
-            print("Go2 Sport Client NOT initialized!")
-            return
-        else:
-            self.go2client.StandDown()
-
-    def go2_robot_move(self):
-        if self.go2client is None:
-            print("Go2 Sport Client NOT initialized!")
-            return -1
-        else:
-            self.go2client.SpeedLevel(-1) # slow 
-            ret = self.go2client.Move(0.3,0,0)
-            time.sleep(1)
-
-            self.go2client.StopMove()
-            return ret
     
     def get_robot_arm_image_observation(self):
         '''observation = self.robot_arm.get_robot_arm_observation_local()

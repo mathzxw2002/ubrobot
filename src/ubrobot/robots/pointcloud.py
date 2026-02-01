@@ -2,7 +2,7 @@ import time
 import cv2
 import open3d as o3d
 
-from ultralytics.models.yolo.model import YOLO
+#from ultralytics.models.yolo.model import YOLO
 from scipy.linalg import qr
 import transforms3d.quaternions as tfq
 import numpy as np

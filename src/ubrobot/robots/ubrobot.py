@@ -26,8 +26,7 @@ from dataclasses import dataclass
 
 import cv2
 
-sys.path.append("/home/unitree/ubrobot/ros_depends_ws/src/rtabmap_odom_py/odom")
-
+sys.path.append("/home/china/ubrobot/ros_depends_ws/src/rtabmap_odom_py/odom")
 import rs_odom_module
 
 class Go2Manager():
@@ -79,12 +78,12 @@ class Go2Manager():
         
         # unitree go2 dog
         self.go2client = None
-        ChannelFactoryInitialize(0, "eth0") # default net card
-        self.go2client = SportClient()
-        self.go2client.SetTimeout(10.0)
-        self.go2client.Init()
+        #ChannelFactoryInitialize(0, "eth0") # default net card
+        #self.go2client = SportClient()
+        #self.go2client.SetTimeout(10.0)
+        #self.go2client.Init()
         # TODO set slow mode
-        self.go2client.SpeedLevel(-1)
+        #self.go2client.SpeedLevel(-1)
 
         # robot arm config
         #self.cfg = PiperServerConfig()

@@ -14,7 +14,6 @@ from utils import get_timestamp_str, merge_videos, merge_audios, merge_frames_wi
 from ubrobot.robots.tts import CosyVoice_API
 from ubrobot.robots.asr import Fun_ASR
 from ubrobot.robots.ubrobot import Go2Manager
-#from ubrobot.robots.arm_action import PoseTransformer
 from ubrobot.robots.vlm import RobotVLM
 from PIL import Image as PIL_Image
 
@@ -40,7 +39,6 @@ class ChatPipeline:
         self.chat_history = []
         self.stop = threading.Event()
         
-        #self.robot_arm = PoseTransformer()
         self.manager = Go2Manager()
         self.manager.start_threads()
     
@@ -295,16 +293,22 @@ class ChatPipeline:
                     break
         self.video_queue.put(None)
 
-    def get_robot_arm_image_observation(self):
+    def get_robot_observation(self):
+        rgb_image, _ = self.manager.get_robot_arm_image_observation()
+        color_image_pil = PIL_Image.fromarray(rgb_image)
+        nav_action, vis_annotated_img = self.manager.get_next_planning()
+        return color_image_pil, vis_annotated_img
+
+    '''def get_robot_arm_image_observation(self):
         rgb_image, _ = self.manager.get_robot_arm_image_observation()
         color_image_pil = PIL_Image.fromarray(rgb_image)
         return color_image_pil
 
     def get_nav_vis_image(self):
         nav_action, vis_annotated_img = self.manager.get_next_planning()
-        return vis_annotated_img
+        return vis_annotated_img '''
     
-    def get_robot_arm_manipulate_action(self):
+    #def get_robot_arm_manipulate_action(self):
         '''instruction = "Locate objects in current image and return theirs coordinates as json format."
         rgb_image, depth_image = self.robot_arm.get_observation()
         res = self.vlm.vlm_infer_grounding(rgb_image, instruction)
@@ -313,4 +317,4 @@ class ChatPipeline:
         response_restult_str_traj = self.vlm.vlm_infer_traj(rgb_image, depth_image, instruction)
         print(response_restult_str_traj)
         print(res)'''
-        self.manager.get_robot_arm_manipulate_action()
+    #    self.manager.get_robot_arm_manipulate_action()

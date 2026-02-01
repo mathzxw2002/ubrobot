@@ -4,8 +4,7 @@ import gradio as gr
 import modelscope_studio as mgr
 import uvicorn
 from fastapi import FastAPI
-import warnings
-warnings.filterwarnings("ignore")
+
 import time
 import logging
 logging.basicConfig(level=logging.WARNING)
@@ -16,11 +15,11 @@ shutil.rmtree('./workspaces/results', ignore_errors= True)
 chat_pipeline = None
 
 def gradio_planning_txt_update():
-
-    chat_pipeline.get_robot_arm_manipulate_action()
+    #chat_pipeline.get_robot_arm_manipulate_action()
     while True:
-        vis_annotated_img =  chat_pipeline.get_nav_vis_image()
-        robot_arm_rgb_image = chat_pipeline.get_robot_arm_image_observation()
+        #vis_annotated_img =  chat_pipeline.get_nav_vis_image()
+        #robot_arm_rgb_image = chat_pipeline.get_robot_arm_image_observation()
+        vis_annotated_img, robot_arm_rgb_image = chat_pipeline.get_robot_observation()
         yield gr.update(value=vis_annotated_img), gr.update(value=robot_arm_rgb_image)
         time.sleep(1)
 

@@ -212,8 +212,8 @@ class RobotVLM:
         #instruction = "Locate the bounding box of the bottle. Return a json."
 
         # testing
-        image_orig = cv2.imread("./output_image.png")
-        image_np = cv2.cvtColor(image_orig, cv2.COLOR_BGR2RGB)
+        #image_orig = cv2.imread("./output_image.png")
+        #image_np = cv2.cvtColor(image_orig, cv2.COLOR_BGR2RGB)
         response_str = self.local_http_service(image_np, None, None, instruction, url)
         return response_str
 

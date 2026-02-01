@@ -24,6 +24,8 @@ from ubrobot.robots.nav import RobotNav, ControlMode
 
 from dataclasses import dataclass
 
+import cv2
+
 sys.path.append("/home/unitree/ubrobot/ros_depends_ws/src/rtabmap_odom_py/odom")
 
 import rs_odom_module
@@ -73,7 +75,7 @@ class Go2Manager():
 
         self.control_thread_instance = threading.Thread(target=self._control_thread, daemon=True)
         self.planning_thread_instance = threading.Thread(target=self._planning_thread, daemon=True)
-        self.robot_arm_serving_thread_instance = threading.Thread(target=self._robot_arm_serving_thread, daemon=True)
+        #self.robot_arm_serving_thread_instance = threading.Thread(target=self._robot_arm_serving_thread, daemon=True)
         
         # unitree go2 dog
         self.go2client = None
@@ -312,12 +314,16 @@ class Go2Manager():
             return ret
     
     def get_robot_arm_image_observation(self):
-        observation = self.robot_arm.get_robot_arm_observation_local()
+        '''observation = self.robot_arm.get_robot_arm_observation_local()
         color_image = observation["wrist"] # TODO get "wrist" from configuration, avoid hard coding
         depth_image = observation["wrist_depth"]
 
-        color_image_pil = PIL_Image.fromarray(color_image)
-        #color_image_pil.save("./output_image.png") 
+        #color_image_pil = PIL_Image.fromarray(color_image)
+        #color_image_pil.save("./output_image.png")'''
+
+        image_orig = cv2.imread("./output_image.png")
+        color_image = cv2.cvtColor(image_orig, cv2.COLOR_BGR2RGB)
+        depth_image = None
         return color_image, depth_image
     
     def get_robot_arm_manipulate_action(self):

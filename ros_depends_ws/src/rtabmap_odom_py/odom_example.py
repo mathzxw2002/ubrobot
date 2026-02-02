@@ -1,8 +1,6 @@
 import sys
-#sys.path.append("/home/unitree/ubrobot/ros_depends_ws/src/rtabmap_odom_py/build")
-#sys.path.append("/home/china/ubrobot/ros_depends_ws/src/")
 
-from rtabmap_odom_py.odom import rs_odom_module
+from odom import rs_odom_module
 import time
 import cv2
 import numpy as np

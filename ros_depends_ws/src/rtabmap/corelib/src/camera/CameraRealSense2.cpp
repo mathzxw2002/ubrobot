@@ -712,14 +712,14 @@ bool CameraRealSense2::init(const std::string & calibrationFolder, const std::st
 			for (auto& profile : profiles)
 			{
 				auto video_profile = profile.as<rs2::video_stream_profile>();
-				UINFO("%s %d %d %d %d %s type=%d", rs2_format_to_string(
+				/*UINFO("%s %d %d %d %d %s type=%d", rs2_format_to_string(
 						video_profile.format()),
 						video_profile.width(),
 						video_profile.height(),
 						video_profile.fps(),
 						video_profile.stream_index(),
 						video_profile.stream_name().c_str(),
-						video_profile.stream_type());
+						video_profile.stream_type());*/
 			}
 		}
 		int pi = 0;
@@ -884,14 +884,14 @@ bool CameraRealSense2::init(const std::string & calibrationFolder, const std::st
 			for (auto& profile : profiles)
 			{
 				auto video_profile = profile.as<rs2::video_stream_profile>();
-				UERROR("%s %d %d %d %d %s type=%d", rs2_format_to_string(
+				/*UERROR("%s %d %d %d %d %s type=%d", rs2_format_to_string(
 						video_profile.format()),
 						video_profile.width(),
 						video_profile.height(),
 						video_profile.fps(),
 						video_profile.stream_index(),
 						video_profile.stream_name().c_str(),
-						video_profile.stream_type());
+						video_profile.stream_type());*/
 			}
 			return false;
 		}
@@ -1074,14 +1074,14 @@ bool CameraRealSense2::init(const std::string & calibrationFolder, const std::st
 			 for (size_t j = 0; j < profilesPerSensor[i].size(); ++j)
 			 {
 				 auto video_profile = profilesPerSensor[i][j].as<rs2::video_stream_profile>();
-				 UINFO("Opening: %s %d %d %d %d %s type=%d", rs2_format_to_string(
+				 /*UINFO("Opening: %s %d %d %d %d %s type=%d", rs2_format_to_string(
 						 video_profile.format()),
 						 video_profile.width(),
 						 video_profile.height(),
 						 video_profile.fps(),
 						 video_profile.stream_index(),
 						 video_profile.stream_name().c_str(),
-						 video_profile.stream_type());
+						 video_profile.stream_type());*/
 			 }
 			 if(globalTimeSync_ && sensors[i].supports(rs2_option::RS2_OPTION_GLOBAL_TIME_ENABLED))
 			 {

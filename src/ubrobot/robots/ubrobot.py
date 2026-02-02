@@ -3,12 +3,7 @@ from datetime import datetime
 import copy
 from collections import deque
 import numpy as np
-
-#import sys
-
 from ubrobot.robots.unitree_go2_robot import UnitreeGo2Robot
-#from ubrobot.robots.piper.piper_host import PiperHost, PiperServerConfig
-
 from PIL import Image as PIL_Image
 from .controllers import Mpc_controller, PID_controller
 from thread_utils import ReadWriteLock
@@ -19,8 +14,6 @@ import traceback
 from ubrobot.robots.vlm import RobotVLM
 from ubrobot.robots.nav import RobotNav, ControlMode
 
-from dataclasses import dataclass
-
 from ubrobot.robots.lekiwi.config_lekiwi_base import LeKiwiConfig
 from ubrobot.robots.lekiwi.lekiwi_base import LeKiwi
 
@@ -29,7 +22,6 @@ import cv2
 from ubrobot.cameras.camera_odom import CameraOdom
 
 class Go2Manager():
-
     
     def __init__(self):
 
@@ -48,9 +40,6 @@ class Go2Manager():
 
         # 读写锁相关
         self.mpc_rw_lock = ReadWriteLock()
-
-        #self.rgb_image = None
-        #self.depth_image = None
 
         self.odom = None
         #self.odom_queue = deque(maxlen=50)
@@ -85,7 +74,7 @@ class Go2Manager():
         vis_annotated_img = self.nav_annotated_img
 
         if vis_annotated_img is None:
-            rgb_image, depth_image, self.odom = self.get_observation()
+            rgb_image, depth_image, self.odom, _ = self.camera_odom.get_odom_observation()
             return None, rgb_image
         return nav_action, vis_annotated_img
     
@@ -211,6 +200,12 @@ class Go2Manager():
             print(f"[{current_time}] receive move command [vx, vy, vyaw] {vx:.2f}, {vy:.2f}, {vyaw:.2f}")
             #self.go2client.Move(vx, vy, vyaw) #vx, vy, vyaw
     
+    def get_robot_observation(self):
+        rgb_image, _ = self.get_robot_arm_image_observation()
+        color_image_pil = PIL_Image.fromarray(rgb_image)
+        nav_action, vis_annotated_img = self.get_next_planning()
+        return color_image_pil, vis_annotated_img
+
     def get_robot_arm_image_observation(self):
         '''observation = self.robot_arm.get_robot_arm_observation_local()
         color_image = observation["wrist"] # TODO get "wrist" from configuration, avoid hard coding

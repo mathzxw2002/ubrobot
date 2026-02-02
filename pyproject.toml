@@ -215,7 +215,8 @@ dependencies = [
   "websockets==15.0.1",
   "yourdfpy==0.0.59",
   "datasets==4.1.1",
-  "zipp==3.23.0"
+  "zipp==3.23.0",
+  "feetech-servo-sdk>=1.0.0,<2.0.0"
 ]
 
 [project.scripts]

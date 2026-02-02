@@ -309,13 +309,13 @@ class ChatPipeline:
         nav_action, vis_annotated_img = self.manager.get_next_planning()
         return vis_annotated_img '''
     
-    #def get_robot_arm_manipulate_action(self):
-        '''instruction = "Locate objects in current image and return theirs coordinates as json format."
+    '''def get_robot_arm_manipulate_action(self):
+        instruction = "Locate objects in current image and return theirs coordinates as json format."
         rgb_image, depth_image = self.robot_arm.get_observation()
         res = self.vlm.vlm_infer_grounding(rgb_image, instruction)
         
         instruction = "reach for the small wooden square block without collision"
         response_restult_str_traj = self.vlm.vlm_infer_traj(rgb_image, depth_image, instruction)
         print(response_restult_str_traj)
-        print(res)'''
-    #    self.manager.get_robot_arm_manipulate_action()
+        print(res)
+        self.manager.get_robot_arm_manipulate_action()'''

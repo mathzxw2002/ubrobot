@@ -3,7 +3,7 @@ import time
 import cv2
 import numpy as np
 
-sys.path.append("/home/china/ubrobot/ros_depends_ws/src/rtabmap_odom_py/odom")
+sys.path.append("/home/unitree/ubrobot/ros_depends_ws/src/rtabmap_odom_py/odom")
 import rs_odom_module
 
 import copy

@@ -14,7 +14,7 @@ from unitree_sdk2py.go2.sport.sport_client import SportClient
 class UnitreeGo2Robot:
     
     # unitree go2 dog
-    def __init__(self, config):
+    def __init__(self):
         self.go2client = None
         ChannelFactoryInitialize(0, "eth0") # default net card
         self.go2client = SportClient()

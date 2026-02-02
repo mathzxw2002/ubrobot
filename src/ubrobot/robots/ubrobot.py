@@ -44,7 +44,7 @@ class Go2Manager():
         self.nav_action = None
         self.nav_annotated_img = None
 
-        self.camera_odom = CameraOdom()
+        self.camera_odom = CameraOdom("419522070679")
 
         # 读写锁相关
         self.mpc_rw_lock = ReadWriteLock()

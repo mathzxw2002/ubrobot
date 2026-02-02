@@ -44,7 +44,8 @@ class Go2Manager():
         self.nav_action = None
         self.nav_annotated_img = None
 
-        self.camera_odom = CameraOdom("419522070679")
+        #self.camera_odom = CameraOdom("419522070679")  #348522070565
+        self.camera_odom = CameraOdom("348522070565") 
 
         # 读写锁相关
         self.mpc_rw_lock = ReadWriteLock()
@@ -67,7 +68,7 @@ class Go2Manager():
         #self.robot_arm_serving_thread_instance = threading.Thread(target=self._robot_arm_serving_thread, daemon=True)
         
         # unitree go2 dog
-        self.go2client = UnitreeGo2Robot()
+        #self.go2client = UnitreeGo2Robot()
 
         # robot arm config
         #self.cfg = PiperServerConfig()
@@ -220,9 +221,12 @@ class Go2Manager():
         #color_image_pil.save("./output_image.png")'''
 
         image_orig = cv2.imread("./output_image.png")
-        color_image = cv2.cvtColor(image_orig, cv2.COLOR_BGR2RGB)
-        depth_image = None
-        return color_image, depth_image
+        if image_orig is None:
+            return None, None
+        else:
+            color_image = cv2.cvtColor(image_orig, cv2.COLOR_BGR2RGB)
+            depth_image = None
+            return color_image, depth_image
     
     def get_robot_arm_manipulate_action(self):
         instruction = "Locate objects in current image and return theirs coordinates as json format. answer shortly."

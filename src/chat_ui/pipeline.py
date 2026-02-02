@@ -129,7 +129,7 @@ class ChatPipeline:
             #llm_response_txt, user_messages = self.vlm.infer_stream(user_input_txt, user_messages, self.vlm_queue, chunk_size, chat_mode)
 
             instruction = user_input_txt
-            #self.manager.set_user_instruction(instruction)
+            self.manager.set_user_instruction(instruction)
 
             user_messages.append({'role': 'user', 'content': user_input})
             print(user_messages)
@@ -296,9 +296,12 @@ class ChatPipeline:
 
     def get_robot_observation(self):
         rgb_image, _ = self.manager.get_robot_arm_image_observation()
-        color_image_pil = PIL_Image.fromarray(rgb_image)
         nav_action, vis_annotated_img = self.manager.get_next_planning()
-        return color_image_pil, vis_annotated_img
+        if rgb_image is None:
+            return None, vis_annotated_img
+        else:
+            color_image_pil = PIL_Image.fromarray(rgb_image)
+            return color_image_pil, vis_annotated_img
 
     '''def get_robot_arm_image_observation(self):
         rgb_image, _ = self.manager.get_robot_arm_image_observation()

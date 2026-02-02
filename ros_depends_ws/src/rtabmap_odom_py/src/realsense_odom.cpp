@@ -40,15 +40,17 @@ struct OdomTwist {
 class RealsenseOdom {
 public:
     RealsenseOdom(const std::string& cameraSerial = "") {
+	
         std::string calibFolder = ".";
         std::string cameraName = cameraSerial.empty() ? "419522070679" : cameraSerial;
-        
+
         std::lock_guard<std::mutex> lock(init_mutex_);
         if(camera_initialized_) {
             throw std::runtime_error("Camera has been initiallzed!");
         }
 
-        bool camera_init_ok = camera_.init(calibFolder, cameraName);
+	bool camera_init_ok = camera_.init(calibFolder, cameraName);
+
         if(!camera_init_ok) {
             std::string errMsg = "Failed to Initialize RealSense D435i: Connection Failed or SN is wrong.";
             std::cerr << errMsg << std::endl;
@@ -83,6 +85,7 @@ public:
         this->capture_latest_data();
         
         if(!latest_data_.isValid() || odom_ == nullptr) {
+
             twist_.linear_x = 0.0f;
             twist_.angular_z = 0.0f;
             return {};

@@ -1,8 +1,8 @@
 import sys
 #sys.path.append("/home/unitree/ubrobot/ros_depends_ws/src/rtabmap_odom_py/build")
-sys.path.append("/home/unitree/ubrobot/ros_depends_ws/src/rtabmap_odom_py/odom")
+#sys.path.append("/home/china/ubrobot/ros_depends_ws/src/")
 
-import rs_odom_module
+from rtabmap_odom_py.odom import rs_odom_module
 import time
 import cv2
 import numpy as np
@@ -10,9 +10,13 @@ import numpy as np
 # Initialize the hardware and RTAB-Map
 print("Initializing D435i and Odometry...")
 try:
-    tracker = rs_odom_module.RealsenseOdom(camera_serial="419522070679")
+    print(rs_odom_module)
+    print("start rs_odom_module.RealsenseOdom")
+    tracker = rs_odom_module.RealsenseOdom(camera_serial="348522070565")
 
     print("Waiting for camera data...")
+
+    print("+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++")
     # Give the camera and RTAB-Map 2-3 seconds to sync and receive the first frame
     time.sleep(3.0)
 
@@ -23,14 +27,6 @@ except RuntimeError as e:
 def my_logic():
     print("Loop started. Press Ctrl+C to stop.")
     try:
-        # 1. 获取相机内参
-        '''intrinsics = tracker.get_camera_intrinsics()
-        print("相机内参：")
-        print(f"  焦距：fx={intrinsics['fx']:.2f}, fy={intrinsics['fy']:.2f}")
-        print(f"  主点：cx={intrinsics['cx']:.2f}, cy={intrinsics['cy']:.2f}")
-        print(f"  分辨率：{intrinsics['width']}x{intrinsics['height']}")
-        print(f"  深度缩放因子：{intrinsics['scale']}")'''
-
         while True:
             # Get the current pose on-demand
             pose = tracker.get_pose_with_twist()

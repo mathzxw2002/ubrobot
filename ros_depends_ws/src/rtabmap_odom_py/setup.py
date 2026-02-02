@@ -10,12 +10,11 @@ def build_extension():
     
     # 执行cmake和make
     subprocess.check_call(
-        ["cmake", "..", "-DCMAKE_BUILD_TYPE=Release", "-DRTABMap_DIR=/home/unitree/ubrobot/ros_depends_ws/build_isolated/rtabmap/devel"],
+        ["cmake", "..", "-DCMAKE_BUILD_TYPE=Release"],
         cwd=build_dir
     )
     subprocess.check_call(["make", "-j4"], cwd=build_dir)
 
-# 先编译模块
 build_extension()
 
 # 安装配置
@@ -28,6 +27,9 @@ setup(
         "rtabmap_odom_py.odom": ["rs_odom_module.so"],  # 包含编译后的.so文件
     },
     include_package_data=True,
+    data_files=[
+        ("rtabmap_odom_py/odom", ["odom/rs_odom_module.so"]),
+    ],
     zip_safe=False,  # 必须设为False，因为.so文件不能被压缩
     install_requires=[
         "numpy>=1.21.0",

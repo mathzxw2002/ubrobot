@@ -16,7 +16,7 @@ target_link_libraries(${MODULE_NAME} PRIVATE rtabmap::core)
 
 include_directories(
   ${catkin_INCLUDE_DIRS}
-  /home/unitree/ubrobot/ros_depends_ws/devel_isolated/rtabmap/include/rtabmap-0.21
+  /usr/local/include/rtabmap-0.21
 )
 
 set_target_properties(${MODULE_NAME} PROPERTIES
@@ -24,3 +24,4 @@ set_target_properties(${MODULE_NAME} PROPERTIES
     PREFIX ""  # 移除默认的lib前缀（避免生成librs_odom_module.so）
     SUFFIX ".so"  # 强制后缀为.so
 )
+

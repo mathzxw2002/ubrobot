@@ -83,6 +83,10 @@ class Go2Manager():
     def get_next_planning(self):
         nav_action = self.nav_action
         vis_annotated_img = self.nav_annotated_img
+
+        if vis_annotated_img is None:
+            rgb_image, depth_image, self.odom = self.get_observation()
+            return None, rgb_image
         return nav_action, vis_annotated_img
     
     '''def reasoning_vlm(self, image_pil: PIL_Image.Image, instruction:str):

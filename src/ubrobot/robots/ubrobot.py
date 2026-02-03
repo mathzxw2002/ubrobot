@@ -1,7 +1,5 @@
 import time
-from datetime import datetime
 import copy
-from collections import deque
 import numpy as np
 from ubrobot.robots.unitree_go2_robot import UnitreeGo2Robot
 from PIL import Image as PIL_Image
@@ -9,8 +7,6 @@ from .controllers import Mpc_controller, PID_controller
 from thread_utils import ReadWriteLock
 
 import threading
-import traceback
-
 from ubrobot.robots.vlm import RobotVLM
 from ubrobot.robots.nav import RobotNav, ControlMode
 
@@ -80,11 +76,6 @@ class Go2Manager():
             rgb_image, depth_image, self.odom, _ = self.camera_odom.get_odom_observation()
             return None, rgb_image
         return nav_action, vis_annotated_img
-    
-    '''def reasoning_vlm(self, image_pil: PIL_Image.Image, instruction:str):
-        response_restult_str = None
-        response_restult_str = self.vlm.reasoning_vlm_infer(image_pil, instruction)
-        return response_restult_str'''
     
     def set_user_instruction(self, instruction: str):
         # TODO implement this by LLM
@@ -256,7 +247,6 @@ class Go2Manager():
         response_restult_str_traj = self.vlm.reasoning_vlm_infer(color_image, depth_image, intrin, instruction)
         #self.pc.convertRGBD2PointClouds(color_image, depth_image, intrin, "./rgbd_point_cloud.ply")
         print(response_restult_str_traj)
-        #print(res)
 
     # main entrance the user interaction
     def agent_response(self, instruction):
@@ -288,11 +278,8 @@ if __name__ == "__main__":
 
     print("======= Starting Go2Manager Core =======")
     try:
-        # 初始化 Go2Manager 实例
         manager = Go2Manager()
         manager.start_threads()
-    except KeyboardInterrupt:
-        print("\n======= Stopping Go2Manager Core =======")
     except Exception as e:
         print(f"Error occurred: {e}")
     finally:

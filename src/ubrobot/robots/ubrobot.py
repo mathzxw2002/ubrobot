@@ -53,7 +53,7 @@ class Go2Manager():
         # nav model
         self.nav = RobotNav()
 
-        self.control_thread_instance = threading.Thread(target=self._control_thread, daemon=True)
+        #self.control_thread_instance = threading.Thread(target=self._control_thread, daemon=True)
         self.planning_thread_instance = threading.Thread(target=self._planning_thread, daemon=True)
         #self.robot_arm_serving_thread_instance = threading.Thread(target=self._robot_arm_serving_thread, daemon=True)
         
@@ -112,7 +112,7 @@ class Go2Manager():
             #print(f"odom: {odom}, rgb_image: {rgb_image}, instruction:{instruction}")
         return nav_action, vis_annotated_img
 
-    def _control_thread(self):
+    '''def _control_thread(self):
         while True:
             if self.global_nav_instruction_str is None:
                 time.sleep(0.01)
@@ -122,7 +122,7 @@ class Go2Manager():
             if act is None:
                 time.sleep(0.01)
                 continue
-            time.sleep(0.1)
+            time.sleep(0.1)'''
     
     def send_action(self, act):
         # first check current odom info, [x, y, yaw, v_x, w_z]
@@ -185,12 +185,17 @@ class Go2Manager():
                 print("get action...", nav_action.actions)
                 # send action
                 self.send_action(self.nav_action)
+            else:
+                # if nav_action is None, stop first
+                self.http_idx = 0
+                self.policy_init = True
+                self.move(0.0, 0.0, 0.0)
             # sleep
             time.sleep(max(0, 1.0 / FPS - (time.time() - t0)))
     
     def start_threads(self):
         self.planning_thread_instance.start()
-        self.control_thread_instance.start()
+        #self.control_thread_instance.start()
         #self.robot_arm_serving_thread_instance.start()
         print("✅ Go2Manager: control thread and planning thread started successfully")
 

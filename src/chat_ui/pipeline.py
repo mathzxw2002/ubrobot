@@ -12,7 +12,6 @@ from utils import get_timestamp_str, merge_audios, merge_frames_with_audio
 from ubrobot.robots.tts import CosyVoice_API
 from ubrobot.robots.asr import Fun_ASR
 from ubrobot.robots.ubrobot import Go2Manager
-#from PIL import Image as PIL_Image
 
 @torch.no_grad()
 class ChatPipeline:
@@ -20,10 +19,6 @@ class ChatPipeline:
 
         print(f"[1/4] Start initializing funasr")
         self.asr = Fun_ASR()
-
-        print(f"[2/4] Start initializing qwen")
-        
-        #self.vlm = RobotVLM()
 
         print(f"[3/4] Start initializing tts")
         self.tts_api = CosyVoice_API()

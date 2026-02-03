@@ -49,7 +49,6 @@ class Go2Manager():
         # nav model
         self.nav = RobotNav()
 
-        #self.control_thread_instance = threading.Thread(target=self._control_thread, daemon=True)
         self.planning_thread_instance = threading.Thread(target=self._planning_thread, daemon=True)
         #self.robot_arm_serving_thread_instance = threading.Thread(target=self._robot_arm_serving_thread, daemon=True)
         
@@ -102,18 +101,6 @@ class Go2Manager():
             vis_annotated_img = rgb_image
             #print(f"odom: {odom}, rgb_image: {rgb_image}, instruction:{instruction}")
         return nav_action, vis_annotated_img
-
-    '''def _control_thread(self):
-        while True:
-            if self.global_nav_instruction_str is None:
-                time.sleep(0.01)
-                continue
-            
-            act = self.nav_action
-            if act is None:
-                time.sleep(0.01)
-                continue
-            time.sleep(0.1)'''
     
     def send_action(self, act):
         # first check current odom info, [x, y, yaw, v_x, w_z]
@@ -162,7 +149,6 @@ class Go2Manager():
             t0 = time.time()
 
             rgb_image, depth, odom_infer = self.get_observation()
-
             nav_action, vis_annotated_img = self.get_action(self.policy_init, self.http_idx, rgb_image, depth, self.global_nav_instruction_str, odom_infer)
             
             # TODO if get STOP action signal, stop, waiting for next instruction
@@ -177,10 +163,10 @@ class Go2Manager():
                 # send action
                 self.send_action(self.nav_action)
             else:
-                print("nav action is none", self.global_nav_instruction_str)
+                #print("nav action is none", self.global_nav_instruction_str)
                 if self.global_nav_instruction_str is None:
                     # if nav_action is None, stop first
-                    print("entering stop action....")
+                    #print("entering stop action....")
                     self.http_idx = 0
                     self.policy_init = True
                     self.move(0.0, 0.0, 0.0)
@@ -189,7 +175,6 @@ class Go2Manager():
     
     def start_threads(self):
         self.planning_thread_instance.start()
-        #self.control_thread_instance.start()
         #self.robot_arm_serving_thread_instance.start()
         print("✅ Go2Manager: control thread and planning thread started successfully")
 
@@ -226,6 +211,8 @@ class Go2Manager():
         #color_image_pil = PIL_Image.fromarray(color_image)
         #color_image_pil.save("./output_image.png")'''
 
+        #intrin = observation["wrist_intrinsics"]
+
         tem_file_path = "./output_image.png"
         if os.path.isfile(tem_file_path):
             image_orig = cv2.imread()
@@ -238,26 +225,8 @@ class Go2Manager():
         else:
             return None, None
     
-    def get_robot_arm_manipulate_action(self):
-        instruction = "Locate objects in current image and return theirs coordinates as json format. answer shortly."
-        observation = self.robot_arm.get_robot_arm_observation_local()
-        color_image = observation["wrist"] # TODO get "wrist" from configuration, avoid hard coding
-        depth_image = observation["wrist_depth"]
-        #res = self.vlm.vlm_infer_grounding(color_image, instruction)
-        #instruction = "reach for the small wooden square block without collision"
-        intrin = observation["wrist_intrinsics"]
-        #response_restult_str_traj = self.vlm.vlm_infer_traj(color_image, depth_image, intrin, instruction)
-        response_restult_str_traj = self.vlm.reasoning_vlm_infer(color_image, depth_image, intrin, instruction)
-        #self.pc.convertRGBD2PointClouds(color_image, depth_image, intrin, "./rgbd_point_cloud.ply")
-        print(response_restult_str_traj)
-
     # main entrance the user interaction
     def agent_response(self, instruction):
-        # LLM streaming out
-        #chat_mode = "单轮对话 (一次性回答问题)"
-        #chunk_size = 10 
-        #llm_response_txt, user_messages = self.vlm.infer_stream(user_input_txt, user_messages, self.vlm_queue, chunk_size, chat_mode)
-
         # parse user instruction, TODO solve this by llm intent understanding
         llm_response_txt = ""
         if instruction.startswith("nav:"):

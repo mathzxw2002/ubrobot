@@ -17,7 +17,7 @@ def gradio_planning_txt_update():
     while True:
         robot_arm_rgb_image, vis_annotated_img = chat_pipeline.get_robot_observation()
         is_manipulate_valid = robot_arm_rgb_image is not None and robot_arm_rgb_image.size > 0
-        yield gr.update(value=vis_annotated_img), gr.update(value=robot_arm_rgb_image, visible=is_manipulate_valid)
+        yield gr.update(value=vis_annotated_img, visible=True), gr.update(value=robot_arm_rgb_image, visible=is_manipulate_valid)
         time.sleep(1)
 
 def create_gradio():
@@ -45,7 +45,7 @@ def create_gradio():
 
             with gr.Column(scale = 1):
                 gr.Markdown("### Nav with Instruction")
-                nav_img_output = gr.Image(type="pil", height=320)
+                nav_img_output = gr.Image(type="pil", height=320, visible=False)
                 manipulate_img_output = gr.Image(type="pil", height=320, visible=False)
                 #ins_msg_bt = gr.Button("nav instruction")
 

@@ -16,7 +16,8 @@ chat_pipeline = None
 def gradio_planning_txt_update():
     while True:
         robot_arm_rgb_image, vis_annotated_img = chat_pipeline.get_robot_observation()
-        yield gr.update(value=vis_annotated_img), gr.update(value=robot_arm_rgb_image)
+        is_manipulate_valid = robot_arm_rgb_image is not None and robot_arm_rgb_image.size > 0
+        yield gr.update(value=vis_annotated_img), gr.update(value=robot_arm_rgb_image, visible=is_manipulate_valid)
         time.sleep(1)
 
 def create_gradio():

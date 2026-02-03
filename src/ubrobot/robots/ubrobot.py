@@ -177,8 +177,10 @@ class Go2Manager():
                 # send action
                 self.send_action(self.nav_action)
             else:
+                print("nav action is none", self.global_nav_instruction_str)
                 if self.global_nav_instruction_str == "stop" or self.global_nav_instruction_str == "STOP":
                     # if nav_action is None, stop first
+                    print("entering stop action....")
                     self.http_idx = 0
                     self.policy_init = True
                     self.move(0.0, 0.0, 0.0)

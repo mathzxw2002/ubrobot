@@ -66,6 +66,7 @@ class Go2Manager():
 
         self.lekiwi_cfg = LeKiwiConfig()
         self.lekiwi_base = LeKiwi(self.lekiwi_cfg)
+        self.lekiwi_base.connect()
     
     def get_observation(self):
         rgb_image, depth_image, self.odom, self.vel = self.camera_odom.get_odom_observation()
@@ -89,6 +90,9 @@ class Go2Manager():
         # TODO implement this by LLM
         if instruction == "stop" or instruction == "STOP":
             self.global_nav_instruction_str = None
+
+            print("start stopping lekiwi base...")
+            self.lekiwi_base.stop_base()
         else:
             self.global_nav_instruction_str = instruction
         self.http_idx = -1
@@ -195,7 +199,7 @@ class Go2Manager():
                   "theta.vel": vyaw
                   }
         print("moving action...", action)
-        # self.lekiwi_base.send_action(action)
+        self.lekiwi_base.send_action(action)
         
         '''if self.go2client is None:
             print("Go2 Sport Client NOT initialized!")

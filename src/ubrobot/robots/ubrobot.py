@@ -104,7 +104,7 @@ class Go2Manager():
         else:
             nav_action = None
             vis_annotated_img = rgb_image
-            print(f"odom: {odom}, rgb_image: {rgb_image}, instruction:{instruction}")
+            #print(f"odom: {odom}, rgb_image: {rgb_image}, instruction:{instruction}")
         return nav_action, vis_annotated_img
 
     def _control_thread(self):
@@ -166,6 +166,7 @@ class Go2Manager():
             t0 = time.time()
 
             rgb_image, depth, odom_infer = self.get_observation()
+
             nav_action, vis_annotated_img = self.get_action(self.policy_init, self.http_idx, rgb_image, depth, self.global_nav_instruction_str, odom_infer)
             
             # TODO if get STOP action signal, stop, waiting for next instruction
@@ -183,7 +184,7 @@ class Go2Manager():
             time.sleep(max(0, 1.0 / FPS - (time.time() - t0)))
     
     def start_threads(self):
-        #self.planning_thread_instance.start()
+        self.planning_thread_instance.start()
         self.control_thread_instance.start()
         #self.robot_arm_serving_thread_instance.start()
         print("✅ Go2Manager: control thread and planning thread started successfully")
@@ -193,15 +194,16 @@ class Go2Manager():
                   "y.vel": 0,
                   "theta.vel": vyaw
                   }
+        print("moving action...", action)
         # self.lekiwi_base.send_action(action)
         
-        if self.go2client is None:
+        '''if self.go2client is None:
             print("Go2 Sport Client NOT initialized!")
             return
         else:
             current_time = datetime.now().strftime("%Y-%m-%d %H:%M:%S.%f")[:-3]  # ms precision
             print(f"[{current_time}] receive move command [vx, vy, vyaw] {vx:.2f}, {vy:.2f}, {vyaw:.2f}")
-            #self.go2client.Move(vx, vy, vyaw) #vx, vy, vyaw
+            #self.go2client.Move(vx, vy, vyaw) #vx, vy, vyaw '''
     
     def get_robot_observation(self):
         rgb_image, _ = self.get_robot_arm_image_observation()
@@ -278,9 +280,7 @@ if __name__ == "__main__":
         manager.start_threads()
     except KeyboardInterrupt:
         print("\n======= Stopping Go2Manager Core =======")
-        manager.nav_task_reset()
     except Exception as e:
         print(f"Error occurred: {e}")
-        traceback.print_exc()
     finally:
         print("======= Go2Manager Core Exited =======")

@@ -19,6 +19,7 @@ from ubrobot.robots.lekiwi.lekiwi_base import LeKiwi
 
 import cv2
 
+import os
 from ubrobot.cameras.camera_odom import CameraOdom
 
 class Go2Manager():
@@ -103,6 +104,7 @@ class Go2Manager():
         else:
             nav_action = None
             vis_annotated_img = rgb_image
+            print(f"odom: {odom}, rgb_image: {rgb_image}, instruction:{instruction}")
         return nav_action, vis_annotated_img
 
     def _control_thread(self):
@@ -215,13 +217,17 @@ class Go2Manager():
         #color_image_pil = PIL_Image.fromarray(color_image)
         #color_image_pil.save("./output_image.png")'''
 
-        image_orig = cv2.imread("./output_image.png")
-        if image_orig is None:
-            return None, None
+        tem_file_path = "./output_image.png"
+        if os.path.isfile(tem_file_path):
+            image_orig = cv2.imread()
+            if image_orig is None:
+                return None, None
+            else:
+                color_image = cv2.cvtColor(image_orig, cv2.COLOR_BGR2RGB)
+                depth_image = None
+                return color_image, depth_image
         else:
-            color_image = cv2.cvtColor(image_orig, cv2.COLOR_BGR2RGB)
-            depth_image = None
-            return color_image, depth_image
+            return None, None
     
     def get_robot_arm_manipulate_action(self):
         instruction = "Locate objects in current image and return theirs coordinates as json format. answer shortly."

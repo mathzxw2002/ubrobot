@@ -69,32 +69,21 @@ class Go2Manager():
         rgb_image, depth_image, self.odom, self.vel = self.camera_odom.get_odom_observation()
         return rgb_image, depth_image, self.odom
 
-    def get_next_planning(self):
-        vis_annotated_img = self.nav_annotated_img
-
-        if vis_annotated_img is None:
-            rgb_image, depth_image, self.odom, _ = self.camera_odom.get_odom_observation()
-            return rgb_image
-        return vis_annotated_img
-
     def vln_planning_thread(self):
         FPS = 30
         while True:
             t0 = time.time()
             rgb_image, depth, odom_infer = self.get_observation()
 
-            nav_action, vis_annotated_img = self.get_nav_action_by_usrinstruction(self.policy_init, self.http_idx, rgb_image, depth, self.global_nav_instruction_str, odom_infer)
+            nav_action, self.nav_annotated_img = self.get_nav_action_by_usrinstruction(self.policy_init, self.http_idx, rgb_image, depth, self.global_nav_instruction_str, odom_infer)
             
             # TODO if get STOP action signal, stop, waiting for next instruction
-            #self.nav_action = nav_action
-            self.nav_annotated_img = vis_annotated_img
-            # TODO double check
             if nav_action is not None:
                 if nav_action.stop_cmd:
                     self.http_idx = -1
                     self.policy_init = True
                     self.move(0.0, 0.0, 0.0)
-                else:    
+                else:
                     self.http_idx += 1
                     self.policy_init = False
                     print("get action...", nav_action.actions)
@@ -188,37 +177,32 @@ class Go2Manager():
         print("✅ Go2Manager: control thread and planning thread started successfully")
 
     def move(self, vx, vy, vyaw):
-        action = {"x.vel": vx,
-                  "y.vel": 0,
-                  "theta.vel": vyaw
-                  }
-        print("moving action...", action)
-        self.lekiwi_base.send_action(action)
-        
+        action = {"x.vel": vx, "y.vel": 0, "theta.vel": vyaw}
         #current_time = datetime.now().strftime("%Y-%m-%d %H:%M:%S.%f")[:-3]  # ms precision
         #print(f"[{current_time}] receive move command [vx, vy, vyaw] {vx:.2f}, {vy:.2f}, {vyaw:.2f}")
+        print("moving action...", action)
+        self.lekiwi_base.send_action(action)
         #self.go2client.Move(vx, vy, vyaw) #vx, vy, vyaw
     
-    def get_robot_observation(self):
+    def visualize_robot_observation(self):
         rgb_image, _ = self.get_robot_arm_image_observation()
-        vis_annotated_img = self.get_next_planning()
         if rgb_image is None:
-            return None, vis_annotated_img
+            return None, self.nav_annotated_img
         else:
             color_image_pil = PIL_Image.fromarray(rgb_image)
-            return color_image_pil, vis_annotated_img
+            return color_image_pil, self.nav_annotated_img
 
     def get_robot_arm_image_observation(self):
-        '''observation = self.robot_arm.get_robot_arm_observation_local()
+        observation = self.robot_arm.get_robot_arm_observation_local()
         color_image = observation["wrist"] # TODO get "wrist" from configuration, avoid hard coding
         depth_image = observation["wrist_depth"]
 
         #color_image_pil = PIL_Image.fromarray(color_image)
-        #color_image_pil.save("./output_image.png")'''
+        #color_image_pil.save("./output_image.png")
 
         #intrin = observation["wrist_intrinsics"]
 
-        tem_file_path = "./output_image.png"
+        '''tem_file_path = "./output_image.png"
         if os.path.isfile(tem_file_path):
             image_orig = cv2.imread()
             if image_orig is None:
@@ -228,7 +212,8 @@ class Go2Manager():
                 depth_image = None
                 return color_image, depth_image
         else:
-            return None, None
+            return None, None'''
+        return color_image, depth_image
     
     # main entrance the user interaction
     def agent_response(self, instruction):

@@ -256,4 +256,4 @@ class ChatPipeline:
         self.video_queue.put(None)
 
     def get_robot_observation(self):
-        return self.manager.get_robot_observation()
+        return self.manager.visualize_robot_observation()

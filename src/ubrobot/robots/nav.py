@@ -25,6 +25,7 @@ class RobotAction:
         self.homo_goal = None
         self.odom = None
         self.homo_odom = None
+        self.stop_cmd = False
 
 class RobotNav:
     def __init__(self, api_key = None, base_url = "https://dashscope.aliyuncs.com/compatible-mode/v1"):

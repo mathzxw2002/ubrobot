@@ -1,6 +1,8 @@
 import time
 import copy
 import numpy as np
+import datetime
+
 from ubrobot.robots.unitree_go2_robot import UnitreeGo2Robot
 from PIL import Image as PIL_Image
 from .controllers import Mpc_controller, PID_controller
@@ -8,7 +10,7 @@ from thread_utils import ReadWriteLock
 
 import threading
 from ubrobot.robots.vlm import RobotVLM
-from ubrobot.robots.nav import RobotNav, ControlMode
+from ubrobot.robots.nav import RobotAction, RobotNav, ControlMode
 
 from ubrobot.robots.lekiwi.config_lekiwi_base import LeKiwiConfig
 from ubrobot.robots.lekiwi.lekiwi_base import LeKiwi
@@ -30,7 +32,7 @@ class Go2Manager():
 
         # nav 
         self.global_nav_instruction_str = None
-        self.nav_action = None
+        #self.nav_action = None
         self.nav_annotated_img = None
 
         #self.camera_odom = CameraOdom("419522070679")  #348522070565
@@ -49,8 +51,8 @@ class Go2Manager():
         # nav model
         self.nav = RobotNav()
 
-        self.planning_thread_instance = threading.Thread(target=self._planning_thread, daemon=True)
-        #self.robot_arm_serving_thread_instance = threading.Thread(target=self._robot_arm_serving_thread, daemon=True)
+        self.planning_thread_instance = threading.Thread(target=self.vln_planning_thread, daemon=True)
+        #self.robot_arm_serving_thread_instance = threading.Thread(target=self.robot_arm_serving_thread, daemon=True)
         
         # unitree go2 dog
         #self.go2client = UnitreeGo2Robot()
@@ -68,15 +70,48 @@ class Go2Manager():
         return rgb_image, depth_image, self.odom
 
     def get_next_planning(self):
-        nav_action = self.nav_action
         vis_annotated_img = self.nav_annotated_img
 
         if vis_annotated_img is None:
             rgb_image, depth_image, self.odom, _ = self.camera_odom.get_odom_observation()
-            return None, rgb_image
-        return nav_action, vis_annotated_img
+            return rgb_image
+        return vis_annotated_img
+
+    def vln_planning_thread(self):
+        FPS = 30
+        while True:
+            t0 = time.time()
+            rgb_image, depth, odom_infer = self.get_observation()
+
+            nav_action, vis_annotated_img = self.get_nav_action_by_usrinstruction(self.policy_init, self.http_idx, rgb_image, depth, self.global_nav_instruction_str, odom_infer)
+            
+            # TODO if get STOP action signal, stop, waiting for next instruction
+            #self.nav_action = nav_action
+            self.nav_annotated_img = vis_annotated_img
+            # TODO double check
+            if nav_action is not None:
+                if nav_action.stop_cmd:
+                    self.http_idx = -1
+                    self.policy_init = True
+                    self.move(0.0, 0.0, 0.0)
+                else:    
+                    self.http_idx += 1
+                    self.policy_init = False
+                    print("get action...", nav_action.actions)
+                    # send action
+                    self.send_action(nav_action)
+            '''else:
+                #print("nav action is none", self.global_nav_instruction_str)
+                if self.global_nav_instruction_str is None:
+                    # if nav_action is None, stop first
+                    #print("entering stop action....")
+                    self.http_idx = -1
+                    self.policy_init = True
+                    self.move(0.0, 0.0, 0.0)'''
+            # sleep
+            time.sleep(max(0, 1.0 / FPS - (time.time() - t0)))
     
-    def set_user_instruction(self, instruction: str):
+    def nav_by_user_instruction(self, instruction: str):
         # TODO implement this by LLM
         if instruction == "stop" or instruction == "STOP":
             self.global_nav_instruction_str = None
@@ -89,13 +124,18 @@ class Go2Manager():
         self.http_idx = -1
         self.policy_init = True
        
-    def get_action(self, policy_init, http_idx, rgb_image, depth, instruction, odom):
+    def get_nav_action_by_usrinstruction(self, policy_init, http_idx, rgb_image, depth, instruction, odom):
         nav_action = None
         vis_annotated_img = None
         if odom is not None and rgb_image is not None and depth is not None and instruction is not None:
-            start = time.time()
-            nav_action, vis_annotated_img = self.nav._dual_sys_eval(policy_init, http_idx, rgb_image, depth, instruction, odom)
-            print(f"idx: {http_idx} step in get_action() cost {time.time() - start}")
+            if instruction == "stop"  or instruction == "STOP": # TODO implement this by LLM
+                nav_action = RobotAction()
+                nav_action.stop_cmd = True
+                vis_annotated_img = rgb_image
+            else:
+                start = time.time()
+                nav_action, vis_annotated_img = self.nav._dual_sys_eval(policy_init, http_idx, rgb_image, depth, instruction, odom)
+                print(f"idx: {http_idx} step in get_nav_action_by_usrinstruction() cost {time.time() - start}")
         else:
             nav_action = None
             vis_annotated_img = rgb_image
@@ -139,39 +179,8 @@ class Go2Manager():
                     v = 0.0
                 self.move(v, 0.0, w)
     
-    def _robot_arm_serving_thread(self):
+    def robot_arm_serving_thread(self):
         self.robot_arm.start_serving_teleoperation(self.cfg)
-
-    def _planning_thread(self):
-        FPS = 30
-
-        while True:
-            t0 = time.time()
-
-            rgb_image, depth, odom_infer = self.get_observation()
-            nav_action, vis_annotated_img = self.get_action(self.policy_init, self.http_idx, rgb_image, depth, self.global_nav_instruction_str, odom_infer)
-            
-            # TODO if get STOP action signal, stop, waiting for next instruction
-            self.nav_action = nav_action
-            self.nav_annotated_img = vis_annotated_img
-            # TODO double check
-            if nav_action is not None:
-                self.http_idx += 1
-                self.policy_init = False
-
-                print("get action...", nav_action.actions)
-                # send action
-                self.send_action(self.nav_action)
-            else:
-                #print("nav action is none", self.global_nav_instruction_str)
-                if self.global_nav_instruction_str is None:
-                    # if nav_action is None, stop first
-                    #print("entering stop action....")
-                    self.http_idx = 0
-                    self.policy_init = True
-                    self.move(0.0, 0.0, 0.0)
-            # sleep
-            time.sleep(max(0, 1.0 / FPS - (time.time() - t0)))
     
     def start_threads(self):
         self.planning_thread_instance.start()
@@ -186,17 +195,13 @@ class Go2Manager():
         print("moving action...", action)
         self.lekiwi_base.send_action(action)
         
-        '''if self.go2client is None:
-            print("Go2 Sport Client NOT initialized!")
-            return
-        else:
-            current_time = datetime.now().strftime("%Y-%m-%d %H:%M:%S.%f")[:-3]  # ms precision
-            print(f"[{current_time}] receive move command [vx, vy, vyaw] {vx:.2f}, {vy:.2f}, {vyaw:.2f}")
-            #self.go2client.Move(vx, vy, vyaw) #vx, vy, vyaw '''
+        #current_time = datetime.now().strftime("%Y-%m-%d %H:%M:%S.%f")[:-3]  # ms precision
+        #print(f"[{current_time}] receive move command [vx, vy, vyaw] {vx:.2f}, {vy:.2f}, {vyaw:.2f}")
+        #self.go2client.Move(vx, vy, vyaw) #vx, vy, vyaw
     
     def get_robot_observation(self):
         rgb_image, _ = self.get_robot_arm_image_observation()
-        nav_action, vis_annotated_img = self.get_next_planning()
+        vis_annotated_img = self.get_next_planning()
         if rgb_image is None:
             return None, vis_annotated_img
         else:
@@ -230,9 +235,9 @@ class Go2Manager():
         # parse user instruction, TODO solve this by llm intent understanding
         llm_response_txt = ""
         if instruction.startswith("nav:"):
-            instruction = instruction.removeprefix("nav:")
-            self.set_user_instruction(instruction)
-            llm_response_txt = "Yes, I am starting navgating..."
+            instruction = instruction.removeprefix("nav:").strip()
+            self.nav_by_user_instruction(instruction)
+            llm_response_txt = "Yes, Let's Start with Command: " + instruction
         elif instruction.startswith("grasp:"):
             manipulate_img_output, _ = self.get_robot_arm_image_observation()
             user_input_txt = instruction + ". Answer shortly."

@@ -45,8 +45,8 @@ def create_gradio():
             with gr.Column(scale = 1):
                 gr.Markdown("### Nav with Instruction")
                 nav_img_output = gr.Image(type="pil", height=320)
-                manipulate_img_output = gr.Image(type="pil", height=320)
-                ins_msg_bt = gr.Button("nav instruction")
+                manipulate_img_output = gr.Image(type="pil", height=320, visible=False)
+                #ins_msg_bt = gr.Button("nav instruction")
 
         # Use State to store user chat history
         user_messages = gr.State([{'role': 'system', 'content': None}])

@@ -1,7 +1,6 @@
 import os
 import torch
 import time
-#import numpy as np
 import shutil
 import threading
 import queue
@@ -13,8 +12,7 @@ from utils import get_timestamp_str, merge_audios, merge_frames_with_audio
 from ubrobot.robots.tts import CosyVoice_API
 from ubrobot.robots.asr import Fun_ASR
 from ubrobot.robots.ubrobot import Go2Manager
-#from ubrobot.robots.vlm import RobotVLM
-from PIL import Image as PIL_Image
+#from PIL import Image as PIL_Image
 
 @torch.no_grad()
 class ChatPipeline:
@@ -178,10 +176,6 @@ class ChatPipeline:
                     #if not llm_response_audio:
                         break
                     videos_dir_path = os.path.dirname(video_result.video_path)
-                    
-                    #videos_dir_path = str(Path(llm_response_audio).parent.parent / "videos" )
-                    #videos_dir_path = project_path + "/videos"
-
                     user_chatbot[-1][1]["text"]+=self.chat_history[index]
 
                     yield gr.update(interactive=False, value=None), user_chatbot, user_processing_flag
@@ -267,10 +261,4 @@ class ChatPipeline:
         self.video_queue.put(None)
 
     def get_robot_observation(self):
-        rgb_image, _ = self.manager.get_robot_arm_image_observation()
-        nav_action, vis_annotated_img = self.manager.get_next_planning()
-        if rgb_image is None:
-            return None, vis_annotated_img
-        else:
-            color_image_pil = PIL_Image.fromarray(rgb_image)
-            return color_image_pil, vis_annotated_img
+        return self.manager.get_robot_observation()

@@ -211,9 +211,12 @@ class Go2Manager():
     
     def get_robot_observation(self):
         rgb_image, _ = self.get_robot_arm_image_observation()
-        color_image_pil = PIL_Image.fromarray(rgb_image)
         nav_action, vis_annotated_img = self.get_next_planning()
-        return color_image_pil, vis_annotated_img
+        if rgb_image is None:
+            return None, vis_annotated_img
+        else:
+            color_image_pil = PIL_Image.fromarray(rgb_image)
+            return color_image_pil, vis_annotated_img
 
     def get_robot_arm_image_observation(self):
         '''observation = self.robot_arm.get_robot_arm_observation_local()

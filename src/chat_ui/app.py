@@ -39,7 +39,7 @@ def create_gradio():
                         {"avatar": os.path.abspath("assets/icon/qwen.png")},
                     ],
                     height= 500,
-                    )    
+                    )
                 user_input = mgr.MultimodalInput(sources=["microphone"])
 
             with gr.Column(scale = 1):
@@ -68,7 +68,8 @@ def create_gradio():
             inputs = user_processing_flag, 
             outputs = user_processing_flag
         )
-        ins_msg_bt.click(gradio_planning_txt_update, inputs=[], outputs=[nav_img_output, manipulate_img_output])
+        demo.load(gradio_planning_txt_update, inputs=[], outputs=[nav_img_output, manipulate_img_output])
+        #ins_msg_bt.click(gradio_planning_txt_update, inputs=[], outputs=[nav_img_output, manipulate_img_output])
                 
     return demo.queue()
 

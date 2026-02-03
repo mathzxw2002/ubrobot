@@ -92,6 +92,7 @@ class Go2Manager():
             self.global_nav_instruction_str = None
 
             print("start stopping lekiwi base...")
+            self.move(0, 0, 0)
             self.lekiwi_base.stop_base()
         else:
             self.global_nav_instruction_str = instruction

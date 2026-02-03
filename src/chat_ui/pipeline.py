@@ -8,9 +8,8 @@ import queue
 import time
 import gradio as gr
 import threading
-import gradio as gr
 
-from utils import get_timestamp_str, merge_videos, merge_audios, merge_frames_with_audio
+from utils import get_timestamp_str, merge_audios, merge_frames_with_audio
 from ubrobot.robots.tts import CosyVoice_API
 from ubrobot.robots.asr import Fun_ASR
 from ubrobot.robots.ubrobot import Go2Manager
@@ -122,24 +121,12 @@ class ChatPipeline:
             self.asr_cost = round(time.time()-self.start_time,2)
 
             print(f"[ASR] User input=========================================================: {user_input_txt}, cost: {self.asr_cost}s")
-
-            # LLM streaming out
-            #chat_mode = "单轮对话 (一次性回答问题)"
-            #chunk_size = 10 
-            #llm_response_txt, user_messages = self.vlm.infer_stream(user_input_txt, user_messages, self.vlm_queue, chunk_size, chat_mode)
-
-            instruction = user_input_txt
-            self.manager.set_user_instruction(instruction)
-
+            
             user_messages.append({'role': 'user', 'content': user_input})
             print(user_messages)
             
-            manipulate_img_output, _ = self.manager.get_robot_arm_image_observation()
-            user_input_txt = user_input_txt + ". Answer shortly."
-            llm_response_txt = self.vlm.reasoning_vlm_infer(manipulate_img_output, None, None, user_input_txt)
-
-            print("============================================llm_response_txt", llm_response_txt)
-
+            llm_response_txt = self.manager.agent_response(user_input_txt)
+            
             if llm_response_txt:
                 self.vlm_queue.put(llm_response_txt)
                 print(f"[LLM] Put into queue: {llm_response_txt}")
@@ -157,7 +144,6 @@ class ChatPipeline:
                 print("Stop pipeline......")
             else:
                 print("Finish pipeline......")
-
             return user_messages
 
         except Exception as e:

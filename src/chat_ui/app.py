@@ -10,7 +10,6 @@ import logging
 logging.basicConfig(level=logging.WARNING)
 
 from pipeline import ChatPipeline
-shutil.rmtree('./workspaces/results', ignore_errors= True)
 
 chat_pipeline = None
 
@@ -75,6 +74,8 @@ def create_gradio():
 
 if __name__ == "__main__":
     chat_pipeline = ChatPipeline()
+
+    shutil.rmtree('./workspaces/results', ignore_errors= True)
 
     app = FastAPI()
     gradio_app = create_gradio()

@@ -208,7 +208,7 @@ class RobotVLM:
 
         #instruction = "Identify the carrot and provide a 3D trajectory for the gripper (which is at the bottom right of the image) to grasp the carrot. Output the trajectory as a JSON list of waypoints with x, y, z, and gripper_width. Format: <answer>your JSON</answer>"
 
-        instruction = self.get_vla_rgbd_prompt("bottle")
+        #instruction = self.get_vla_rgbd_prompt("bottle")
         #instruction = "Locate the bounding box of the bottle. Return a json."
 
         # testing

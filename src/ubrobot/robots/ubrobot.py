@@ -237,6 +237,32 @@ class Go2Manager():
         print(response_restult_str_traj)
         #print(res)
 
+    # main entrance the user interaction
+    def agent_response(self, instruction):
+        # LLM streaming out
+        #chat_mode = "单轮对话 (一次性回答问题)"
+        #chunk_size = 10 
+        #llm_response_txt, user_messages = self.vlm.infer_stream(user_input_txt, user_messages, self.vlm_queue, chunk_size, chat_mode)
+
+        # parse user instruction, TODO solve this by llm intent understanding
+        llm_response_txt = ""
+        if instruction.startswith("nav:"):
+            instruction = instruction.removeprefix("nav:")
+            self.set_user_instruction(instruction)
+            llm_response_txt = "Yes, I am starting navgating..."
+        elif instruction.startswith("grasp:"):
+            manipulate_img_output, _ = self.get_robot_arm_image_observation()
+            user_input_txt = instruction + ". Answer shortly."
+            llm_response_txt = self.vlm.reasoning_vlm_infer(manipulate_img_output, None, None, user_input_txt)
+        else:
+            #TODO use all seen images
+            rgb_image, _, _ = self.get_observation() # this is from frontal camera, works for lekiwi base and unitree dog
+            user_input_txt = instruction + ". Answer shortly."
+            llm_response_txt = self.vlm.reasoning_vlm_infer(rgb_image, None, None, user_input_txt)
+
+        print("============================================llm_response_txt", llm_response_txt)
+        return llm_response_txt
+
 if __name__ == "__main__":
 
     print("======= Starting Go2Manager Core =======")

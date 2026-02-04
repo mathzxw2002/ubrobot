@@ -36,7 +36,7 @@ class Go2Manager():
         self.nav_annotated_img = None
 
         #self.camera_odom = CameraOdom("419522070679")  #348522070565
-        self.camera_odom = CameraOdom("348522070565") 
+        self.camera_odom = CameraOdom("348522070565")
 
         # 读写锁相关
         self.mpc_rw_lock = ReadWriteLock()
@@ -231,6 +231,17 @@ class Go2Manager():
             #TODO use all seen images
             rgb_image, _, _ = self.get_observation() # this is from frontal camera, works for lekiwi base and unitree dog
             user_input_txt = instruction + ". Answer shortly."
+            #instruction = "Navigate to the charging dock near the blue door"
+            prompt = f"""
+            You are an expert robot navigation planner. Analyze the provided image/video sequence. Identify all obstacles and the target goal. Use Chain-of-Thought reasoning to plan a safe, collision-free path that respects physical laws and social norms.
+
+            Output Requirements:
+            1. Reasoning: Describe the identified obstacles and the chosen navigation strategy.
+            2. Trajectory: Provide a planned trajectory as a list of 2D/3D waypoints in [x, y] or [x, y, z] format, relative to the robot's current position (0, 0, 0).
+            3. Format: Return the result strictly in JSON format.
+
+            Goal: {instruction}
+            """
             llm_response_txt = self.vlm.reasoning_vlm_infer(rgb_image, None, None, user_input_txt)
 
         print("============================================llm_response_txt", llm_response_txt)

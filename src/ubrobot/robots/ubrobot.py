@@ -240,7 +240,7 @@ class Go2Manager():
             2. Trajectory: Provide a planned trajectory as a list of 2D/3D waypoints in [x, y] or [x, y, z] format, relative to the robot's current position (0, 0, 0).
             3. Format: Return the result strictly in JSON format.
 
-            Goal: {instruction}
+            Goal: {user_input_txt}
             """
             llm_response_txt = self.vlm.reasoning_vlm_infer(rgb_image, None, None, user_input_txt)
 

@@ -242,7 +242,7 @@ class Go2Manager():
 
             Goal: {user_input_txt}
             """
-            llm_response_txt = self.vlm.reasoning_vlm_infer(rgb_image, None, None, user_input_txt)
+            llm_response_txt = self.vlm.reasoning_vlm_infer(rgb_image, None, None, prompt)
 
         print("============================================llm_response_txt", llm_response_txt)
         return llm_response_txt

@@ -181,11 +181,12 @@ class Go2Manager():
         #current_time = datetime.now().strftime("%Y-%m-%d %H:%M:%S.%f")[:-3]  # ms precision
         #print(f"[{current_time}] receive move command [vx, vy, vyaw] {vx:.2f}, {vy:.2f}, {vyaw:.2f}")
         print("moving action...", action)
-        self.lekiwi_base.send_action(action)
+        #self.lekiwi_base.send_action(action)
         #self.go2client.Move(vx, vy, vyaw) #vx, vy, vyaw
     
     def visualize_robot_observation(self):
-        rgb_image, _ = self.get_robot_arm_image_observation()
+        #rgb_image, _ = self.get_robot_arm_image_observation()
+        rgb_image = None
         if rgb_image is None:
             return None, self.nav_annotated_img
         else:

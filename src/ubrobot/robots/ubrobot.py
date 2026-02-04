@@ -233,14 +233,27 @@ class Go2Manager():
             user_input_txt = instruction + ". Answer shortly."
             #instruction = "Navigate to the charging dock near the blue door"
             prompt = f"""
-            You are an expert robot navigation planner. Analyze the provided image/video sequence. Identify all obstacles and the target goal. Use Chain-of-Thought reasoning to plan a safe, collision-free path that respects physical laws and social norms.
+            As a high-level robotic planner, perform the following structured reasoning and path generation:
 
-            Output Requirements:
-            1. Reasoning: Describe the identified obstacles and the chosen navigation strategy.
-            2. Trajectory: Provide a planned trajectory as a list of 2D/3D waypoints in [x, y] or [x, y, z] format, relative to the robot's current position (0, 0, 0).
-            3. Format: Return the result strictly in JSON format.
+            1. **Visual Grounding**: Identify the '{instruction}' and provide its 2D bounding box as [ymin, xmin, ymax, xmax] normalized from 0 to 1000.
+            2. **Obstacle Assessment**: Detect physical barriers or social constraints (e.g., people, delicate equipment) between the robot and the goal.
+            3. **Trajectory Planning**: Generate a sequence of 2D waypoints [x, y] in meters, relative to the robot's current position (0, 0), avoiding all detected obstacles.
 
-            Goal: {user_input_txt}
+            Output the result strictly in this JSON format:
+            {{
+            "grounding": {{
+                "target": "{instruction}",
+                "bbox_2d": [ymin, xmin, ymax, xmax]
+            }},
+            "reasoning": "Brief explanation of the path and obstacle avoidance strategy.",
+            "trajectory": [
+                [x1, y1],
+                [x2, y2],
+                ...
+            ]
+            }}
+
+            Goal: {instruction}
             """
             llm_response_txt = self.vlm.reasoning_vlm_infer(rgb_image, None, None, prompt)
 

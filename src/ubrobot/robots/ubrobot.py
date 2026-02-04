@@ -181,7 +181,7 @@ class Go2Manager():
         #current_time = datetime.now().strftime("%Y-%m-%d %H:%M:%S.%f")[:-3]  # ms precision
         #print(f"[{current_time}] receive move command [vx, vy, vyaw] {vx:.2f}, {vy:.2f}, {vyaw:.2f}")
         print("moving action...", action)
-        #self.lekiwi_base.send_action(action)
+        self.lekiwi_base.send_action(action)
         #self.go2client.Move(vx, vy, vyaw) #vx, vy, vyaw
     
     def visualize_robot_observation(self):
@@ -222,6 +222,29 @@ class Go2Manager():
         llm_response_txt = ""
         if instruction.startswith("nav:"):
             instruction = instruction.removeprefix("nav:").strip()
+
+            prompt = f"""
+            You are an autonomous navigation assistant using an egocentric RGB-D view. 
+            Your objective is to reach the '{instruction}'.
+
+            ### Task Steps:
+            1. **Grounding**: Locate the '{instruction}' in the current image. Provide its 2D bounding box as [ymin, xmin, ymax, xmax] (normalized 0-1000).
+            2. **Path Planning**: Identify the best path to the target, accounting for obstacles in the foreground.
+            3. **Action**: 
+            - If the target is not reached: Output the 2D image coordinates [x, y] for the next best waypoint to move toward the goal.
+            - If the target is directly in front and reachable: Output "stop".
+
+            ### Output Format (JSON):
+            {{
+            "target_grounding": [ymin, xmin, ymax, xmax],
+            "reasoning": "Description of obstacles and navigation choice.",
+            "next_waypoint": [x, y],
+            "status": "moving" or "stop"
+            }}
+
+            Goal: {instruction}
+            """
+
             self.nav_by_user_instruction(instruction)
             llm_response_txt = "Yes, Let's Start with Command: " + instruction
         elif instruction.startswith("grasp:"):

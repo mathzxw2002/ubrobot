@@ -5,7 +5,7 @@ import transformers
 
 import cv2
 
-from PIL import Image as PIT_Image
+from PIL import Image as PIL_Image
 
 SEPARATOR = "-" * 20
 
@@ -40,7 +40,7 @@ class CosmosReasonInfer:
         print("[Cosmos-Reason] Model loaded successfully ✅")
 
     @torch.no_grad()
-    def infer_once(self, img: PIT_Image, infer_instruct_str: str):
+    def infer_once(self, img: PIL_Image, infer_instruct_str: str):
         """
         image_path: path for the image
         infer_instruct_str: task instruction

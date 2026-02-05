@@ -18,9 +18,9 @@ import cv2
 
 from vlm_reason_infer import VLMReasonInfer
 
-from grasp_plan import RobotArmMotionPlan
+#from grasp_plan import RobotArmMotionPlan
 
-from ubrobot.robots.pointcloud import PointCloudPerception
+#from ubrobot.robots.pointcloud import PointCloudPerception
 
 app = Flask(__name__)
 output_dir = ''
@@ -96,9 +96,9 @@ def eval_robobrain2_5_traj():
     factor_depth = 1000.0
     
     # save color and depth image
-    image.save("./rgb.jpg", quality=95)
+    #image.save("./rgb.jpg", quality=95)
     #save_pil = Image.fromarray(depth, mode='I;16')
-    depth_pil.save("./depth.png", format='PNG')
+    #depth_pil.save("./depth.png", format='PNG')
 
     pc = PointCloudPerception()
     #pc.convertRGBD2PointClouds(image, depth, intrin, "./rgbd_point_cloud.ply")

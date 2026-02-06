@@ -75,6 +75,8 @@ class Go2Manager():
             t0 = time.time()
             rgb_image, depth, odom_infer = self.get_observation()
 
+            print("odom info.", odom_infer, self.vel)
+
             nav_action, self.nav_annotated_img = self.get_nav_action_by_usrinstruction(self.policy_init, self.http_idx, rgb_image, depth, self.global_nav_instruction_str, odom_infer)
             
             # TODO if get STOP action signal, stop, waiting for next instruction

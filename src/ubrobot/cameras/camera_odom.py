@@ -137,13 +137,17 @@ class CameraOdom():
         :param z: 深度值（米，已由self.depth_image提供）
         :return: (x, y, z) 世界坐标（米）
         """
+        rgb_img, depth, pose, vel = self.get_odom_observation()
+        
+        # get z (i.e. depth by depth info)
+        z = depth[int(v), int(u)]
+        
         x_cam, y_cam, z_cam = self.pixel_to_3d_camrea_frame(u, v, z)
         landmark_cam = np.array([x_cam, y_cam, z_cam, 1.0]) # 1.0 is for homogeneous math
 
         # transform point (x_cam, y_cam, z_cam) in camera frame to map frame
 
         # value order in odom pose: (x, y, z, r, p, yaw)
-        pose = self.tracker.get_pose_with_twist()
         trans_mat = self.get_transformation_matrix(pose[0], pose[1], pose[2], pose[3], pose[4], pose[5])
         
         landmark_in_map_coords = trans_mat @ landmark_cam

@@ -2,6 +2,8 @@
 #include <pybind11/stl.h>
 #include <pybind11/numpy.h>
 #include <rtabmap/core/Odometry.h>
+#include <rtabmap/core/Rtabmap.h>
+#include <rtabmap/core/Transform.h>
 #include <rtabmap/core/camera/CameraRealSense2.h>
 #include <rtabmap/core/SensorData.h>
 #include <rtabmap/core/Parameters.h>
@@ -49,7 +51,7 @@ public:
             throw std::runtime_error("Camera has been initiallzed!");
         }
 
-	bool camera_init_ok = camera_.init(calibFolder, cameraName);
+	    bool camera_init_ok = camera_.init(calibFolder, cameraName);
 
         if(!camera_init_ok) {
             std::string errMsg = "Failed to Initialize RealSense D435i: Connection Failed or SN is wrong.";
@@ -65,6 +67,9 @@ public:
         odom_ = rtabmap::Odometry::create(params);
 
         this->init_camera_intrinsics();
+
+        // 1. Initialize the SLAM engine        
+        rtabmap.init(); // You can pass parameters here
 
         last_pose_valid_ = false;
         twist_.linear_x = 0.0f;
@@ -100,10 +105,32 @@ public:
             return {};
         }
 
-        float x, y, z, r, p, yaw;
-        pose.getTranslationAndEulerAngles(x, y, z, r, p, yaw);
-        double curr_time = latest_data_.stamp();
+        // 2. Feed the data and the current odometry pose to RTAB-Map
+        // The second argument 'pose' is crucial for the graph
+        //if(rtabmap.process(latest_data_, pose)) {
+        rtabmap.process(latest_data_, pose);
+            
+        // 3. Get the map-to-odom correction
+        // This is the "jump" created by loop closures
+        rtabmap::Transform mapToOdom = rtabmap.getMapCorrection();
 
+        // 4. Calculate the SLAM-corrected geometric location
+        // Formula: Corrected Pose = MapCorrection * OdometryPose
+        rtabmap::Transform correctedPose = mapToOdom * pose;
+
+        // 5. Extract your corrected coordinates
+        //float x, y, z, r, p, yaw;
+        //correctedPose.getTranslationAndEulerAngles(x, y, z, r, p, yaw);
+
+        //}
+
+        float x, y, z, r, p, yaw;
+        correctedPose.getTranslationAndEulerAngles(x, y, z, r, p, yaw);
+        double curr_time = latest_data_.stamp();
+        
+        printf("Drifting Odom: x=%f, y=%f\n", pose.x(), pose.y());
+        printf("Corrected SLAM: x=%f, y=%f\n", x, y);
+        
         if(last_pose_valid_) {
             double dt = curr_time - last_time_;
             if(dt > 1e-3) { 
@@ -225,6 +252,7 @@ public:
 private:
     rtabmap::CameraRealSense2 camera_;
     rtabmap::Odometry* odom_ = nullptr;
+    rtabmap::Rtabmap rtabmap;
     rtabmap::SensorData latest_data_;
     CameraIntrinsics intrinsics_;
     std::shared_mutex data_rw_mutex_;

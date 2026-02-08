@@ -126,10 +126,12 @@ public:
 
         float x, y, z, r, p, yaw;
         correctedPose.getTranslationAndEulerAngles(x, y, z, r, p, yaw);
+
+
         double curr_time = latest_data_.stamp();
         
-        printf("Drifting Odom: x=%f, y=%f\n", pose.x(), pose.y());
-        printf("Corrected SLAM: x=%f, y=%f\n", x, y);
+        printf("===============================Drifting Odom: x=%f, y=%f\n", pose.x(), pose.y());
+        printf("==================================Corrected SLAM: x=%f, y=%f\n", x, y);
         
         if(last_pose_valid_) {
             double dt = curr_time - last_time_;

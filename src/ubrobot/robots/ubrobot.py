@@ -80,23 +80,8 @@ class Go2Manager():
             #landmark_in_map_coords = self.camera_odom.pixel_to_3d_map_frame(u, v, z)
             #print(landmark_in_map_coords)
 
-            # 1. Map to Camera 3D
-            # Use np.linalg.inv to get the inverse transformation matrix
-            m_corrected_pose = odom_infer
-            inv_corrected_pose = np.linalg.inv(m_corrected_pose)
-            worldX = landmark_in_map_coords[0]
-            worldY = landmark_in_map_coords[1]
-            worldZ = landmark_in_map_coords[2]
-            p_map = np.array([worldX, worldY, worldZ, 1.0])
-            p_camera = inv_corrected_pose @ p_map
-
-            xc, yc, zc = p_camera[:3]
-
-            # 2. Camera 3D to 2D Pixel
-            if zc > 0:
-                u = (xc * fx / zc) + cx
-                v = (yc * fy / zc) + cy
-                print(f"u: {u}, v: {v}, z: {zc}")
+            # convert point in pythical world to image coordinate
+            #self.camera_odom.point_map_frame2pixel(self, x_map, y_map, z_map)
 
             nav_action, self.nav_annotated_img = self.get_nav_action_by_usrinstruction(self.policy_init, self.http_idx, rgb_image, depth, self.global_nav_instruction_str, odom_infer)
             

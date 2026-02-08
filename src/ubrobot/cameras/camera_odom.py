@@ -9,6 +9,7 @@ import rs_odom_module
 import copy
 from collections import deque
 import open3d as o3d
+import math
 
 
 class CameraOdom():
@@ -32,6 +33,8 @@ class CameraOdom():
         #self.depth_image = None
         #self.odom = None
         #self.vel = None
+        self.intrinsics = None
+        self.intrinsics = self.tracker.get_camera_intrinsics()
 
     def get_odom_observation(self):
         # get the current pose on-demand
@@ -78,6 +81,101 @@ class CameraOdom():
         odom_infer = odom'''
         return rgb_img, depth, odom, vel
     
+    def get_transformation_matrix(self, x, y, z, roll, pitch, yaw):
+        """
+        Creates a 4x4 homogeneous transformation matrix from Euler angles (RTAB-Map style).
+        Note: RTAB-Map uses the order Roll-Pitch-Yaw (XYZ intrinsic).
+        """
+        # Calculate Rotation Matrix
+        rx = np.array([[1, 0, 0],
+                    [0, math.cos(roll), -math.sin(roll)],
+                    [0, math.sin(roll), math.cos(roll)]])
+        
+        ry = np.array([[math.cos(pitch), 0, math.sin(pitch)],
+                    [0, 1, 0],
+                    [-math.sin(pitch), 0, math.cos(pitch)]])
+        
+        rz = np.array([[math.cos(yaw), -math.sin(yaw), 0],
+                    [math.sin(yaw), math.cos(yaw), 0],
+                    [0, 0, 1]])
+
+        # R = Rz * Ry * Rx
+        R = rz @ ry @ rx
+
+        # Construct 4x4 Matrix
+        T = np.eye(4)
+        T[0:3, 0:3] = R
+        T[0:3, 3] = [x, y, z]
+        return T
+    
+    def pixel_to_3d_camrea_frame(self, u, v, z):
+        """
+        2D像素坐标转3D世界坐标（适配你的depth_image已为米单位）
+        :param u: 像素横坐标（列）
+        :param v: 像素纵坐标（行）
+        :param z: 深度值（米，已由self.depth_image提供）
+        :return: (x, y, z) 世界坐标（米）
+        """
+        if self.intrinsics is None:
+            print("相机内参未初始化，无法转换3D坐标")
+            return 0, 0, 0
+        else:
+            fx = self.intrinsics["fx"]
+            fy = self.intrinsics["fy"]
+            ppx = self.intrinsics["cx"]
+            ppy = self.intrinsics["cy"]
+            # 针孔相机模型逆运算
+            x = (u - ppx) * z / fx
+            y = (v - ppy) * z / fy
+            return x, y, z
+
+    def pixel_to_3d_map_frame(self, u, v, z):
+        """
+        2D像素坐标转3D世界坐标（适配你的depth_image已为米单位）
+        :param u: 像素横坐标（列）
+        :param v: 像素纵坐标（行）
+        :param z: 深度值（米，已由self.depth_image提供）
+        :return: (x, y, z) 世界坐标（米）
+        """
+        x_cam, y_cam, z_cam = self.pixel_to_3d_camrea_frame(u, v, z)
+        landmark_cam = np.array([x_cam, y_cam, z_cam, 1.0]) # 1.0 is for homogeneous math
+
+        # transform point (x_cam, y_cam, z_cam) in camera frame to map frame
+
+        # value order in odom pose: (x, y, z, r, p, yaw)
+        pose = self.tracker.get_pose_with_twist()
+        trans_mat = self.get_transformation_matrix(pose[0], pose[1], pose[2], pose[3], pose[4], pose[5])
+        
+        landmark_in_map_coords = trans_mat @ landmark_cam
+        final_x = landmark_in_map_coords[0]
+        final_y = landmark_in_map_coords[1]
+        final_z = landmark_in_map_coords[2]
+        print(f"Landmark in Map Frame: X={final_x:.3f}, Y={final_y:.3f}, Z={final_z:.3f}")
+        return final_x, final_y, final_z
+    
+    def point_map_frame2pixel(self, x_map, y_map, z_map):
+        # 1. Map to Camera 3D
+        # Use np.linalg.inv to get the inverse transformation matrix
+        m_corrected_pose = self.tracker.get_pose_with_twist()
+        inv_corrected_pose = np.linalg.inv(m_corrected_pose)
+        worldX = x_map
+        worldY = y_map
+        worldZ = z_map
+        p_map = np.array([worldX, worldY, worldZ, 1.0])
+        p_camera = inv_corrected_pose @ p_map
+
+        xc, yc, zc = p_camera[:3]
+
+        # 2. Camera 3D to 2D Pixel
+        fx = self.intrinsics["fx"]
+        fy = self.intrinsics["fy"]
+        cx = self.intrinsics["cx"]
+        cy = self.intrinsics["cy"]
+        if zc > 0:
+            u = (xc * fx / zc) + cx
+            v = (yc * fy / zc) + cy
+            print(f"u: {u}, v: {v}, z: {zc}")
+
     # get rgbd image and convert to poing cloud
     def convertRGBD2PointClouds(self, rgb_image, depth_image, cam_intrin, save_ply_path):
         print(f"input data type, rgb {rgb_image.dtype}, depth {depth_image.dtype}")
@@ -116,4 +214,3 @@ class CameraOdom():
         
 
 
-    

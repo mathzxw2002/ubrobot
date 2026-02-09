@@ -146,18 +146,19 @@ class CameraOdom():
         z = depth[int(v), int(u)]
 
         print(u, v, z)
-
-        #print(pose)
         
         x_cam, y_cam, z_cam = self.pixel_to_3d_camrea_frame(u, v, z)
-
+        
         print("pixel_to_3d_camrea_frame...", x_cam, y_cam, z_cam)
         landmark_cam = np.array([x_cam, y_cam, z_cam, 1.0]) # 1.0 is for homogeneous math
 
         # transform point (x_cam, y_cam, z_cam) in camera frame to map frame
-
+        print(pose)
         # value order in odom pose: (x, y, z, r, p, yaw)
         trans_mat = self.get_transformation_matrix(pose[0], pose[1], pose[2], pose[3], pose[4], pose[5])
+
+        print("=======================")
+        print(trans_mat)
         
         landmark_in_map_coords = trans_mat @ landmark_cam
         final_x = landmark_in_map_coords[0]

@@ -66,7 +66,7 @@ class Go2Manager():
         self.lekiwi_base.connect()
     
     def get_observation(self):
-        rgb_image, depth_image, self.odom, self.vel = self.camera_odom.get_odom_observation()
+        rgb_image, depth_image, self.odom, self.vel, _ = self.camera_odom.get_odom_observation()
         return rgb_image, depth_image, self.odom
 
     def vln_planning_thread(self):
@@ -77,8 +77,20 @@ class Go2Manager():
 
             print("odom info.", odom_infer, self.vel)
 
-            #landmark_in_map_coords = self.camera_odom.pixel_to_3d_map_frame(u, v)
-            #print(landmark_in_map_coords)
+            u = 415
+            v = 235
+            landmark_in_map_coords = self.camera_odom.pixel_to_3d_map_frame(u, v)
+            print(landmark_in_map_coords)
+
+            u = 495
+            v = 412
+            landmark_in_map_coords = self.camera_odom.pixel_to_3d_map_frame(u, v)
+            print(landmark_in_map_coords)
+
+            u = 382
+            v = 388
+            landmark_in_map_coords = self.camera_odom.pixel_to_3d_map_frame(u, v)
+            print(landmark_in_map_coords)
 
             # convert point in pythical world to image coordinate
             #self.camera_odom.point_map_frame2pixel(self, x_map, y_map, z_map)
@@ -196,10 +208,26 @@ class Go2Manager():
         #rgb_image, _ = self.get_robot_arm_image_observation()
         rgb_image = None
         if rgb_image is None:
+            #cv2.imwrite("./tmp.jpg", self.nav_annotated_img)
+
+            u = 415
+            v = 235
+            landmark_in_map_coords = self.camera_odom.pixel_to_3d_map_frame(u, v)
+            print(landmark_in_map_coords)
+
+            '''u = 495
+            v = 412
+            landmark_in_map_coords = self.camera_odom.pixel_to_3d_map_frame(u, v)
+            print(landmark_in_map_coords)
+
+            u = 382
+            v = 388
+            landmark_in_map_coords = self.camera_odom.pixel_to_3d_map_frame(u, v)
+            print(landmark_in_map_coords)'''
+
             return None, self.nav_annotated_img
         else:
             color_image_pil = PIL_Image.fromarray(rgb_image)
-            cv2.imwrite("./tmp.jpg", rgb_image)
             return color_image_pil, self.nav_annotated_img
 
     def get_robot_arm_image_observation(self):

@@ -80,7 +80,7 @@ class CameraOdom():
         #        odom_infer = copy.deepcopy(odom[1])
         #self.odom_rw_lock.release_read()
         odom_infer = odom'''
-        return rgb_img, depth, odom, vel
+        return rgb_img, depth, odom, vel, pose
     
     def get_transformation_matrix(self, x, y, z, roll, pitch, yaw):
         """
@@ -125,6 +125,8 @@ class CameraOdom():
             fy = self.intrinsics["fy"]
             ppx = self.intrinsics["cx"]
             ppy = self.intrinsics["cy"]
+
+            print("camera intrinsics...", fx, fy, ppx, ppy)
             # 针孔相机模型逆运算
             x = (u - ppx) * z / fx
             y = (v - ppy) * z / fy
@@ -138,12 +140,18 @@ class CameraOdom():
         :param z: 深度值（米，已由self.depth_image提供）
         :return: (x, y, z) 世界坐标（米）
         """
-        rgb_img, depth, pose, vel = self.get_odom_observation()
+        rgb_img, depth, odom, vel, pose = self.get_odom_observation()
         
         # get z (i.e. depth by depth info)
         z = depth[int(v), int(u)]
+
+        print(u, v, z)
+
+        #print(pose)
         
         x_cam, y_cam, z_cam = self.pixel_to_3d_camrea_frame(u, v, z)
+
+        print("pixel_to_3d_camrea_frame...", x_cam, y_cam, z_cam)
         landmark_cam = np.array([x_cam, y_cam, z_cam, 1.0]) # 1.0 is for homogeneous math
 
         # transform point (x_cam, y_cam, z_cam) in camera frame to map frame

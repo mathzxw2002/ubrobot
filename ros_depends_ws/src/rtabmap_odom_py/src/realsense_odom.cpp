@@ -19,10 +19,13 @@
 #include <chrono>
 #include <opencv2/opencv.hpp>
 
+#include <thread>
+#include <chrono>
+
 namespace py = pybind11;
 
 // 调试模式：0 关闭日志，1 开启
-#define DEBUG_MODE 0
+#define DEBUG_MODE 1
 
 struct CameraIntrinsics {
     float fx;
@@ -42,7 +45,6 @@ struct OdomTwist {
 class RealsenseOdom {
 public:
     RealsenseOdom(const std::string& cameraSerial = "") {
-	
         std::string calibFolder = ".";
         std::string cameraName = cameraSerial.empty() ? "419522070679" : cameraSerial;
 
@@ -51,7 +53,7 @@ public:
             throw std::runtime_error("Camera has been initiallzed!");
         }
 
-	    bool camera_init_ok = camera_.init(calibFolder, cameraName);
+	bool camera_init_ok = camera_.init(calibFolder, cameraName);
 
         if(!camera_init_ok) {
             std::string errMsg = "Failed to Initialize RealSense D435i: Connection Failed or SN is wrong.";
@@ -66,10 +68,26 @@ public:
         
         odom_ = rtabmap::Odometry::create(params);
 
-        this->init_camera_intrinsics();
+        //this->init_camera_intrinsics();
 
         // 1. Initialize the SLAM engine        
         rtabmap.init(); // You can pass parameters here
+	
+	const auto start_time = std::chrono::steady_clock::now();
+	while(true) {
+		this->capture_latest_data();
+		if(this->init_camera_intrinsics()) {
+			break;
+		}
+		int timeout_ms = 5000;
+		const auto elapsed_time = std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::steady_clock::now() - start_time).count();
+		if(elapsed_time > timeout_ms) {
+			std::cerr << "[ERROR] Timeout (" << timeout_ms << "ms) waiting for valid camera data!" << std::endl;
+			break;
+        	}
+		std::this_thread::sleep_for(std::chrono::milliseconds(100));
+	}
+	//this->init_camera_intrinsics();
 
         last_pose_valid_ = false;
         twist_.linear_x = 0.0f;
@@ -127,11 +145,10 @@ public:
         float x, y, z, r, p, yaw;
         correctedPose.getTranslationAndEulerAngles(x, y, z, r, p, yaw);
 
-
         double curr_time = latest_data_.stamp();
         
-        printf("===============================Drifting Odom: x=%f, y=%f\n", pose.x(), pose.y());
-        printf("==================================Corrected SLAM: x=%f, y=%f\n", x, y);
+        //printf("===============================Drifting Odom: x=%f, y=%f\n", pose.x(), pose.y());
+        //printf("==================================Corrected SLAM: x=%f, y=%f\n", x, y);
         
         if(last_pose_valid_) {
             double dt = curr_time - last_time_;
@@ -200,9 +217,13 @@ public:
 
         // 转换为float32（米）
         cv::Mat depth_float;
+	//std::cout<<"depth_mat.type():" << depth_mat.type()<<std::endl;
         if(depth_mat.type() == CV_16UC1) {
-            depth_mat.convertTo(depth_float, CV_32FC1, intrinsics_.scale);
+		//std::cout<<"scale factor..." << intrinsics_.scale << std::endl;
+            depth_mat.convertTo(depth_float, CV_32FC1, 1.0/1000.0);
         } else if(depth_mat.type() == CV_32FC1) {
+
+		//std::cout<<"type cv32fc1"<<std::endl;
             depth_float = depth_mat.clone();
         } else {
             return py::array_t<float>();
@@ -276,10 +297,12 @@ private:
         }
     }
 
-    void init_camera_intrinsics() {
+    bool init_camera_intrinsics() {
 	if(!latest_data_.isValid()) {
-            if(DEBUG_MODE) std::cout << "[DEBUG] Waiting for valid sensor data..." << std::endl;
-            return; // Exit silently; don't throw yet, as first frames might be empty
+            if(DEBUG_MODE) {
+	    	std::cout << "[DEBUG] Waiting for valid sensor data..." << std::endl;
+	    }
+            return false; // Exit silently; don't throw yet, as first frames might be empty
         }
 
         const std::vector<rtabmap::CameraModel>& camera_models = latest_data_.cameraModels();
@@ -305,10 +328,13 @@ private:
         intrinsics_.width = model.imageWidth();
         intrinsics_.height = model.imageHeight();
         intrinsics_.scale = 0.001f; // 16位深度值（mm）转米
+				    //
 
+	std::cout<<intrinsics_.fx <<", " << intrinsics_.fy <<", " << intrinsics_.cx <<", " << intrinsics_.cy <<", " << intrinsics_.width <<", " << intrinsics_.height <<", " << intrinsics_.scale<<std::endl;
         if(DEBUG_MODE) {
             std::cout << "[DEBUG] Scale factor: " << intrinsics_.scale << std::endl;
         }
+	return true;
     }
 };
 

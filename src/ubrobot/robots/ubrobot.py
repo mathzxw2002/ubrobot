@@ -277,7 +277,7 @@ class Go2Manager():
             rgb_image, _, _ = self.get_observation() # this is from frontal camera, works for lekiwi base and unitree dog
             user_input_txt = instruction + ". Answer shortly."
             #instruction = "Navigate to the charging dock near the blue door"
-            prompt = f"""
+            '''prompt = f"""
             As a high-level robotic planner, perform the following structured reasoning and path generation:
 
             1. **Visual Grounding**: Identify the '{instruction}' and provide its 2D bounding box as [ymin, xmin, ymax, xmax] normalized from 0 to 1000.
@@ -299,8 +299,8 @@ class Go2Manager():
             }}
 
             Goal: {instruction}
-            """
-            llm_response_txt = self.vlm.reasoning_vlm_infer(rgb_image, None, None, prompt)
+            """ '''
+            llm_response_txt = self.vlm.reasoning_vlm_infer(rgb_image, None, None, user_input_txt)
 
         print("============================================llm_response_txt", llm_response_txt)
         return llm_response_txt

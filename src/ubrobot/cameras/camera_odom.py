@@ -56,7 +56,8 @@ class CameraOdom():
             depth_image[np.isinf(depth_image)] = 0
 
         # WARNING: this is a specific operation for InternNav, which decode correspondinly by InternNav in server side. Also, the depth info is not used in current InternNav Nav algorithm.
-        depth = (np.clip(depth_image * 10000.0, 0, 65535)).astype(np.uint16)
+        #depth = (np.clip(depth_image * 10000.0, 0, 65535)).astype(np.uint16)
+        depth = depth_image
 
         odom = None
         vel = None
@@ -129,7 +130,7 @@ class CameraOdom():
             y = (v - ppy) * z / fy
             return x, y, z
 
-    def pixel_to_3d_map_frame(self, u, v, z):
+    def pixel_to_3d_map_frame(self, u, v):
         """
         2D像素坐标转3D世界坐标（适配你的depth_image已为米单位）
         :param u: 像素横坐标（列）

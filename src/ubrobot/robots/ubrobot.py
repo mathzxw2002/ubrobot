@@ -77,7 +77,7 @@ class Go2Manager():
 
             print("odom info.", odom_infer, self.vel)
 
-            #landmark_in_map_coords = self.camera_odom.pixel_to_3d_map_frame(u, v, z)
+            #landmark_in_map_coords = self.camera_odom.pixel_to_3d_map_frame(u, v)
             #print(landmark_in_map_coords)
 
             # convert point in pythical world to image coordinate

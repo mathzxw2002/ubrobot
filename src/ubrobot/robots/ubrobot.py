@@ -2,6 +2,7 @@ import time
 import copy
 import numpy as np
 import datetime
+import re
 
 from ubrobot.robots.unitree_go2_robot import UnitreeGo2Robot
 from PIL import Image as PIL_Image
@@ -237,6 +238,20 @@ class Go2Manager():
             return None, None'''
         return color_image, depth_image
     
+    def extract_coords(self, text):
+        # Regex breakdown:
+        # \[     -> matches literal opening bracket
+        # (\d+)  -> captures first group of one or more digits (u)
+        # ,\s*   -> matches a comma followed by any optional whitespace
+        # (\d+)  -> captures second group of one or more digits (v)
+        # \]     -> matches literal closing bracket
+        match = re.search(r'\[(\d+),\s*(\d+)\]', text)
+        
+        if match:
+            # Convert captured strings to integers and return as (u, v) tuple
+            return int(match.group(1)), int(match.group(2))
+        return None
+    
     # main entrance the user interaction
     def agent_response(self, instruction):
         # parse user instruction, TODO solve this by llm intent understanding
@@ -305,8 +320,16 @@ class Go2Manager():
             prompt = f"""Answer my question '{instruction}' about the image first, then detect the objects I mentioned, output their center pixel coordinates (x, y) in strict JSON format (key: object name, value: [x,y]/null/array of [x,y]). Ensure coordinates are integers and JSON has no format errors."""
             print("input prompt...", prompt)
             llm_response_txt = self.vlm.reasoning_vlm_infer(rgb_image, None, None, prompt)
-            
 
+            uv_2d_coords = self.extract_coords(llm_response_txt)
+
+            if uv_2d_coords is not None:
+                height, width = rgb_image.shape[:2]
+                u = int(int(uv_2d_coords[0]) * width / 1000.0)
+                v = int(int(uv_2d_coords[1]) * height / 1000.0)
+                final_x, final_y, final_z = self.camera_odom.pixel_to_3d_map_frame(u, v)
+                print(final_x, final_y, final_z)
+                
         print("============================================llm_response_txt", llm_response_txt)
         return llm_response_txt
 

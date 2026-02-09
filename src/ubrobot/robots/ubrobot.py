@@ -199,6 +199,7 @@ class Go2Manager():
             return None, self.nav_annotated_img
         else:
             color_image_pil = PIL_Image.fromarray(rgb_image)
+            cv2.imwrite("./tmp.jpg", rgb_image)
             return color_image_pil, self.nav_annotated_img
 
     def get_robot_arm_image_observation(self):

@@ -75,7 +75,7 @@ class Go2Manager():
             t0 = time.time()
             rgb_image, depth, odom_infer = self.get_observation()
 
-            print("odom info.", odom_infer, self.vel)
+            '''print("odom info.", odom_infer, self.vel)
 
             u = 415
             v = 235
@@ -90,7 +90,7 @@ class Go2Manager():
             u = 382
             v = 388
             landmark_in_map_coords = self.camera_odom.pixel_to_3d_map_frame(u, v)
-            print(landmark_in_map_coords)
+            print(landmark_in_map_coords)'''
 
             # convert point in pythical world to image coordinate
             #self.camera_odom.point_map_frame2pixel(self, x_map, y_map, z_map)
@@ -209,22 +209,6 @@ class Go2Manager():
         rgb_image = None
         if rgb_image is None:
             #cv2.imwrite("./tmp.jpg", self.nav_annotated_img)
-
-            u = 415
-            v = 235
-            landmark_in_map_coords = self.camera_odom.pixel_to_3d_map_frame(u, v)
-            print(landmark_in_map_coords)
-
-            '''u = 495
-            v = 412
-            landmark_in_map_coords = self.camera_odom.pixel_to_3d_map_frame(u, v)
-            print(landmark_in_map_coords)
-
-            u = 382
-            v = 388
-            landmark_in_map_coords = self.camera_odom.pixel_to_3d_map_frame(u, v)
-            print(landmark_in_map_coords)'''
-
             return None, self.nav_annotated_img
         else:
             color_image_pil = PIL_Image.fromarray(rgb_image)

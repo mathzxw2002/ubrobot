@@ -303,7 +303,9 @@ class Go2Manager():
 
             # 直接定义多行字符串变量，三引号可包含换行/单双引号，无语法冲突
             prompt = f"""Answer my question '{instruction}' about the image first, then detect the objects I mentioned, output their center pixel coordinates (x, y) in strict JSON format (key: object name, value: [x,y]/null/array of [x,y]). Ensure coordinates are integers and JSON has no format errors."""
+            print("input prompt...", prompt)
             llm_response_txt = self.vlm.reasoning_vlm_infer(rgb_image, None, None, prompt)
+            
 
         print("============================================llm_response_txt", llm_response_txt)
         return llm_response_txt

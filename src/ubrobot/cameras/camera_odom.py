@@ -82,11 +82,17 @@ class CameraOdom():
         odom_infer = odom'''
         return rgb_img, depth, odom, vel, pose
     
-    def get_transformation_matrix(self, x, y, z, roll, pitch, yaw):
+    def get_transformation_matrix(self, pose):
         """
         Creates a 4x4 homogeneous transformation matrix from Euler angles (RTAB-Map style).
         Note: RTAB-Map uses the order Roll-Pitch-Yaw (XYZ intrinsic).
         """
+        x = pose[0]
+        y = pose[1]
+        z = pose[2]
+        roll = pose[3]
+        pitch = pose[4]
+        yaw = pose[5]
         # Calculate Rotation Matrix
         rx = np.array([[1, 0, 0],
                     [0, math.cos(roll), -math.sin(roll)],
@@ -144,21 +150,18 @@ class CameraOdom():
         
         # get z (i.e. depth by depth info)
         z = depth[int(v), int(u)]
-
-        print(u, v, z)
-        
         x_cam, y_cam, z_cam = self.pixel_to_3d_camrea_frame(u, v, z)
         
-        print("pixel_to_3d_camrea_frame...", x_cam, y_cam, z_cam)
+        print("pixel_to_3d_camrea_frame...", u, v, z, x_cam, y_cam, z_cam)
         landmark_cam = np.array([x_cam, y_cam, z_cam, 1.0]) # 1.0 is for homogeneous math
 
         # transform point (x_cam, y_cam, z_cam) in camera frame to map frame
-        print(pose)
+        #print(pose)
         # value order in odom pose: (x, y, z, r, p, yaw)
-        trans_mat = self.get_transformation_matrix(pose[0], pose[1], pose[2], pose[3], pose[4], pose[5])
+        trans_mat = self.get_transformation_matrix(pose)
 
-        print("=======================")
-        print(trans_mat)
+        #print("=======================")
+        #print(trans_mat)
         
         landmark_in_map_coords = trans_mat @ landmark_cam
         final_x = landmark_in_map_coords[0]

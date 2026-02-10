@@ -72,6 +72,12 @@ class Go2Manager():
 
     def vln_planning_thread(self):
         FPS = 30
+        # init logoplanner system1 server
+        intrinsic_mat = self.camera_odom.get_camera_intrinsics_matrix()
+        if not self.nav._init_server(intrinsic_mat):
+            print("fail to initialize vln planning server...")
+            return
+        
         while True:
             t0 = time.time()
             rgb_image, depth, odom_infer = self.get_observation()
@@ -96,8 +102,12 @@ class Go2Manager():
             # convert point in pythical world to image coordinate
             #self.camera_odom.point_map_frame2pixel(self, x_map, y_map, z_map)
 
-            nav_action, self.nav_annotated_img = self.get_nav_action_by_usrinstruction(self.policy_init, self.http_idx, rgb_image, depth, self.global_nav_instruction_str, odom_infer)
+            #nav_action, self.nav_annotated_img = self.get_nav_action_by_usrinstruction(self.policy_init, self.http_idx, rgb_image, depth, self.global_nav_instruction_str, odom_infer)
             
+            
+
+            nav_action, self.nav_annotated_img = self.get_nav_action_by_usrinstruction_system1(self.policy_init, self.http_idx, rgb_image, depth, self.global_nav_instruction_str, odom_infer)
+
             # TODO if get STOP action signal, stop, waiting for next instruction
             if nav_action is not None:
                 if nav_action.stop_cmd:
@@ -145,6 +155,24 @@ class Go2Manager():
             else:
                 start = time.time()
                 nav_action, vis_annotated_img = self.nav._dual_sys_eval(policy_init, http_idx, rgb_image, depth, instruction, odom)
+                print(f"idx: {http_idx} step in get_nav_action_by_usrinstruction() cost {time.time() - start}")
+        else:
+            nav_action = None
+            vis_annotated_img = rgb_image
+            #print(f"odom: {odom}, rgb_image: {rgb_image}, instruction:{instruction}")
+        return nav_action, vis_annotated_img
+    
+    def get_nav_action_by_usrinstruction_system1(self, policy_init, http_idx, rgb_image, depth, instruction, odom):
+        nav_action = None
+        vis_annotated_img = None
+        if odom is not None and rgb_image is not None and depth is not None and instruction is not None:
+            if instruction == "stop"  or instruction == "STOP": # TODO implement this by LLM
+                nav_action = RobotAction()
+                nav_action.stop_cmd = True
+                vis_annotated_img = rgb_image
+            else:
+                start = time.time()
+                nav_action, vis_annotated_img = self.nav.system1_logoplanner_eval(policy_init, http_idx, rgb_image, depth, instruction, odom)
                 print(f"idx: {http_idx} step in get_nav_action_by_usrinstruction() cost {time.time() - start}")
         else:
             nav_action = None
@@ -329,7 +357,7 @@ class Go2Manager():
                 v = int(int(uv_2d_coords[1]) * height / 1000.0)
                 final_x, final_y, final_z = self.camera_odom.pixel_to_3d_map_frame(u, v)
                 print(final_x, final_y, final_z)
-                
+
         print("============================================llm_response_txt", llm_response_txt)
         return llm_response_txt
 

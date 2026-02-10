@@ -36,6 +36,20 @@ class CameraOdom():
         self.intrinsics = None
         self.intrinsics = self.tracker.get_camera_intrinsics()
 
+    def get_camera_intrinsics_matrix(self):
+
+        fx = self.intrinsics["fx"]
+        fy = self.intrinsics["fy"]
+        ppx = self.intrinsics["cx"]
+        ppy = self.intrinsics["cy"]
+
+        intrinsic_matrix = np.array([
+            [fx, 0, ppx],
+            [0, fy, ppy],
+            [0, 0, 1]
+        ])
+        return intrinsic_matrix
+
     def get_odom_observation(self):
         # get the current pose on-demand
         pose = self.tracker.get_pose_with_twist()

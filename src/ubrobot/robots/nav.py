@@ -267,7 +267,87 @@ class RobotNav:
         vis_annotated_img = self._annotate_image(http_idx, image_bytes, discrete_act, traj_path, pixel_goal, odom)
 
         return nav_action, vis_annotated_img
+    
+    def _init_server(self, intrinsic_matrix, url='http://192.168.18.230:5801/navigator_reset'):
+        """Send initial reset request to server"""
+        print(f"Initializing server: {url}")
+        batch_size = 1
+        stop_threshold = -1.0
+        reset_data = {
+            "intrinsic": intrinsic_matrix.tolist(),
+            "stop_threshold": stop_threshold,
+            "batch_size": batch_size
+        }
         
+        try:
+            response = requests.post(
+                f"{url}",
+                json=reset_data,
+                timeout=50
+            )
+            response.raise_for_status()
+            print(f"Server initialized: {response.json()}")
+            return True
+        except Exception as e:
+            print(f"Server initialization failed: {e}")
+            return False
+    
+    def system1_logoplanner_eval(self, policy_init, http_idx, rgb_image, depth, instruction, odom, url='http://192.168.18.230:5801/pointgoal_step'):
+        
+        rgb_image_pil = PIL_Image.fromarray(rgb_image)
+        depth_pil = PIL_Image.fromarray(depth)
+        
+        image_bytes = io.BytesIO()
+        rgb_image_pil.save(image_bytes, format='JPEG')
+        image_bytes.seek(0)
+
+        depth_bytes = io.BytesIO()
+        depth_pil.save(depth_bytes, format='PNG')
+        depth_bytes.seek(0)
+
+        #global frame_data
+        data = {"reset": policy_init, "idx": http_idx, "ins": instruction}
+        json_data = json.dumps(data)
+
+        goal_x = 2.0 # meters
+        goal_y = 0.5 # meters
+        goal_data = {
+            "goal_x": [goal_x],
+            "goal_y": [goal_y]
+        }
+
+        data = {'goal_data': json.dumps(goal_data)}
+        
+        files = {
+            'image': ('rgb_image', image_bytes, 'image/jpeg'),
+            'depth': ('depth_image', depth_bytes, 'image/png'),
+        }
+
+        try:
+            response = requests.post(
+                url,
+                files=files,
+                data={'json': json_data},
+                timeout=100
+            )
+            response.raise_for_status()
+            #print(f"dual_sys_eval response {response.text}")
+            result = response.json()
+        except requests.exceptions.RequestException as e:
+            print(f"dual_sys_eval request failed: {e}")
+            return {}
+        
+        # get result 
+        #result.get('cmd_list', [])
+
+        nav_result = json.loads(response.text)
+        nav_action = self.convert_policy_res_to_action(nav_result, odom)
+
+        #pixel_goal = nav_result.get('pixel_goal', None)
+        traj_path = nav_result.get('trajectory', None)
+        #discrete_act = nav_result.get('discrete_action', None)
+        vis_annotated_img = self._annotate_image(http_idx, image_bytes, None, traj_path, None, odom)
+        return nav_action, vis_annotated_img
 
 if __name__ == "__main__":
     start_time = time.time()

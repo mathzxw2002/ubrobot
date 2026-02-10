@@ -172,6 +172,9 @@ class Go2Manager():
                 vis_annotated_img = rgb_image
             else:
                 start = time.time()
+
+                goal_x, goal_y
+                instruction
                 nav_action, vis_annotated_img = self.nav.system1_logoplanner_eval(policy_init, http_idx, rgb_image, depth, instruction, odom)
                 print(f"idx: {http_idx} step in get_nav_action_by_usrinstruction() cost {time.time() - start}")
         else:

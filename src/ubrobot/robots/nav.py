@@ -6,6 +6,9 @@ from PIL import Image as PIL_Image
 import requests
 import io
 
+import re
+import argparse
+
 from collections import OrderedDict
 
 import math
@@ -291,6 +294,42 @@ class RobotNav:
         except Exception as e:
             print(f"Server initialization failed: {e}")
             return False
+        
+    def parse_goal_string(self, goal_str: str) -> dict:
+        """
+        解析包含goal_x和goal_y的字符串，提取数值
+        
+        Args:
+            goal_str: 输入字符串，格式如 "goal_x:0.5, goal_y:2.0"
+        
+        Returns:
+            字典，包含'goal_x'和'goal_y'的浮点数数值
+            示例: {'goal_x': 0.5, 'goal_y': 2.0}
+        
+        Raises:
+            ValueError: 字符串格式错误或缺少关键参数
+        """
+        # 正则表达式：匹配goal_x/goal_y后接数字（支持正负、小数）
+        # 兼容格式：goal_x:0.5, goal_y:2.0 | goal_x: 0.5 , goal_y: 2.0 | goal_x=0.5 goal_y=2.0
+        pattern = r'goal_x[:=]\s*(-?\d+\.?\d*),?\s*goal_y[:=]\s*(-?\d+\.?\d*)'
+        
+        # 查找匹配项
+        match = re.search(pattern, goal_str, re.IGNORECASE)  # 忽略大小写（兼容Goal_X等）
+        
+        if not match:
+            raise ValueError(
+                f"无效的目标字符串格式！输入：{goal_str}\n"
+                "请使用格式：goal_x:数值, goal_y:数值（示例：goal_x:0.5, goal_y:2.0）"
+            )
+        
+        # 提取数值并转换为浮点数
+        try:
+            goal_x = float(match.group(1))
+            goal_y = float(match.group(2))
+        except ValueError:
+            raise ValueError(f"目标数值格式错误！无法转换为浮点数：{match.groups()}")
+        
+        return {'goal_x': goal_x, 'goal_y': goal_y}
     
     def system1_logoplanner_eval(self, policy_init, http_idx, rgb_image, depth, instruction, odom, url='http://192.168.18.230:19999/pointgoal_step'):
         
@@ -299,7 +338,7 @@ class RobotNav:
         # Scale and Convert to uint16 (Mode 'I;16') 
         # Note: If your depth is in meters, multiplying by 1000 converts it to millimeters
         depth_uint16 = (depth * 1000).astype(np.uint16)
-        # 3. Create a new PIL image with mode 'I;16'
+        # Create a new PIL image with mode 'I;16'
         depth_pil = PIL_Image.fromarray(depth_uint16, mode='I;16')
         
         image_bytes = io.BytesIO()
@@ -311,11 +350,15 @@ class RobotNav:
         depth_bytes.seek(0)
 
         #global frame_data
-        data = {"reset": policy_init, "idx": http_idx, "ins": instruction}
-        json_data = json.dumps(data)
+        #data = {"reset": policy_init, "idx": http_idx, "ins": instruction}
+        #json_data = json.dumps(data)
 
-        goal_x = 2.0 # meters
-        goal_y = 0.5 # meters
+        #goal_x = 2.0 # meters
+        #goal_y = 0.5 # meters
+        # instruction should have format: goal_x:0.5, goal_y:2.0
+        goal_dict = self.parse_goal_string(instruction)
+        goal_x = goal_dict['goal_x']
+        goal_y = goal_dict['goal_y']
         goal_data = {
             "goal_x": [goal_x],
             "goal_y": [goal_y]
@@ -327,6 +370,8 @@ class RobotNav:
             'image': ('rgb_image', image_bytes, 'image/jpeg'),
             'depth': ('depth_image', depth_bytes, 'image/png'),
         }
+
+        print("==================== goal instruction...", goal_data)
 
         try:
             response = requests.post(
@@ -346,7 +391,6 @@ class RobotNav:
         cmd_list = result.get('cmd_list', [])
         
         print("-----------------------", cmd_list)
-
 
         nav_result = json.loads(response.text)
         nav_action = self.convert_policy_res_to_action(nav_result, odom)

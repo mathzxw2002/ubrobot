@@ -332,7 +332,7 @@ class RobotNav:
             response = requests.post(
                 url,
                 files=files,
-                data={'json': json_data},
+                data=data,
                 timeout=100
             )
             response.raise_for_status()
@@ -343,7 +343,10 @@ class RobotNav:
             return {}
         
         # get result 
-        #result.get('cmd_list', [])
+        cmd_list = result.get('cmd_list', [])
+        
+        print("-----------------------", cmd_list)
+
 
         nav_result = json.loads(response.text)
         nav_action = self.convert_policy_res_to_action(nav_result, odom)

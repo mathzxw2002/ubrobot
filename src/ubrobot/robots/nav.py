@@ -268,7 +268,7 @@ class RobotNav:
 
         return nav_action, vis_annotated_img
     
-    def _init_server(self, intrinsic_matrix, url='http://192.168.18.230:5801/navigator_reset'):
+    def _init_server(self, intrinsic_matrix, url='http://192.168.18.230:19999/navigator_reset'):
         """Send initial reset request to server"""
         print(f"Initializing server: {url}")
         batch_size = 1
@@ -292,7 +292,7 @@ class RobotNav:
             print(f"Server initialization failed: {e}")
             return False
     
-    def system1_logoplanner_eval(self, policy_init, http_idx, rgb_image, depth, instruction, odom, url='http://192.168.18.230:5801/pointgoal_step'):
+    def system1_logoplanner_eval(self, policy_init, http_idx, rgb_image, depth, instruction, odom, url='http://192.168.18.230:19999/pointgoal_step'):
         
         rgb_image_pil = PIL_Image.fromarray(rgb_image)
 

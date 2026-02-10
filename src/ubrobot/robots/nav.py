@@ -295,7 +295,12 @@ class RobotNav:
     def system1_logoplanner_eval(self, policy_init, http_idx, rgb_image, depth, instruction, odom, url='http://192.168.18.230:5801/pointgoal_step'):
         
         rgb_image_pil = PIL_Image.fromarray(rgb_image)
-        depth_pil = PIL_Image.fromarray(depth)
+
+        # Scale and Convert to uint16 (Mode 'I;16') 
+        # Note: If your depth is in meters, multiplying by 1000 converts it to millimeters
+        depth_uint16 = (depth * 1000).astype(np.uint16)
+        # 3. Create a new PIL image with mode 'I;16'
+        depth_pil = PIL_Image.fromarray(depth_uint16, mode='I;16')
         
         image_bytes = io.BytesIO()
         rgb_image_pil.save(image_bytes, format='JPEG')

@@ -4,7 +4,7 @@ source ./ros_depends_ws/devel_isolated/setup.bash
 
 export LD_PRELOAD=/lib/aarch64-linux-gnu/libgomp.so.1
 
-export DASHSCOPE_API_KEY="sk-479fdd23120c4201bff35a107883c7c3"
+export DASHSCOPE_API_KEY=""
 export IS_HALF="True"
 
 bash ros_depends_ws/src/piper_ros/can_activate.sh

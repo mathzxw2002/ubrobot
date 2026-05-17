@@ -1,132 +1,162 @@
-# ubrobot
-repo for robot navigation and manipulation (WIP)
+# UBRobot
 
-# TODOs
-- [ ] add architecure for this project
-- [ ] docker
+UBRobot is an experimental robot navigation and manipulation stack for building embodied AI agents that can see, reason, plan, and act in the real world. The project combines LeRobot-style robot interfaces, RGB-D perception, vision-language reasoning, navigation policy services, teleoperation tools, and a Gradio chat UI for issuing high-level natural-language instructions.
 
-# Installation
+The repository is a work in progress, but the current codebase is organized around two main capabilities:
 
-UBRobot works with Ubuntu 20.04, Python 3.10+ and PyTorch 2.8+.
+- Mobile robot navigation from language instructions, using RealSense RGB-D observations, odometry, VLM grounding/reasoning, InternNav/InternVLA-style policy inference, LogoPlanner components, and MPC/PID control.
+- Robot arm manipulation and teleoperation, especially for the AgileX Piper arm, with LeRobot-compatible observation/action APIs, CAN control through `piper-sdk`, camera integration, point-cloud perception, and recording/evaluation examples.
 
-## Environment Setup
+## Features
 
-Create a virtual environment with Python 3.10 and activate it:
+- LeRobot-compatible robot abstractions for Piper, SO-101 follower, LeKiwi base, and Unitree Go2 experiments.
+- RGB-D camera utilities for Intel RealSense and aligned color/depth observations.
+- Natural-language navigation loop in `Go2Manager`, including instruction handling, policy-server calls, trajectory following, and annotated visual feedback.
+- Flask services for navigation policy inference and vision-language reasoning.
+- Gradio chat interface for text or microphone input, live robot observation display, and command routing.
+- Teleoperation examples for Piper and SO-101 robots, including keyboard, gamepad, and networked workflows.
+- ROS dependency workspace for Piper ROS, RTAB-Map/odometry, and related hardware integration.
+- Assets for robot URDFs, meshes, camera/arm configuration, sample media, and local model checkpoints.
+
+## Repository Layout
+
+```text
+.
+|-- assets/                 # URDFs, meshes, icons, sample media, configs, model assets
+|-- docs/                   # Setup notes for robots, datasets, and sensors
+|-- examples/               # Teleoperation, recording, evaluation, and model-service examples
+|-- ros_depends_ws/         # ROS/Catkin workspace for hardware and odometry dependencies
+|-- src/
+|   |-- chat_ui/            # Gradio/FastAPI user interface
+|   |-- service/
+|   |   |-- planning/       # InternVLA/InternNav navigation policy HTTP server
+|   |   `-- reasoning/      # VLM reasoning, grasp planning, GraspNet/PointNet utilities
+|   `-- ubrobot/
+|       |-- cameras/        # RealSense, odometry, and camera utilities
+|       |-- robots/         # Robot drivers/adapters and high-level robot manager
+|       `-- teleoperators/  # Keyboard/gamepad teleoperation helpers
+|-- third_party/            # Vendored external code, including GraspNet API
+|-- install.sh              # Native dependency setup notes/script
+|-- pyproject.toml          # Python package metadata and dependencies
+`-- requirements.txt        # Pinned Python dependency set
+```
+
+## Main Components
+
+### Robot Interfaces
+
+The robot layer in `src/ubrobot/robots` provides hardware adapters and higher-level control code:
+
+- `piper/` implements a LeRobot-compatible Piper arm interface with joint observations, actions, optional gripper control, RealSense/OpenCV camera support, and Piper SDK integration.
+- `lekiwi/` contains the mobile-base interface used by the navigation manager.
+- `so101_follower/` contains SO-101 host/client/follower control code.
+- `unitree_go2_robot.py` wraps basic Unitree Go2 sport-client actions.
+- `ubrobot.py` contains `Go2Manager`, the current high-level agent loop for observations, language instructions, navigation planning, and base motion commands.
+
+### Planning And Reasoning Services
+
+The project separates heavyweight model inference into HTTP services:
+
+- `src/service/planning/http_internvla_server.py` starts a Flask server for InternVLA/InternNav navigation policy inference on port `5801`.
+- `src/service/reasoning/http_reasoning_server.py` starts a Flask server for VLM reasoning on port `5802`.
+- `src/service/reasoning/` also includes grasp planning, GraspNet models, PointNet/KNN extensions, and dataset utilities.
+
+### Chat UI
+
+`src/chat_ui/app.py` starts a Gradio interface served through FastAPI. It accepts text or microphone input, sends commands through `ChatPipeline`, and displays navigation/manipulation observations. By default it runs on port `7863` with the local TLS certificate files under `assets/`.
+
+## Installation
+
+UBRobot is currently developed for Linux robot machines, especially Ubuntu 20.04 style environments with Python 3.10, CUDA-capable PyTorch, ROS, RealSense, and robot-specific SDKs.
+
+Create and activate a Python environment:
 
 ```bash
 conda create -y -n ubrobot python=3.10
 conda activate ubrobot
 ```
 
-When using conda, install ffmpeg in your environment:
+Install FFmpeg in the environment:
 
-```bash 
+```bash
 conda install ffmpeg=7.1.1 -c conda-forge
 ```
 
-gpu version
+Install PyTorch. For CUDA 12.8:
+
 ```bash
 pip install torch==2.8.0 torchvision==0.23.0 torchaudio==2.8.0 --index-url https://download.pytorch.org/whl/cu128
-
-wget https://github.com/Dao-AILab/flash-attention/releases/download/v2.8.3/flash_attn-2.8.3+cu12torch2.8cxx11abiFALSE-cp310-cp310-linux_x86_64.whl
-pip install flash_attn-2.8.3+cu12torch2.8cxx11abiFALSE-cp310-cp310-linux_x86_64.whl
-
-pip install transformers==4.51.0 diffusers==0.31.0 accelerate==1.10.1 opencv-python==4.10.0.82 pillow==10.4.0 gym==0.23.1
 ```
 
-cpu version
+For CPU-only environments:
+
 ```bash
 pip install torch==2.8.0 torchvision==0.23.0 torchaudio==2.8.0 --index-url https://download.pytorch.org/whl/cpu
-pip install transformers==4.51.0 diffusers==0.31.0 accelerate==1.10.1 opencv-python==4.10.0.82 pillow==10.4.0 gym==0.23.1
 ```
 
-## Install InternNav from Source
+Install common Python dependencies and the project in editable mode:
 
+```bash
+pip install -r requirements.txt
+pip install -e .
 ```
 
-cd InternNav
-pip install -e .  
+Some hardware paths also require native dependencies such as ROS, RealSense, Piper CAN setup, CycloneDDS, Unitree SDK2 Python, and TRAC-IK/KDL libraries. See `install.sh`, `ros_depends_ws/README.md`, `docs/install_realsense.md`, and the scripts under `ros_depends_ws/` for the current setup notes.
 
+## Running
+
+Start the navigation policy service:
+
+```bash
+bash start_policy_server.bash
 ```
 
+Start the reasoning service:
 
-| torchcodec       | torch           | Python          |
-|------------------|-----------------|-----------------|
-| main / nightly   | main / nightly  | >=3.10, <=3.13  |
-| 0.8              | 2.9             | >=3.10, <=3.13  |
-| 0.7              | 2.8             | >=3.9,  <=3.13  |
-| 0.6              | 2.8             | >=3.9,  <=3.13  |
-| 0.5              | 2.7             | >=3.9,  <=3.13  |
-| 0.4              | 2.7             | >=3.9,  <=3.13  |
-| 0.3              | 2.7             | >=3.9,  <=3.13  |
-| 0.2              | 2.6             | >=3.9,  <=3.13  |
-| 0.1              | 2.5             | >=3.9,  <=3.12  |
-| 0.0.3            | 2.4             | >=3.8,  <=3.12  |
-
-
-
-lerobot-eval --policy.path=/home/sany/.cache/modelscope/hub/models/lerobot/diffusion_pusht_migrated --env.type=pusht --eval.batch_size=10 --eval.n_episodes=10 --policy.use_amp=false --policy.device=cuda
-
-python src/lerobot/scripts/lerobot_eval.py
-
-python src/lerobot/processor/migrate_policy_normalization.py --pretrained-path /media/sany/ef87a074-cf12-40ba-ba8a-e4080adbba8b/modelscope/hub/models/lerobot/diffusion_pusht
-
-
-# Related Projects
-- [InternNav](https://github.com/InternRobotics/InternNav) : A open platform for building generalized navigation foundation models (with 6 mainstream benchmarks and 10+ baselines).
-- [Qwen3-VL](https://github.com/QwenLM/Qwen3-VL): The pretrained vision-language foundation model.
-- [LeRobot](https://github.com/huggingface/lerobot): The data format used in this project largely follows the conventions of LeRobot.
-- [Cosmos](https://github.com/nvidia-cosmos/cosmos-reason1): Cosmos-Reason1 models understand the physical common sense and generate appropriate embodied decisions in natural language through long chain-of-thought reasoning processes.
-
-# Related Papers and Tutorials
-```bibtex
-@misc{internnav2025,
-    title = {{InternNav: InternRobotics' open platform for building generalized navigation foundation}},
-    author = {InternNav Contributors},
-    howpublished = {\url{https://github.com/InternRobotics/InternNav}},
-    year = {2025}
-}
+```bash
+bash start_reasoning_server.bash
 ```
 
-【Jetson安装PyTorch&Torchvision极简方式】
+Start the robot/chat UI stack on the robot machine:
 
-https://blog.csdn.net/python_yjys/article/details/145451271
+```bash
+bash ubrobot_startup.sh
+```
 
+The UI is served by `src/chat_ui/app.py` and defaults to:
 
+```text
+https://0.0.0.0:7863
+```
 
-python39 gradio启动 报错 TypeError: argument of type ‘bool‘ is not iterable
-https://blog.csdn.net/qq_63234089/article/details/146914002
+The startup script also sources ROS, activates Piper CAN support, sets `CYCLONEDDS_HOME`, and launches the Gradio/FastAPI application.
 
+## Examples
 
+Useful entry points include:
 
+- `examples/piper/teleoperate.py` for Piper arm teleoperation.
+- `examples/piper/record.py` for recording Piper demonstrations.
+- `examples/piper/evaluate.py` for evaluating a policy on Piper.
+- `examples/so101_to_so101/` for networked SO-101 teleoperation and recording.
+- `examples/lerobot_record.py` and `examples/lerobot_eval.py` for LeRobot-style dataset/policy workflows.
+- `examples/internnav_demo.py` and `examples/http_internvla_client.py` for navigation-model experiments.
 
+## Related Projects
 
-cd [your-coal-build-directory]
-cmake .. -DCOAL_BACKWARD_COMPATIBILITY_WITH_HPP_FCL=ON -DCMAKE_INSTALL_PREFIX=/usr/local/
-make -j$(nproc)
-sudo make install
+- [InternNav](https://github.com/InternRobotics/InternNav): Open platform for generalized navigation foundation models.
+- [Qwen3-VL](https://github.com/QwenLM/Qwen3-VL): Vision-language foundation model family.
+- [LeRobot](https://github.com/huggingface/lerobot): Robot learning datasets, policies, and robot abstractions used as a design reference.
+- [Cosmos](https://github.com/nvidia-cosmos/cosmos-reason1): Physical-reasoning vision-language models for embodied decision making.
+- [GraspNet API](https://github.com/graspnet/graspnetAPI): Grasp representation, visualization, and evaluation utilities.
 
+## Status
 
-ls /usr/local/lib/cmake/hpp-fcl/hpp-fclConfig.cmake
+This repository is actively evolving. Some scripts contain machine-specific paths, local model checkpoint paths, and hardware-specific assumptions. Treat the project as a research/development workspace rather than a packaged production release.
 
+## TODO
 
-
-cmake .. -DCMAKE_BUILD_TYPE=Release -DCMAKE_INSTALL_PREFIX=/usr/local -DBUILD_WITH_COLLISION_SUPPORT=ON -Dhpp-fcl_DIR=/usr/local/lib/cmake/hpp-fcl  -DBUILD_WITH_PYTHON_INTERFACE=OFF -DBUILD_UNIT_TESTS=OFF
-make -j$(nproc)
-sudo make install
-
-
-sudo ldconfig
-
-
-
-
-
-++++++++++++++++++++++ final action in piper. 0.22222222222222224
-in piper sdk................... [-82435, 1041, -231, 5908, 6471, -112484] 0.22222222222222224
--------------host, {'shoulder_pan.pos': 54.956601187756974, 'shoulder_lift.pos': -98.84345311854605, 'elbow_flex.pos': 99.72850678733033, 'wrist_flex.pos': 9.243697478991592, 'wrist_roll.pos': 62.49084249084248, 'gripper.pos': 2.2222222222222223}
-include gripper......
-++++++++++++++++++++++ final action in piper. 0.22222222222222224
-in piper sdk................... [-82435, 1041, -231, 5908, 6471, -112484] 0.22222222222222224
--------------host, {'shoulder_pan.pos': 54.956601187756974, 'shoulder_lift.pos': -98.84345311854605, 'elbow_flex.pos': 99.72850678733033, 'wrist_flex.pos': 9.243697478991592, 'wrist_roll.pos': 62.49084249084248, 'gripper.pos': 2.2222222222222223}
-include gripper......
+- Add a system architecture diagram.
+- Add Docker or reproducible environment setup.
+- Normalize machine-specific paths and configuration.
+- Expand hardware setup documentation.

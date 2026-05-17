@@ -38,3 +38,6 @@ pip3 install -e .
 
 # https://github.com/realsenseai/realsense-ros
 #
+
+conda install ffmpeg -c conda-forge
+conda install cmake -c conda-forge

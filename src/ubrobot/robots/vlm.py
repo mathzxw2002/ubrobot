@@ -19,7 +19,7 @@ class RobotVLM:
     def __init__(self, api_key = None, base_url = "https://dashscope.aliyuncs.com/compatible-mode/v1", url = "http://192.168.18.230:5802/eval_cosmos_reason1"):
         self.url = url
         self.client = OpenAI(
-            api_key="",
+            api_key="sk-78b8ea9b14b944d0a2240408b8c766dd",
             base_url=base_url,
         )            
     

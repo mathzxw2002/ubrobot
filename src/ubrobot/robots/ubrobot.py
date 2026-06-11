@@ -119,7 +119,7 @@ class Go2Manager():
                     self.policy_init = False
                     print("get action...", nav_action.actions)
                     # send action
-                    self.send_action(nav_action)
+                    #self.send_action(nav_action)
             '''else:
                 #print("nav action is none", self.global_nav_instruction_str)
                 if self.global_nav_instruction_str is None:
@@ -173,8 +173,6 @@ class Go2Manager():
             else:
                 start = time.time()
 
-                #goal_x, goal_y
-                #instruction
                 nav_action, vis_annotated_img = self.nav.system1_logoplanner_eval(policy_init, http_idx, rgb_image, depth, instruction, odom)
                 print(f"idx: {http_idx} step in get_nav_action_by_usrinstruction() cost {time.time() - start}")
         else:

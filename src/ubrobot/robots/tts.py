@@ -6,7 +6,7 @@ from dashscope.api_entities.dashscope_response import SpeechSynthesisResponse
 
 class CosyVoice_API:
     def __init__(self):
-        dashscope.api_key = ""  
+        dashscope.api_key = "sk-78b8ea9b14b944d0a2240408b8c766dd"  
         self.voice = "longwan"
 
     def infer(self, project_path, text, index = 0):

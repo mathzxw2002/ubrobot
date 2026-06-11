@@ -20,6 +20,11 @@ def _set_stamp_from_ns(stamp, stamp_ns):
     stamp.nanosec = stamp_ns % 1_000_000_000
 
 
+def _copy_stamp(dst, src):
+    dst.sec = src.sec
+    dst.nanosec = src.nanosec
+
+
 class DetectionHeaderFixer(Node):
     """Make the top-level detection header match the RGB-D payload header."""
 
@@ -61,6 +66,9 @@ class DetectionHeaderFixer(Node):
                 stamp_ns = self._last_stamp_ns + 1
                 _set_stamp_from_ns(msg.header.stamp, stamp_ns)
             self._last_stamp_ns = stamp_ns
+            _copy_stamp(msg.image.header.stamp, msg.header.stamp)
+            _copy_stamp(msg.depth.header.stamp, msg.header.stamp)
+            _copy_stamp(msg.compressed_image.header.stamp, msg.header.stamp)
 
         self._publisher.publish(msg)
 

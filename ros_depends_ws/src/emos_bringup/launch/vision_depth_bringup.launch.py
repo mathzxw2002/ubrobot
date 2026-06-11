@@ -139,5 +139,17 @@ def generate_launch_description():
                     ("scan", "/scan"),
                 ],
             ),
+            Node(
+                package="emos_bringup",
+                executable="fix_detection_header",
+                name="fix_detection_header",
+                output="screen",
+                parameters=[
+                    {
+                        "input_topic": "/vision_detections_raw",
+                        "output_topic": "/vision_detections",
+                    }
+                ],
+            ),
         ]
     )

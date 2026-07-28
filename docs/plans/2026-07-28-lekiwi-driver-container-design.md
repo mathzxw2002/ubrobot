@@ -19,7 +19,9 @@
 
 ## 当前约束
 
-- 树莓派运行 Ubuntu 24.04、ROS 2 Jazzy 和 ARM64 Docker。
+- 树莓派宿主机运行 Ubuntu 24.04.4 LTS 和 ARM64 Docker。
+- ROS 2 Jazzy 完整运行环境分别由 EMOS 容器和 LeKiwi 驱动容器提供，
+  不依赖宿主机安装完整 ROS 2。
 - EMOS Recipe 在 `emos` 容器中运行，并由 `my_driver` 发布
   `geometry_msgs/msg/Twist` 类型的 `/cmd_vel`。
 - EMOS 容器当前不映射 LeKiwi 串口，也不包含 `lerobot` 或 `ubrobot`。

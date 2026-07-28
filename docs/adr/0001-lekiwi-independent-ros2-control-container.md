@@ -18,6 +18,10 @@ EMOS 感知与规划负载较高，且经常需要重启 Recipe、更新 Kompass
 `controller_manager`、官方全向轮控制器和自研 C++
 `hardware_interface::SystemInterface` 插件。
 
+树莓派宿主机只负责提供 Ubuntu 24.04.4 LTS、ARM64 Docker、udev 和 USB
+设备访问。完整 ROS 2 Jazzy 环境分别封装在 EMOS 容器和 LeKiwi 驱动容器中，
+不要求也不依赖宿主机安装完整 ROS 2。
+
 EMOS 与驱动容器仅通过标准 ROS 2 DDS 话题通信。EMOS 无权访问底盘串口。
 现有 Python `lekiwi_base.py` 不进入生产控制循环，仅保留作诊断、校准和 C++
 实现的一致性测试基准。

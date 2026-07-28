@@ -1,0 +1,28 @@
+controller_manager:
+  ros__parameters:
+    update_rate: 20
+
+    joint_state_broadcaster:
+      type: joint_state_broadcaster/JointStateBroadcaster
+
+    lekiwi_base_controller:
+      type: omni_wheel_drive_controller/OmniWheelDriveController
+
+lekiwi_base_controller:
+  ros__parameters:
+    wheel_names:
+      - base_back_wheel_joint
+      - base_right_wheel_joint
+      - base_left_wheel_joint
+    wheel_offset: 0.0
+    robot_radius: 0.125
+    wheel_radius: 0.05
+    open_loop: false
+    position_feedback: false
+    enable_odom_tf: false
+    odom_frame_id: odom
+    base_frame_id: base_link
+    cmd_vel_timeout: 0.25
+    diagonal_covariance:
+      pose: [0.001, 0.001, 0.001, 0.001, 0.001, 0.01]
+      twist: [0.001, 0.001, 0.001, 0.001, 0.001, 0.01]

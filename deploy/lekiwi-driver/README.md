@@ -21,6 +21,10 @@ checked without motion. `compose.hardware-torque-test.yaml` is the final hard ga
 it enables torque, disables automatic container restart, and must be added only
 after the torque-disabled preflight passes with all wheels lifted.
 
+The base service uses `stop_signal: SIGINT` so ROS 2 launch can shut down
+ros2_control in order, deactivate the hardware, and disable motor torque before
+closing the serial device.
+
 ## Build and run mock mode
 
 From the repository root on the ARM64 Raspberry Pi:

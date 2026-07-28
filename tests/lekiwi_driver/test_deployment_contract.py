@@ -23,6 +23,7 @@ class LeKiwiDeploymentContractTest(unittest.TestCase):
         compose = read_repository_file(DEPLOYMENT_ROOT / "compose.yaml")
         self.assertIn("network_mode: host", compose)
         self.assertIn("hardware_mode:=mock", compose)
+        self.assertIn("stop_signal: SIGINT", compose)
         self.assertIn("FASTRTPS_DEFAULT_PROFILES_FILE: /etc/fastdds/udp-only.xml", compose)
         self.assertIn("../fastdds/udp-only.xml:/etc/fastdds/udp-only.xml:ro", compose)
         self.assertNotIn("privileged:", compose)

@@ -9,6 +9,7 @@ services:
     container_name: lekiwi-base-driver
     network_mode: host
     init: true
+    stop_signal: SIGINT
     restart: unless-stopped
     read_only: true
     tmpfs:

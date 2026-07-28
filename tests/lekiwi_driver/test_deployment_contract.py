@@ -87,7 +87,12 @@ class LeKiwiDeploymentContractTest(unittest.TestCase):
             HARDWARE_ROOT / "src" / "lekiwi_system_hardware.cpp"
         )
         self.assertIn('<xacro:arg name="enable_motor_torque" default="false"/>', top_level_xacro)
-        self.assertIn('<param name="enable_motor_torque">${enable_motor_torque}</param>', control_xacro)
+        self.assertIn(
+            '<param name="enable_motor_torque">'
+            "${'true' if enable_motor_torque else 'false'}"
+            "</param>",
+            control_xacro,
+        )
         self.assertIn('<param name="max_raw_velocity">300</param>', control_xacro)
         self.assertIn("bool enable_motor_torque_{false};", hardware_header)
         self.assertIn('boolean_parameter(parameters, "enable_motor_torque")', hardware_source)

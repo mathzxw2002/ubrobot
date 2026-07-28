@@ -13,7 +13,7 @@
           <param name="baud_rate">1000000</param>
           <param name="serial_timeout_ms">20</param>
           <param name="max_raw_velocity">300</param>
-          <param name="enable_motor_torque">${enable_motor_torque}</param>
+          <param name="enable_motor_torque">${'true' if enable_motor_torque else 'false'}</param>
           <!-- Joint/controller order is back, right, left. -->
           <param name="back_motor_id">8</param>
           <param name="right_motor_id">9</param>

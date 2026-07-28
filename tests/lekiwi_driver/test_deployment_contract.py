@@ -140,7 +140,6 @@ class LeKiwiDeploymentContractTest(unittest.TestCase):
             "ros-jazzy-realsense2-camera",
             "ros-jazzy-realsense2-camera-msgs",
             "ros-jazzy-rtabmap-odom",
-            "ros-jazzy-rtabmap-ros",
             "kompass-core==${KOMPASS_CORE_VERSION}",
         ):
             self.assertIn(token, dockerfile)

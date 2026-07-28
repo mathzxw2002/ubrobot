@@ -13,7 +13,6 @@ RUN apt-get update \
         ros-jazzy-realsense2-camera \
         ros-jazzy-realsense2-camera-msgs \
         ros-jazzy-rtabmap-odom \
-        ros-jazzy-rtabmap-ros \
     && python3 -m pip install --no-cache-dir --break-system-packages \
         "kompass-core==${KOMPASS_CORE_VERSION}" \
     && rm -rf /var/lib/apt/lists/*

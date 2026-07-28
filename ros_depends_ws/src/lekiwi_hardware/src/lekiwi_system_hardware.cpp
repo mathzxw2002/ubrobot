@@ -42,6 +42,19 @@ int integer_parameter(
   return value;
 }
 
+bool boolean_parameter(
+  const std::unordered_map<std::string, std::string> & parameters, const std::string & name)
+{
+  const std::string text = required_parameter(parameters, name);
+  if (text == "true") {
+    return true;
+  }
+  if (text == "false") {
+    return false;
+  }
+  throw std::invalid_argument("hardware parameter must be 'true' or 'false': " + name);
+}
+
 uint8_t motor_id_parameter(
   const std::unordered_map<std::string, std::string> & parameters, const std::string & name)
 {
@@ -87,6 +100,7 @@ hardware_interface::CallbackReturn LeKiwiSystemHardware::on_init(
     baud_rate_ = integer_parameter(parameters, "baud_rate");
     serial_timeout_ = std::chrono::milliseconds(integer_parameter(parameters, "serial_timeout_ms"));
     max_raw_velocity_ = integer_parameter(parameters, "max_raw_velocity");
+    enable_motor_torque_ = boolean_parameter(parameters, "enable_motor_torque");
     motor_ids_ = {
       motor_id_parameter(parameters, "back_motor_id"),
       motor_id_parameter(parameters, "right_motor_id"),
@@ -163,8 +177,13 @@ hardware_interface::CallbackReturn LeKiwiSystemHardware::on_activate(
 {
   try {
     std::fill(velocity_commands_.begin(), velocity_commands_.end(), 0.0);
-    bus_.enable_torque();
-    RCLCPP_INFO(get_logger(), "LeKiwi wheel torque enabled with zero command");
+    if (enable_motor_torque_) {
+      bus_.enable_torque();
+      RCLCPP_WARN(get_logger(), "LeKiwi motor torque ENABLED with zero command");
+    } else {
+      bus_.stop_and_disable();
+      RCLCPP_INFO(get_logger(), "LeKiwi bus active in torque-disabled preflight mode");
+    }
     return hardware_interface::CallbackReturn::SUCCESS;
   } catch (const std::exception & exception) {
     RCLCPP_ERROR(get_logger(), "Failed to activate LeKiwi hardware: %s", exception.what());
@@ -225,6 +244,10 @@ hardware_interface::return_type LeKiwiSystemHardware::write(
   const rclcpp::Time &, const rclcpp::Duration &)
 {
   try {
+    if (!enable_motor_torque_) {
+      bus_.write_velocities({0, 0, 0});
+      return hardware_interface::return_type::OK;
+    }
     FeetechBus::RawVelocities raw_velocities{};
     for (std::size_t index = 0; index < kWheelCount; ++index) {
       if (!std::isfinite(velocity_commands_[index])) {

@@ -1,0 +1,13 @@
+# FINAL HARD GATE: use only after torque-disabled real-hardware preflight passes,
+# with all wheels lifted and an operator holding the independent motor-power cutoff.
+services:
+  lekiwi-base-driver:
+    restart: "no"
+    command:
+      - ros2
+      - launch
+      - lekiwi_bringup
+      - lekiwi_driver.launch.py
+      - hardware_mode:=real
+      - enable_real_hardware:=true
+      - enable_motor_torque:=true

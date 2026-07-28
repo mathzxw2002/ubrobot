@@ -55,7 +55,8 @@ private:
   FeetechBus bus_;
   std::string device_{"/dev/lekiwi-base"};
   int baud_rate_{1000000};
-  int max_raw_velocity_{3000};
+  int max_raw_velocity_{300};
+  bool enable_motor_torque_{false};
   std::chrono::milliseconds serial_timeout_{20};
 };
 

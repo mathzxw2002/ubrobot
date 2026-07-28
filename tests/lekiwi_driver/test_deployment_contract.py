@@ -43,13 +43,56 @@ class LeKiwiDeploymentContractTest(unittest.TestCase):
         launch = read_repository_file(BRINGUP_ROOT / "launch" / "lekiwi_driver.launch.py")
         self.assertIn('DeclareLaunchArgument("hardware_mode", default_value="mock")', launch)
         self.assertIn('DeclareLaunchArgument("enable_real_hardware", default_value="false")', launch)
+        self.assertIn('DeclareLaunchArgument("enable_motor_torque", default_value="false")', launch)
 
     def test_real_hardware_requires_explicit_acknowledgement(self):
         launch = read_repository_file(BRINGUP_ROOT / "launch" / "lekiwi_driver.launch.py")
         self.assertIn('hardware_mode == "real"', launch)
-        self.assertIn('enable_real_hardware.lower() != "true"', launch)
+        self.assertIn('enable_real_hardware != "true"', launch)
         compose = read_repository_file(DEPLOYMENT_ROOT / "compose.hardware.yaml")
         self.assertIn("enable_real_hardware:=true", compose)
+        self.assertNotIn("enable_motor_torque:=true", compose)
+
+    def test_motor_torque_requires_a_separate_non_restarting_override(self):
+        launch = read_repository_file(BRINGUP_ROOT / "launch" / "lekiwi_driver.launch.py")
+        self.assertIn('enable_motor_torque == "true"', launch)
+        self.assertIn('hardware_mode != "real"', launch)
+        self.assertIn('enable_real_hardware != "true"', launch)
+
+        compose = read_repository_file(DEPLOYMENT_ROOT / "compose.hardware-torque-test.yaml")
+        self.assertIn('restart: "no"', compose)
+        self.assertIn("enable_motor_torque:=true", compose)
+
+    def test_real_hardware_defaults_to_torque_disabled_and_first_test_speed_limit(self):
+        control_xacro = read_repository_file(
+            REPOSITORY_ROOT
+            / "ros_depends_ws"
+            / "src"
+            / "lekiwi_description"
+            / "ros2_control"
+            / "lekiwi_base.ros2_control.xacro"
+        )
+        top_level_xacro = read_repository_file(
+            REPOSITORY_ROOT
+            / "ros_depends_ws"
+            / "src"
+            / "lekiwi_description"
+            / "urdf"
+            / "lekiwi_base.urdf.xacro"
+        )
+        hardware_header = read_repository_file(
+            HARDWARE_ROOT / "include" / "lekiwi_hardware" / "lekiwi_system_hardware.hpp"
+        )
+        hardware_source = read_repository_file(
+            HARDWARE_ROOT / "src" / "lekiwi_system_hardware.cpp"
+        )
+        self.assertIn('<xacro:arg name="enable_motor_torque" default="false"/>', top_level_xacro)
+        self.assertIn('<param name="enable_motor_torque">${enable_motor_torque}</param>', control_xacro)
+        self.assertIn('<param name="max_raw_velocity">300</param>', control_xacro)
+        self.assertIn("bool enable_motor_torque_{false};", hardware_header)
+        self.assertIn('boolean_parameter(parameters, "enable_motor_torque")', hardware_source)
+        self.assertIn("if (enable_motor_torque_)", hardware_source)
+        self.assertIn("bus_.write_velocities({0, 0, 0});", hardware_source)
 
     def test_real_plugin_is_built_into_the_image(self):
         dockerfile = read_repository_file(DEPLOYMENT_ROOT / "Dockerfile")

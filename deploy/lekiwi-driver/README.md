@@ -16,9 +16,10 @@ It cannot drive the physical base.
 
 `compose.hardware.yaml` maps only `/dev/lekiwi-base` and passes both
 `hardware_mode:=real` and the separate `enable_real_hardware:=true` acknowledgement.
-It can enable wheel torque. Use it only with the wheels lifted until IDs 7/8/9,
-directions, velocity feedback, watchdog, serial-disconnect behavior, and zero-stop
-behavior have passed the hardware checklist below.
+It leaves motor torque disabled so the serial bus, IDs, models, and feedback can be
+checked without motion. `compose.hardware-torque-test.yaml` is the final hard gate:
+it enables torque, disables automatic container restart, and must be added only
+after the torque-disabled preflight passes with all wheels lifted.
 
 ## Build and run mock mode
 
@@ -63,7 +64,8 @@ Installing the rule does not authorize starting hardware mode.
 2. Confirm `/dev/lekiwi-base` resolves to USB serial `5A68011386` and the container
    user can open it.
 3. Lift and secure all three wheels, with an operator ready to cut motor power.
-4. Start the hardware override together with the default file:
+4. Start the hardware override together with the default file. This performs the
+   real-bus preflight with motor torque disabled:
 
    ```bash
    docker compose \
@@ -72,7 +74,9 @@ Installing the rule does not authorize starting hardware mode.
    ```
 
 5. Confirm IDs 8/9/7 map to back/right/left and `/joint_states` remains near zero.
-6. Publish only a small, short command after verifying the zero-command path. If a
+6. Stop the preflight container, then add `compose.hardware-torque-test.yaml` only
+   with an operator holding the independent motor-power cutoff.
+7. Publish only a small, short command after verifying the zero-command path. If a
    wheel direction is wrong, stop the container and change the corresponding
    `*_direction` parameter in the ros2_control Xacro before continuing.
 

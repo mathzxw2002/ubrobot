@@ -9,9 +9,15 @@ from launch_ros.substitutions import FindPackageShare
 
 def _launch_nodes(context):
     hardware_mode = LaunchConfiguration("hardware_mode").perform(context)
-    if hardware_mode != "mock":
+    enable_real_hardware = LaunchConfiguration("enable_real_hardware").perform(context)
+    if hardware_mode not in {"mock", "real"}:
         raise RuntimeError(
-            "Only hardware_mode:=mock is implemented. Real hardware is intentionally disabled."
+            f"Unsupported hardware_mode: {hardware_mode!r}. Expected 'mock' or 'real'."
+        )
+    if hardware_mode == "real" and enable_real_hardware.lower() != "true":
+        raise RuntimeError(
+            "Real LeKiwi hardware is locked. Re-run with enable_real_hardware:=true "
+            "only after lifting the wheels and verifying the stable serial device."
         )
 
     description_file = PathJoinSubstitution(
@@ -80,6 +86,7 @@ def generate_launch_description():
     return LaunchDescription(
         [
             DeclareLaunchArgument("hardware_mode", default_value="mock"),
+            DeclareLaunchArgument("enable_real_hardware", default_value="false"),
             OpaqueFunction(function=_launch_nodes),
         ]
     )

@@ -8,21 +8,23 @@ RUN apt-get update \
     && apt-get install -y --no-install-recommends \
         python3-colcon-common-extensions \
         ros-jazzy-hardware-interface \
+        ros-jazzy-pluginlib \
         ros-jazzy-xacro \
     && rm -rf /var/lib/apt/lists/*
 
 WORKDIR /ws
 COPY ros_depends_ws/src/lekiwi_description src/lekiwi_description
 COPY ros_depends_ws/src/lekiwi_bringup src/lekiwi_bringup
+COPY ros_depends_ws/src/lekiwi_hardware src/lekiwi_hardware
 
 RUN source /opt/ros/jazzy/setup.bash \
-    && colcon build --merge-install --cmake-args -DCMAKE_BUILD_TYPE=Release
+    && colcon build --merge-install --cmake-args -DCMAKE_BUILD_TYPE=Release -DBUILD_TESTING=OFF
 
 FROM ${ROS_BASE_IMAGE} AS runtime
 
 LABEL org.opencontainers.image.title="UBRobot LeKiwi Base Driver" \
       org.opencontainers.image.description="Safe ROS 2 Jazzy ros2_control runtime for LeKiwi" \
-      org.opencontainers.image.version="0.1.0-mock"
+      org.opencontainers.image.version="0.2.0"
 
 SHELL ["/bin/bash", "-c"]
 
@@ -44,7 +46,8 @@ COPY deploy/lekiwi-driver/healthcheck.sh /usr/local/bin/lekiwi-healthcheck.sh
 
 RUN chmod 0755 /usr/local/bin/lekiwi-entrypoint.sh /usr/local/bin/lekiwi-healthcheck.sh \
     && mkdir -p /tmp/ros-logs \
-    && chown ubuntu:ubuntu /tmp/ros-logs
+    && chown ubuntu:ubuntu /tmp/ros-logs \
+    && usermod -aG dialout ubuntu
 
 ENV ROS_DISTRO=jazzy \
     ROS_HOME=/tmp/ros-home \

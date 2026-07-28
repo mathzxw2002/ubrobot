@@ -1,6 +1,6 @@
 services:
   lekiwi-base-driver:
-    image: ubrobot/lekiwi-base-driver:${LEKIWI_DRIVER_TAG:-0.1.0-mock}
+    image: ubrobot/lekiwi-base-driver:${LEKIWI_DRIVER_TAG:-0.2.0}
     build:
       context: ../..
       dockerfile: deploy/lekiwi-driver/Dockerfile
@@ -16,8 +16,14 @@ services:
     environment:
       ROS_DOMAIN_ID: ${ROS_DOMAIN_ID:-0}
       RMW_IMPLEMENTATION: rmw_fastrtps_cpp
+      # Separate containers have private IPC namespaces. This explicit profile
+      # disables builtin SHM and forces DDS over the shared host network.
+      FASTRTPS_DEFAULT_PROFILES_FILE: /etc/fastdds/udp-only.xml
+      FASTDDS_DEFAULT_PROFILES_FILE: /etc/fastdds/udp-only.xml
       ROS_HOME: /tmp/ros-home
       ROS_LOG_DIR: /tmp/ros-logs
+    volumes:
+      - ../fastdds/udp-only.xml:/etc/fastdds/udp-only.xml:ro
     security_opt:
       - no-new-privileges:true
     cap_drop:

@@ -3,18 +3,22 @@
 This deployment owns the LeKiwi base `ros2_control` runtime. It communicates with
 EMOS over ROS 2 DDS using host networking and consumes the standard `/cmd_vel`
 topic. The Raspberry Pi host does not need a complete ROS 2 installation.
+Both sides must use `rmw_fastrtps_cpp` with the shared
+`deploy/fastdds/udp-only.xml` Fast DDS profile;
+the containers use host networking but intentionally do not share an IPC namespace.
 
 ## Safety state
 
-Only `hardware_mode:=mock` is implemented. The default Compose file has no device
+The default remains `hardware_mode:=mock`. The default Compose file has no device
 mapping, drops all Linux capabilities, uses a read-only root filesystem, and limits
 commands to 0.05 m/s linear and 0.20 rad/s angular velocity with a 250 ms watchdog.
 It cannot drive the physical base.
 
-`compose.hardware.yaml` is a deliberately unusable deployment boundary. It maps only
-`/dev/lekiwi-base`, but launch rejects `hardware_mode:=real` until the reviewed C++
-`LeKiwiSystemHardware` plugin and lifted-wheel test gate are complete. Do not start
-the hardware override before that milestone.
+`compose.hardware.yaml` maps only `/dev/lekiwi-base` and passes both
+`hardware_mode:=real` and the separate `enable_real_hardware:=true` acknowledgement.
+It can enable wheel torque. Use it only with the wheels lifted until IDs 7/8/9,
+directions, velocity feedback, watchdog, serial-disconnect behavior, and zero-stop
+behavior have passed the hardware checklist below.
 
 ## Build and run mock mode
 
@@ -23,7 +27,7 @@ From the repository root on the ARM64 Raspberry Pi:
 ```bash
 docker build \
   -f deploy/lekiwi-driver/Dockerfile \
-  -t ubrobot/lekiwi-base-driver:0.1.0-mock \
+  -t ubrobot/lekiwi-base-driver:0.2.0 \
   .
 
 docker compose -f deploy/lekiwi-driver/compose.yaml up -d
@@ -52,3 +56,24 @@ After independently confirming vendor `1a86`, product `55d3`, and serial
 `5A68011386`, install `99-lekiwi-base.rules` as root under `/etc/udev/rules.d/`, reload
 udev, and verify `/dev/lekiwi-base` belongs to group `dialout` with mode `0660`.
 Installing the rule does not authorize starting hardware mode.
+
+## Lifted-wheel hardware checkpoint
+
+1. Stop EMOS so no non-zero `/cmd_vel` publisher exists.
+2. Confirm `/dev/lekiwi-base` resolves to USB serial `5A68011386` and the container
+   user can open it.
+3. Lift and secure all three wheels, with an operator ready to cut motor power.
+4. Start the hardware override together with the default file:
+
+   ```bash
+   docker compose \
+     -f deploy/lekiwi-driver/compose.yaml \
+     -f deploy/lekiwi-driver/compose.hardware.yaml up
+   ```
+
+5. Confirm IDs 8/9/7 map to back/right/left and `/joint_states` remains near zero.
+6. Publish only a small, short command after verifying the zero-command path. If a
+   wheel direction is wrong, stop the container and change the corresponding
+   `*_direction` parameter in the ros2_control Xacro before continuing.
+
+Never perform the first activation with the robot resting on the floor.

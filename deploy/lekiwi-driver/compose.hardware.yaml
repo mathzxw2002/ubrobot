@@ -1,5 +1,5 @@
-# HARD GATE: this override must not be started until LeKiwiSystemHardware exists,
-# passes lifted-wheel testing, and receives explicit operator approval.
+# HARD GATE: use this override only with the wheels lifted until motor IDs,
+# wheel directions, feedback signs, watchdog, and stop behavior are verified.
 services:
   lekiwi-base-driver:
     devices:
@@ -10,3 +10,4 @@ services:
       - lekiwi_bringup
       - lekiwi_driver.launch.py
       - hardware_mode:=real
+      - enable_real_hardware:=true

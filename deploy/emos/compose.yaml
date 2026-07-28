@@ -1,0 +1,23 @@
+services:
+  emos:
+    image: ghcr.io/automatika-robotics/emos:${EMOS_IMAGE_TAG:-jazzy-latest}
+    container_name: emos
+    network_mode: host
+    privileged: true
+    restart: always
+    stdin_open: true
+    tty: true
+    environment:
+      ROS_DOMAIN_ID: ${ROS_DOMAIN_ID:-0}
+      RMW_IMPLEMENTATION: rmw_fastrtps_cpp
+      # Keep EMOS on the same UDP-only Fast DDS data plane as hardware drivers.
+      FASTRTPS_DEFAULT_PROFILES_FILE: /etc/fastdds/udp-only.xml
+      FASTDDS_DEFAULT_PROFILES_FILE: /etc/fastdds/udp-only.xml
+    volumes:
+      - /dev/bus/usb:/dev/bus/usb
+      - ${EMOS_DATA_DIR:-/home/china/emos}:/emos
+      - ../fastdds/udp-only.xml:/etc/fastdds/udp-only.xml:ro
+    entrypoint:
+      - /ros_entrypoint.sh
+    command:
+      - bash

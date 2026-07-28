@@ -1,5 +1,3 @@
-# syntax=docker/dockerfile:1.7
-
 ARG ROS_BASE_IMAGE=ros:jazzy-ros-base-noble
 
 FROM ${ROS_BASE_IMAGE} AS builder
@@ -38,9 +36,7 @@ RUN apt-get update \
         ros-jazzy-ros2-control \
         ros-jazzy-ros2-controllers \
         ros-jazzy-xacro \
-    && rm -rf /var/lib/apt/lists/* \
-    && useradd --create-home --uid 1000 --shell /bin/bash lekiwi \
-    && usermod --append --groups dialout lekiwi
+    && rm -rf /var/lib/apt/lists/*
 
 COPY --from=builder /ws/install /opt/lekiwi_ws
 COPY deploy/lekiwi-driver/entrypoint.sh /usr/local/bin/lekiwi-entrypoint.sh
@@ -48,11 +44,12 @@ COPY deploy/lekiwi-driver/healthcheck.sh /usr/local/bin/lekiwi-healthcheck.sh
 
 RUN chmod 0755 /usr/local/bin/lekiwi-entrypoint.sh /usr/local/bin/lekiwi-healthcheck.sh \
     && mkdir -p /tmp/ros-logs \
-    && chown lekiwi:lekiwi /tmp/ros-logs
+    && chown ubuntu:ubuntu /tmp/ros-logs
 
 ENV ROS_DISTRO=jazzy \
+    ROS_HOME=/tmp/ros-home \
     ROS_LOG_DIR=/tmp/ros-logs
 
-USER lekiwi
+USER ubuntu
 ENTRYPOINT ["/usr/local/bin/lekiwi-entrypoint.sh"]
 CMD ["ros2", "launch", "lekiwi_bringup", "lekiwi_driver.launch.py", "hardware_mode:=mock"]

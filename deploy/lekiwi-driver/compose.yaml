@@ -16,6 +16,7 @@ services:
     environment:
       ROS_DOMAIN_ID: ${ROS_DOMAIN_ID:-0}
       RMW_IMPLEMENTATION: rmw_fastrtps_cpp
+      ROS_HOME: /tmp/ros-home
       ROS_LOG_DIR: /tmp/ros-logs
     security_opt:
       - no-new-privileges:true
@@ -29,8 +30,8 @@ services:
       - hardware_mode:=mock
     healthcheck:
       test: ["CMD", "/usr/local/bin/lekiwi-healthcheck.sh"]
-      interval: 10s
-      timeout: 5s
+      interval: 15s
+      timeout: 15s
       retries: 6
       start_period: 30s
     stop_grace_period: 3s

@@ -136,7 +136,11 @@ class LeKiwiDeploymentContractTest(unittest.TestCase):
             "libboost-system1.83.0",
             "libfcl0.7",
             "liboctomap1.9t64",
+            "ros-jazzy-depthimage-to-laserscan",
+            "ros-jazzy-realsense2-camera",
             "ros-jazzy-realsense2-camera-msgs",
+            "ros-jazzy-rtabmap-odom",
+            "ros-jazzy-rtabmap-ros",
             "kompass-core==${KOMPASS_CORE_VERSION}",
         ):
             self.assertIn(token, dockerfile)

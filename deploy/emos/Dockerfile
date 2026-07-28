@@ -9,7 +9,11 @@ RUN apt-get update \
         libfcl0.7 \
         liboctomap1.9t64 \
         libompl16t64 \
+        ros-jazzy-depthimage-to-laserscan \
+        ros-jazzy-realsense2-camera \
         ros-jazzy-realsense2-camera-msgs \
+        ros-jazzy-rtabmap-odom \
+        ros-jazzy-rtabmap-ros \
     && python3 -m pip install --no-cache-dir --break-system-packages \
         "kompass-core==${KOMPASS_CORE_VERSION}" \
     && rm -rf /var/lib/apt/lists/*

@@ -25,8 +25,9 @@ because EMOS CLI 0.7.0 executes recipes from the first path but writes its log
 files to the second.
 
 The repository image extends the upstream Jazzy image with the native OMPL/FCL
-runtime libraries, `kompass-core` 0.8.1, and the RealSense RGBD message package
-required to import `vision_depth_follower`.
+runtime libraries, `kompass-core` 0.8.1, RealSense RGBD support,
+`depthimage_to_laserscan`, and RTAB-Map RGB-D odometry required by
+`vision_depth_follower`.
 
 Continue to pass Fast DDS explicitly when launching a recipe:
 

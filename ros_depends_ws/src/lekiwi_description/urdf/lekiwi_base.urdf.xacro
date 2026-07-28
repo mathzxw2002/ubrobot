@@ -1,0 +1,84 @@
+<?xml version="1.0"?>
+<robot xmlns:xacro="http://www.ros.org/wiki/xacro" name="lekiwi_base">
+  <xacro:arg name="hardware_mode" default="mock"/>
+
+  <xacro:property name="base_radius" value="0.125"/>
+  <xacro:property name="wheel_radius" value="0.05"/>
+  <xacro:property name="wheel_width" value="0.025"/>
+
+  <xacro:macro name="omni_wheel" params="name x y yaw">
+    <link name="${name}_link">
+      <visual>
+        <origin rpy="1.57079632679 0 ${yaw}"/>
+        <geometry>
+          <cylinder radius="${wheel_radius}" length="${wheel_width}"/>
+        </geometry>
+        <material name="wheel_black">
+          <color rgba="0.05 0.05 0.05 1"/>
+        </material>
+      </visual>
+      <collision>
+        <origin rpy="1.57079632679 0 ${yaw}"/>
+        <geometry>
+          <cylinder radius="${wheel_radius}" length="${wheel_width}"/>
+        </geometry>
+      </collision>
+      <inertial>
+        <mass value="0.15"/>
+        <inertia ixx="0.0001" ixy="0" ixz="0" iyy="0.0001" iyz="0" izz="0.0001"/>
+      </inertial>
+    </link>
+    <joint name="${name}_joint" type="continuous">
+      <parent link="base_link"/>
+      <child link="${name}_link"/>
+      <origin xyz="${x} ${y} ${wheel_radius}" rpy="0 0 ${yaw}"/>
+      <axis xyz="0 1 0"/>
+    </joint>
+  </xacro:macro>
+
+  <link name="base_link">
+    <visual>
+      <origin xyz="0 0 0.10"/>
+      <geometry>
+        <cylinder radius="0.18" length="0.08"/>
+      </geometry>
+      <material name="base_gray">
+        <color rgba="0.35 0.35 0.35 1"/>
+      </material>
+    </visual>
+    <collision>
+      <origin xyz="0 0 0.10"/>
+      <geometry>
+        <cylinder radius="0.18" length="0.08"/>
+      </geometry>
+    </collision>
+    <inertial>
+      <origin xyz="0 0 0.10"/>
+      <mass value="4.0"/>
+      <inertia ixx="0.03" ixy="0" ixz="0" iyy="0.03" iyz="0" izz="0.05"/>
+    </inertial>
+  </link>
+
+  <!-- Counter-clockwise order used by omni_wheel_drive_controller. -->
+  <xacro:omni_wheel
+    name="base_back_wheel"
+    x="${base_radius}"
+    y="0.0"
+    yaw="0.0"
+  />
+  <xacro:omni_wheel
+    name="base_right_wheel"
+    x="${-0.5 * base_radius}"
+    y="${0.86602540378 * base_radius}"
+    yaw="${2.09439510239}"
+  />
+  <xacro:omni_wheel
+    name="base_left_wheel"
+    x="${-0.5 * base_radius}"
+    y="${-0.86602540378 * base_radius}"
+    yaw="${4.18879020479}"
+  />
+
+  <xacro:include filename="$(find lekiwi_description)/ros2_control/lekiwi_base.ros2_control.xacro"/>
+  <xacro:lekiwi_ros2_control hardware_mode="$(arg hardware_mode)"/>
+</robot>

@@ -49,6 +49,7 @@ private:
 
   static constexpr std::size_t kWheelCount = 3;
   std::array<double, kWheelCount> velocity_commands_{};
+  std::array<double, kWheelCount> position_states_{};
   std::array<double, kWheelCount> velocity_states_{};
   std::array<int, kWheelCount> direction_{{1, 1, 1}};
   FeetechBus::MotorIds motor_ids_{{8, 9, 7}};  // back, right, left

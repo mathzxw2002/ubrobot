@@ -114,6 +114,8 @@ class LeKiwiDeploymentContractTest(unittest.TestCase):
     def test_emos_compose_persists_the_shared_fastdds_profile(self):
         compose = read_repository_file(EMOS_DEPLOYMENT_ROOT / "compose.yaml")
         for token in (
+            "build:",
+            "dockerfile: deploy/emos/Dockerfile",
             "container_name: emos",
             "network_mode: host",
             "restart: always",
@@ -121,9 +123,43 @@ class LeKiwiDeploymentContractTest(unittest.TestCase):
             "FASTRTPS_DEFAULT_PROFILES_FILE: /etc/fastdds/udp-only.xml",
             "FASTDDS_DEFAULT_PROFILES_FILE: /etc/fastdds/udp-only.xml",
             "${EMOS_DATA_DIR:-/home/china/emos}:/emos",
+            "${EMOS_DATA_DIR:-/home/china/emos}:/home/china/emos",
             "../fastdds/udp-only.xml:/etc/fastdds/udp-only.xml:ro",
         ):
             self.assertIn(token, compose)
+
+    def test_emos_image_contains_recipe_runtime_dependencies(self):
+        dockerfile = read_repository_file(EMOS_DEPLOYMENT_ROOT / "Dockerfile")
+        for token in (
+            "ARG EMOS_BASE_IMAGE=ghcr.io/automatika-robotics/emos:jazzy-latest",
+            "libompl16t64",
+            "libboost-system1.83.0",
+            "libfcl0.7",
+            "liboctomap1.9t64",
+            "ros-jazzy-realsense2-camera-msgs",
+            "kompass-core==${KOMPASS_CORE_VERSION}",
+        ):
+            self.assertIn(token, dockerfile)
+
+    def test_wheel_joints_publish_finite_position_state(self):
+        control_xacro = read_repository_file(
+            REPOSITORY_ROOT
+            / "ros_depends_ws"
+            / "src"
+            / "lekiwi_description"
+            / "ros2_control"
+            / "lekiwi_base.ros2_control.xacro"
+        )
+        hardware_header = read_repository_file(
+            HARDWARE_ROOT / "include" / "lekiwi_hardware" / "lekiwi_system_hardware.hpp"
+        )
+        hardware_source = read_repository_file(
+            HARDWARE_ROOT / "src" / "lekiwi_system_hardware.cpp"
+        )
+        self.assertEqual(control_xacro.count('<state_interface name="position"/>'), 3)
+        self.assertIn("position_states_{}", hardware_header)
+        self.assertIn("hardware_interface::HW_IF_POSITION", hardware_source)
+        self.assertIn("position_states_[index] += velocity_states_[index] * period.seconds()", hardware_source)
 
     def test_real_hardware_uses_verified_motor_contract(self):
         control_xacro = read_repository_file(

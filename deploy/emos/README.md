@@ -12,6 +12,7 @@ From the repository root on the Raspberry Pi:
 
 ```bash
 docker compose -f deploy/emos/compose.yaml config
+docker compose -f deploy/emos/compose.yaml build
 docker compose -f deploy/emos/compose.yaml up -d
 docker inspect emos --format '{{json .Config.Env}}'
 docker inspect emos --format '{{json .Mounts}}'
@@ -19,7 +20,13 @@ docker inspect emos --format '{{json .Mounts}}'
 
 The recipe data directory defaults to `/home/china/emos`. Set
 `EMOS_DATA_DIR=/another/path` before invoking Compose when deploying as a
-different host user.
+different host user. It is mounted at both `/emos` and `/home/china/emos`
+because EMOS CLI 0.7.0 executes recipes from the first path but writes its log
+files to the second.
+
+The repository image extends the upstream Jazzy image with the native OMPL/FCL
+runtime libraries, `kompass-core` 0.8.1, and the RealSense RGBD message package
+required to import `vision_depth_follower`.
 
 Continue to pass Fast DDS explicitly when launching a recipe:
 

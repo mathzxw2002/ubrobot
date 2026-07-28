@@ -1,6 +1,11 @@
 services:
   emos:
-    image: ghcr.io/automatika-robotics/emos:${EMOS_IMAGE_TAG:-jazzy-latest}
+    build:
+      context: ../..
+      dockerfile: deploy/emos/Dockerfile
+      args:
+        EMOS_BASE_IMAGE: ${EMOS_BASE_IMAGE:-ghcr.io/automatika-robotics/emos:jazzy-latest}
+    image: ubrobot/emos:${EMOS_IMAGE_TAG:-jazzy-lekiwi}
     container_name: emos
     network_mode: host
     privileged: true
@@ -16,6 +21,8 @@ services:
     volumes:
       - /dev/bus/usb:/dev/bus/usb
       - ${EMOS_DATA_DIR:-/home/china/emos}:/emos
+      # The EMOS CLI writes logs using this absolute host-style path in-container.
+      - ${EMOS_DATA_DIR:-/home/china/emos}:/home/china/emos
       - ../fastdds/udp-only.xml:/etc/fastdds/udp-only.xml:ro
     entrypoint:
       - /ros_entrypoint.sh

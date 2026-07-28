@@ -88,10 +88,12 @@ hardware_interface::CallbackReturn LeKiwiSystemHardware::on_init(
       }
       if (joint.command_interfaces.size() != 1U ||
         joint.command_interfaces[0].name != hardware_interface::HW_IF_VELOCITY ||
-        joint.state_interfaces.size() != 1U ||
-        joint.state_interfaces[0].name != hardware_interface::HW_IF_VELOCITY)
+        joint.state_interfaces.size() != 2U ||
+        joint.state_interfaces[0].name != hardware_interface::HW_IF_POSITION ||
+        joint.state_interfaces[1].name != hardware_interface::HW_IF_VELOCITY)
       {
-        throw std::invalid_argument("each wheel must expose one velocity command and state interface");
+        throw std::invalid_argument(
+                "each wheel must expose a velocity command plus position and velocity states");
       }
     }
 
@@ -134,8 +136,10 @@ std::vector<hardware_interface::StateInterface>
 LeKiwiSystemHardware::export_state_interfaces()
 {
   std::vector<hardware_interface::StateInterface> interfaces;
-  interfaces.reserve(kWheelCount);
+  interfaces.reserve(2U * kWheelCount);
   for (std::size_t index = 0; index < kWheelCount; ++index) {
+    interfaces.emplace_back(
+      info_.joints[index].name, hardware_interface::HW_IF_POSITION, &position_states_[index]);
     interfaces.emplace_back(
       info_.joints[index].name, hardware_interface::HW_IF_VELOCITY, &velocity_states_[index]);
   }
@@ -159,6 +163,7 @@ hardware_interface::CallbackReturn LeKiwiSystemHardware::on_configure(
 {
   try {
     std::fill(velocity_commands_.begin(), velocity_commands_.end(), 0.0);
+    std::fill(position_states_.begin(), position_states_.end(), 0.0);
     std::fill(velocity_states_.begin(), velocity_states_.end(), 0.0);
     bus_.connect(device_, baud_rate_, serial_timeout_, motor_ids_);
     bus_.verify_sts3215_motors();
@@ -222,13 +227,16 @@ hardware_interface::CallbackReturn LeKiwiSystemHardware::on_error(
 }
 
 hardware_interface::return_type LeKiwiSystemHardware::read(
-  const rclcpp::Time &, const rclcpp::Duration &)
+  const rclcpp::Time &, const rclcpp::Duration & period)
 {
   try {
     const auto raw_velocities = bus_.read_velocities();
     for (std::size_t index = 0; index < kWheelCount; ++index) {
       velocity_states_[index] = static_cast<double>(direction_[index]) *
         feetech::raw_to_radians_per_second(raw_velocities[index]);
+      if (std::isfinite(period.seconds()) && period.seconds() > 0.0) {
+        position_states_[index] += velocity_states_[index] * period.seconds();
+      }
     }
     return hardware_interface::return_type::OK;
   } catch (const std::exception & exception) {

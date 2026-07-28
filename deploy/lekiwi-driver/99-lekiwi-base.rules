@@ -1,0 +1,1 @@
+SUBSYSTEM=="tty", ATTRS{idVendor}=="1a86", ATTRS{idProduct}=="55d3", ATTRS{serial}=="5A68011386", GROUP="dialout", MODE="0660", SYMLINK+="lekiwi-base"

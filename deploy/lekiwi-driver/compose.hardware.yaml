@@ -1,0 +1,12 @@
+# HARD GATE: this override must not be started until LeKiwiSystemHardware exists,
+# passes lifted-wheel testing, and receives explicit operator approval.
+services:
+  lekiwi-base-driver:
+    devices:
+      - /dev/lekiwi-base:/dev/lekiwi-base
+    command:
+      - ros2
+      - launch
+      - lekiwi_bringup
+      - lekiwi_driver.launch.py
+      - hardware_mode:=real

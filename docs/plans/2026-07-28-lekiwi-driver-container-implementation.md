@@ -17,10 +17,9 @@ This plan deploys the container environment and validates the ROS control chain 
 LeKiwi. The real hardware Compose override remains unusable until the C++ Feetech
 transport is implemented, reviewed, and tested with wheels lifted.
 
-The normal base image is `ros:jazzy-ros-base-noble`. Docker Hub is currently
-unreachable from the Raspberry Pi, so the first build may pass the already cached
-`ghcr.io/automatika-robotics/emos:jazzy-latest` image through `ROS_BASE_IMAGE` as a
-temporary build bootstrap. The Dockerfile default must remain the official ROS image.
+The only supported base image is the official `ros:jazzy-ros-base-noble` image.
+If the Raspberry Pi cannot reach Docker Hub, transfer that exact ARM64 image from a
+trusted workstation with `docker save`/`docker load`; do not substitute the EMOS image.
 
 ### Task 1: Add deployment contract tests
 
@@ -226,7 +225,7 @@ ARG ROS_BASE_IMAGE=ros:jazzy-ros-base-noble
 
 Install pinned Jazzy binary packages available for ARM64, including
 `ros-jazzy-ros2-control`, `ros-jazzy-ros2-controllers`, and
-`ros-jazzy-omni-wheel-drive-controller`. Build only the three LeKiwi ROS packages.
+`ros-jazzy-omni-wheel-drive-controller`. Build only the two LeKiwi ROS packages.
 
 **Step 2: Implement safe default Compose**
 
@@ -299,14 +298,6 @@ directories.
 
 ```bash
 docker build -f deploy/lekiwi-driver/Dockerfile \
-  -t ubrobot/lekiwi-base-driver:0.1.0-mock .
-```
-
-If Docker Hub remains unreachable, repeat with the documented temporary bootstrap:
-
-```bash
-docker build -f deploy/lekiwi-driver/Dockerfile \
-  --build-arg ROS_BASE_IMAGE=ghcr.io/automatika-robotics/emos:jazzy-latest \
   -t ubrobot/lekiwi-base-driver:0.1.0-mock .
 ```
 
@@ -389,12 +380,11 @@ Do not start the hardware Compose override.
 **Files:**
 - Modify: `emos.md`
 - Modify: `deploy/lekiwi-driver/README.md`
-- Create: `docs/adr/0003-temporary-emos-base-image-bootstrap.md` only if the fallback image was actually used.
 
 **Step 1: Record exact versions and verification output**
 
 Document image ID, ROS package versions, Raspberry Pi architecture, Compose state, ROS
-node/controller state, and the Docker Hub connectivity exception if applicable.
+node/controller state, and the official ARM64 base-image transfer if applicable.
 
 **Step 2: State the remaining hard gate**
 
@@ -412,4 +402,3 @@ graph verification, and `git diff --check`.
 git add emos.md deploy/lekiwi-driver/README.md docs/adr
 git commit -m "docs: record LeKiwi mock driver deployment"
 ```
-

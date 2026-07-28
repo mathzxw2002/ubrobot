@@ -1,0 +1,36 @@
+services:
+  lekiwi-base-driver:
+    image: ubrobot/lekiwi-base-driver:${LEKIWI_DRIVER_TAG:-0.1.0-mock}
+    build:
+      context: ../..
+      dockerfile: deploy/lekiwi-driver/Dockerfile
+      args:
+        ROS_BASE_IMAGE: ros:jazzy-ros-base-noble
+    container_name: lekiwi-base-driver
+    network_mode: host
+    init: true
+    restart: unless-stopped
+    read_only: true
+    tmpfs:
+      - /tmp:rw,nosuid,nodev,size=64m
+    environment:
+      ROS_DOMAIN_ID: ${ROS_DOMAIN_ID:-0}
+      RMW_IMPLEMENTATION: rmw_fastrtps_cpp
+      ROS_LOG_DIR: /tmp/ros-logs
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+    command:
+      - ros2
+      - launch
+      - lekiwi_bringup
+      - lekiwi_driver.launch.py
+      - hardware_mode:=mock
+    healthcheck:
+      test: ["CMD", "/usr/local/bin/lekiwi-healthcheck.sh"]
+      interval: 10s
+      timeout: 5s
+      retries: 6
+      start_period: 30s
+    stop_grace_period: 3s

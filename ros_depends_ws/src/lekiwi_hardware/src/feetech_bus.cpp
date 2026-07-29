@@ -1,5 +1,6 @@
 #include "lekiwi_hardware/feetech_bus.hpp"
 
+#include <cstdlib>
 #include <sstream>
 #include <stdexcept>
 
@@ -114,15 +115,24 @@ void FeetechBus::configure_velocity_mode()
     write_register(id, ft::kAccelerationAddress, {254});
     write_register(id, ft::kOperatingModeAddress, {ft::kVelocityMode});
   }
+  zero_goal_registers_verified();
 }
 
 void FeetechBus::enable_torque()
 {
+  // Zero the goal registers with acknowledged writes before applying torque.
+  // A stale goal left by a previous session would otherwise run immediately;
+  // the earlier fire-and-forget sync write could not prove the registers
+  // actually cleared.
+  zero_goal_registers_verified();
   write_velocities({0, 0, 0});
   for (const auto id : motor_ids_) {
     write_register(id, ft::kTorqueEnableAddress, {1});
     write_register(id, ft::kLockAddress, {1});
   }
+  // 150 steps/s is well above the observed ±50 steps/s idle quantization
+  // jitter and far below the 300 steps/s first-test command clamp.
+  assert_wheels_stationary(150);
 }
 
 void FeetechBus::stop_and_disable() noexcept
@@ -131,6 +141,9 @@ void FeetechBus::stop_and_disable() noexcept
     return;
   }
   try {
+    // Leave the goal registers at a proven zero so a later torque enable can
+    // never run a stale goal, even if this shutdown path raced a failure.
+    zero_goal_registers_verified();
     write_velocities({0, 0, 0});
     for (const auto id : motor_ids_) {
       write_register(id, ft::kTorqueEnableAddress, {0});
@@ -163,6 +176,32 @@ FeetechBus::RawVelocities FeetechBus::read_velocities()
     velocities[index] = ft::little_endian_u16(read_status(motor_ids_[index]).parameters);
   }
   return velocities;
+}
+
+void FeetechBus::zero_goal_registers_verified()
+{
+  for (const auto id : motor_ids_) {
+    write_register(id, ft::kGoalVelocityAddress, {0, 0});
+    const auto goal = ft::little_endian_u16(read_register(id, ft::kGoalVelocityAddress, 2));
+    if (goal != 0U) {
+      throw std::runtime_error(
+              "motor " + std::to_string(id) +
+              " goal velocity register did not clear (raw " + std::to_string(goal) + ")");
+    }
+  }
+}
+
+void FeetechBus::assert_wheels_stationary(const uint16_t max_steps)
+{
+  for (const auto id : motor_ids_) {
+    const auto raw = ft::little_endian_u16(read_register(id, ft::kPresentVelocityAddress, 2));
+    const int steps = ft::decode_sign_magnitude(raw);
+    if (std::abs(steps) > static_cast<int>(max_steps)) {
+      throw std::runtime_error(
+              "motor " + std::to_string(id) + " moving unexpectedly at " +
+              std::to_string(steps) + " steps/s right after torque enable");
+    }
+  }
 }
 
 }  // namespace lekiwi_hardware

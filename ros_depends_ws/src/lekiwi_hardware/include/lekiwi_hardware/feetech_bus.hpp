@@ -30,6 +30,17 @@ public:
   void write_velocities(const RawVelocities & raw_velocities);
   RawVelocities read_velocities();
 
+  // Write goal velocity zero to every motor with individually acknowledged
+  // writes and read the register back. Sync writes are fire-and-forget, so a
+  // silent failure would leave a stale goal that runs as soon as torque is
+  // enabled. Throws unless every goal register reads back zero.
+  void zero_goal_registers_verified();
+
+  // Throw if any motor reports |present velocity| above max_steps. Used right
+  // after torque enable to catch unexpected motion before the first control
+  // cycle. max_steps is in raw Feetech steps/second (sign-magnitude coded).
+  void assert_wheels_stationary(uint16_t max_steps);
+
 private:
   struct StatusPacket
   {

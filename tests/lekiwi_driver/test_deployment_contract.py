@@ -196,6 +196,60 @@ class LeKiwiDeploymentContractTest(unittest.TestCase):
         self.assertIn('GROUP="dialout"', rule)
         self.assertIn('MODE="0660"', rule)
 
+    def test_torque_enable_requires_verified_zero_goal_and_stationary_wheels(self):
+        bus_source = read_repository_file(
+            HARDWARE_ROOT / "src" / "feetech_bus.cpp"
+        )
+        # Fire-and-forget sync writes cannot prove the goal registers cleared;
+        # torque must only follow acknowledged writes plus read-back, and
+        # activation must fail safe if a wheel is already moving.
+        self.assertIn("zero_goal_registers_verified()", bus_source)
+        self.assertIn("assert_wheels_stationary(150)", bus_source)
+        self.assertIn(
+            'write_register(id, ft::kGoalVelocityAddress, {0, 0});', bus_source
+        )
+        self.assertIn(
+            'read_register(id, ft::kGoalVelocityAddress, 2)', bus_source
+        )
+
+    def test_emos_image_persists_full_stack_supervisor(self):
+        dockerfile = read_repository_file(EMOS_DEPLOYMENT_ROOT / "Dockerfile")
+        compose = read_repository_file(EMOS_DEPLOYMENT_ROOT / "compose.yaml")
+        for token in (
+            "COPY ros_depends_ws/src/emos_bringup src/emos_bringup",
+            "--install-base /opt/emos_overlay",
+            "COPY deploy/emos/start-stack.sh /usr/local/bin/emos-stack.sh",
+            "/opt/ubrobot/recipes/vision_depth_follower/recipe.py",
+            "_vision_follower.py",
+        ):
+            self.assertIn(token, dockerfile)
+        self.assertIn("/usr/local/bin/emos-stack.sh", compose)
+
+    def test_emos_bringup_launch_covers_the_validated_sensor_chain(self):
+        launch = read_repository_file(
+            REPOSITORY_ROOT
+            / "ros_depends_ws"
+            / "src"
+            / "emos_bringup"
+            / "launch"
+            / "vision_depth_bringup.launch.py"
+        )
+        for token in (
+            "realsense2_camera",
+            "rgbd_odometry",
+            "depthimage_to_laserscan",
+            "fix_detection_header",
+            "/vision_detections_raw",
+            "/vision_detections",
+            "camera_depth_frame",
+            "camera_depth_link",
+            "base_link",
+        ):
+            self.assertIn(token, launch)
+        # camera_depth_link must have exactly one TF parent: the identity
+        # alias from camera_depth_frame, not a second static publisher.
+        self.assertNotIn("base_to_camera_depth_link_tf", launch)
+
 
 if __name__ == "__main__":
     unittest.main()

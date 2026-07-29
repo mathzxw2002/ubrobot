@@ -71,7 +71,10 @@ class LeKiwi(Robot):
         )
         #self.arm_motors = [motor for motor in self.bus.motors if motor.startswith("arm")]
         self.base_motors = [motor for motor in self.bus.motors if motor.startswith("base")]
-        #self.cameras = make_cameras_from_configs(config.cameras)
+        # This class currently controls only the LeKiwi base.  Keep an explicit
+        # empty camera mapping so camera-independent observation and disconnect
+        # paths remain valid.
+        self.cameras = {}
 
     @property
     def _state_ft(self) -> dict[str, type]:

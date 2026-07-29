@@ -1,6 +1,7 @@
 <?xml version="1.0"?>
 <robot xmlns:xacro="http://www.ros.org/wiki/xacro" name="lekiwi_base">
   <xacro:arg name="hardware_mode" default="mock"/>
+  <xacro:arg name="enable_motor_torque" default="false"/>
 
   <xacro:property name="base_radius" value="0.125"/>
   <xacro:property name="wheel_radius" value="0.05"/>
@@ -80,5 +81,8 @@
   />
 
   <xacro:include filename="$(find lekiwi_description)/ros2_control/lekiwi_base.ros2_control.xacro"/>
-  <xacro:lekiwi_ros2_control hardware_mode="$(arg hardware_mode)"/>
+  <xacro:lekiwi_ros2_control
+    hardware_mode="$(arg hardware_mode)"
+    enable_motor_torque="$(arg enable_motor_torque)"
+  />
 </robot>

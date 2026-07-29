@@ -1,0 +1,2 @@
+# Shell scripts and entrypoints run inside Linux containers; keep LF.
+*.sh text eol=lf

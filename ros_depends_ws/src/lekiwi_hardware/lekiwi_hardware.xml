@@ -1,0 +1,9 @@
+<?xml version="1.0"?>
+<library path="lekiwi_hardware">
+  <class
+    name="lekiwi_hardware/LeKiwiSystemHardware"
+    type="lekiwi_hardware::LeKiwiSystemHardware"
+    base_class_type="hardware_interface::SystemInterface">
+    <description>LeKiwi three-wheel STS3215 serial bus hardware.</description>
+  </class>
+</library>

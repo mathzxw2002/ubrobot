@@ -19,6 +19,20 @@ vision-depth follower on the LeKiwi robot with:
 
 Run each long-running command in its own terminal and keep it open.
 
+> **2026-07-29 update:** the sensor chain (steps 3–6 below), the
+> `fix_detection_header` relay, and the recipe now start automatically under
+> container supervision (`/usr/local/bin/emos-stack.sh`, see
+> `deploy/emos/README.md`). The manual sequence below remains the reference
+> for debugging and for understanding the stack. Two standing rules learned
+> from the 2026-07-29 incident
+> (`docs/validation/2026-07-29-emos-real-motion-integration.md`):
+>
+> 1. Before any lekiwi driver (re)start or mode switch, cancel all action
+>    goals (or restart the recipe) and verify `/cmd_vel` carries no non-zero
+>    data — a client-side timeout does NOT cancel the server-side goal.
+> 2. If the relay or sensor chain was started by hand, `/vision_detections`
+>    has no publisher and the action aborts with "No Target found".
+
 ## 0. Start the VLM / RoboML Server
 
 On the VLM server:

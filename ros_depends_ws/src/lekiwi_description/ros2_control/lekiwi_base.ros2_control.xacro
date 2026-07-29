@@ -1,24 +1,43 @@
 <?xml version="1.0"?>
 <robot xmlns:xacro="http://www.ros.org/wiki/xacro">
-  <xacro:macro name="lekiwi_ros2_control" params="hardware_mode">
+  <xacro:macro name="lekiwi_ros2_control" params="hardware_mode enable_motor_torque">
     <ros2_control name="LeKiwiBaseSystem" type="system">
       <hardware>
         <xacro:if value="${hardware_mode == 'mock'}">
           <plugin>mock_components/GenericSystem</plugin>
           <param name="calculate_dynamics">true</param>
         </xacro:if>
+        <xacro:if value="${hardware_mode == 'real'}">
+          <plugin>lekiwi_hardware/LeKiwiSystemHardware</plugin>
+          <param name="device">/dev/lekiwi-base</param>
+          <param name="baud_rate">1000000</param>
+          <param name="serial_timeout_ms">20</param>
+          <param name="max_raw_velocity">300</param>
+          <param name="enable_motor_torque">${'true' if enable_motor_torque else 'false'}</param>
+          <!-- Joint/controller order is back, right, left. -->
+          <param name="back_motor_id">8</param>
+          <param name="right_motor_id">9</param>
+          <param name="left_motor_id">7</param>
+          <!-- Confirm these signs with wheels lifted before any floor test. -->
+          <param name="back_direction">1</param>
+          <param name="right_direction">1</param>
+          <param name="left_direction">1</param>
+        </xacro:if>
       </hardware>
 
       <joint name="base_back_wheel_joint">
         <command_interface name="velocity"/>
+        <state_interface name="position"/>
         <state_interface name="velocity"/>
       </joint>
       <joint name="base_right_wheel_joint">
         <command_interface name="velocity"/>
+        <state_interface name="position"/>
         <state_interface name="velocity"/>
       </joint>
       <joint name="base_left_wheel_joint">
         <command_interface name="velocity"/>
+        <state_interface name="position"/>
         <state_interface name="velocity"/>
       </joint>
     </ros2_control>

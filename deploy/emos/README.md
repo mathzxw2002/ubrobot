@@ -27,9 +27,32 @@ files to the second.
 The repository image extends the upstream Jazzy image with the native OMPL/FCL
 runtime libraries, `kompass-core` 0.8.1, RealSense RGBD support,
 `depthimage_to_laserscan`, and RTAB-Map RGB-D odometry required by
-`vision_depth_follower`.
+`vision_depth_follower`. It also bakes in:
 
-Continue to pass Fast DDS explicitly when launching a recipe:
+- the kompass vision-follower setup-condition patch (upstream short-circuits
+  the first action goal);
+- the `emos_bringup` overlay with `vision_depth_bringup.launch.py` (RealSense,
+  static TFs, RGB-D odometry, depth scan, `fix_detection_header` relay);
+- `/usr/local/bin/emos-stack.sh`, the default container command, which starts
+  the sensor chain and then the recipe, logging to
+  `/home/china/emos/logs`. If any stack process dies, the container exits so
+  `restart: always` recreates a clean stack.
+
+The recipe executed by the supervisor is the one in the EMOS data dir
+(`/emos/recipes/vision_depth_follower/recipe.py`, persisted on the host). The
+repo keeps a reference copy at
+`deploy/emos/recipes/vision_depth_follower/recipe.py` with the required
+`detections_raw` wiring; the supervisor seeds it only when the data-dir recipe
+is missing, it never overwrites an existing one.
+
+For a manual debugging shell inside the running container:
+
+```bash
+docker exec -it emos bash
+```
+
+When launching a recipe by hand inside such a shell, continue to pass Fast DDS
+explicitly:
 
 ```bash
 emos run vision_depth_follower --rmw rmw_fastrtps_cpp --skip-sensor-check

@@ -26,5 +26,7 @@ services:
       - ../fastdds/udp-only.xml:/etc/fastdds/udp-only.xml:ro
     entrypoint:
       - /ros_entrypoint.sh
+    # Start the full stack (sensor chain + recipe) via the supervisor.
+    # Override with `command: [bash]` for a manual debugging shell.
     command:
-      - bash
+      - /usr/local/bin/emos-stack.sh

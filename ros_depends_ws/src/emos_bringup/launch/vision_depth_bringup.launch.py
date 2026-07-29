@@ -65,23 +65,12 @@ def generate_launch_description():
                     "depth_module.depth_profile": depth_profile,
                 }.items(),
             ),
-            # Kompass defaults to frames.depth == camera_depth_link.
-            Node(
-                package="tf2_ros",
-                executable="static_transform_publisher",
-                name="base_to_camera_depth_link_tf",
-                arguments=[
-                    base_to_camera_x,
-                    base_to_camera_y,
-                    base_to_camera_z,
-                    "0",
-                    "0",
-                    "0",
-                    "base_link",
-                    "camera_depth_link",
-                ],
-                output="screen",
-            ),
+            # Kompass defaults to frames.depth == camera_depth_link. Do NOT
+            # publish base_link -> camera_depth_link directly here: together
+            # with the camera_depth_frame alias below that would give
+            # camera_depth_link two TF parents. The validated chain is
+            # base_link -> camera_link -> (RealSense tree) -> camera_depth_frame
+            # -> camera_depth_link.
             # RealSense publishes camera_link -> camera_* frames; this connects
             # the RealSense tree to the robot body tree.
             Node(
@@ -97,6 +86,24 @@ def generate_launch_description():
                     "0",
                     "base_link",
                     "camera_link",
+                ],
+                output="screen",
+            ),
+            # RealSense 4.58 publishes camera_depth_frame; Kompass expects
+            # camera_depth_link. Bridge with an identity alias.
+            Node(
+                package="tf2_ros",
+                executable="static_transform_publisher",
+                name="camera_depth_frame_alias_tf",
+                arguments=[
+                    "0",
+                    "0",
+                    "0",
+                    "0",
+                    "0",
+                    "0",
+                    "camera_depth_frame",
+                    "camera_depth_link",
                 ],
                 output="screen",
             ),

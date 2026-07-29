@@ -1,0 +1,601 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>工业具身智能落地选型分析</title>
+  <style>
+    :root {
+      --ink: #17202a;
+      --muted: #5f6f7f;
+      --line: #d7dee8;
+      --paper: #f6f8fb;
+      --panel: #ffffff;
+      --blue: #1f6feb;
+      --green: #1a7f64;
+      --amber: #b7791f;
+      --red: #c2413b;
+      --slate: #2f3b4a;
+      --shadow: 0 14px 34px rgba(31, 45, 61, 0.12);
+      font-family: Inter, "Segoe UI", "Microsoft YaHei", Arial, sans-serif;
+    }
+
+    * {
+      box-sizing: border-box;
+    }
+
+    body {
+      margin: 0;
+      background: var(--paper);
+      color: var(--ink);
+      line-height: 1.55;
+    }
+
+    .page {
+      max-width: 1180px;
+      margin: 0 auto;
+      padding: 28px 28px 56px;
+    }
+
+    .hero {
+      min-height: 360px;
+      display: grid;
+      grid-template-columns: minmax(0, 1.1fr) minmax(320px, 0.9fr);
+      gap: 32px;
+      align-items: center;
+      border-bottom: 1px solid var(--line);
+      padding: 28px 0 36px;
+    }
+
+    .eyebrow {
+      color: var(--blue);
+      font-weight: 700;
+      font-size: 13px;
+      letter-spacing: 0.02em;
+      text-transform: uppercase;
+      margin-bottom: 14px;
+    }
+
+    h1 {
+      margin: 0;
+      font-size: clamp(34px, 5vw, 60px);
+      line-height: 1.05;
+      letter-spacing: 0;
+      color: #101820;
+    }
+
+    .hero p {
+      margin: 22px 0 0;
+      font-size: 18px;
+      color: var(--muted);
+      max-width: 720px;
+    }
+
+    .recommendation {
+      background: var(--panel);
+      border: 1px solid var(--line);
+      box-shadow: var(--shadow);
+      border-radius: 8px;
+      padding: 24px;
+    }
+
+    .recommendation h2 {
+      font-size: 22px;
+      margin: 0 0 12px;
+    }
+
+    .verdict {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      margin: 18px 0;
+      padding: 16px;
+      border: 1px solid #b7d6ff;
+      background: #eef6ff;
+      border-radius: 8px;
+      font-weight: 700;
+      color: #164f9f;
+    }
+
+    .dot {
+      width: 12px;
+      height: 12px;
+      border-radius: 50%;
+      background: var(--blue);
+      flex: 0 0 auto;
+    }
+
+    .grid {
+      display: grid;
+      gap: 20px;
+    }
+
+    .section {
+      padding: 34px 0 0;
+    }
+
+    .section-title {
+      display: flex;
+      align-items: end;
+      justify-content: space-between;
+      gap: 16px;
+      margin-bottom: 18px;
+    }
+
+    h2 {
+      margin: 0;
+      font-size: 28px;
+      line-height: 1.18;
+      letter-spacing: 0;
+    }
+
+    .note {
+      color: var(--muted);
+      font-size: 14px;
+      max-width: 520px;
+    }
+
+    .architecture {
+      background: var(--panel);
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      padding: 24px;
+      box-shadow: var(--shadow);
+    }
+
+    .flow {
+      display: grid;
+      grid-template-columns: repeat(5, minmax(130px, 1fr));
+      gap: 14px;
+      align-items: stretch;
+    }
+
+    .node {
+      min-height: 120px;
+      border: 1px solid var(--line);
+      background: #fbfcfe;
+      border-radius: 8px;
+      padding: 14px;
+      position: relative;
+    }
+
+    .node strong {
+      display: block;
+      font-size: 16px;
+      margin-bottom: 8px;
+      color: #142033;
+    }
+
+    .node span {
+      display: block;
+      color: var(--muted);
+      font-size: 13px;
+    }
+
+    .node::after {
+      content: "→";
+      position: absolute;
+      top: 50%;
+      right: -15px;
+      transform: translateY(-50%);
+      color: #6b7d90;
+      font-weight: 800;
+      font-size: 20px;
+    }
+
+    .node:last-child::after {
+      display: none;
+    }
+
+    .node.emphasis {
+      border-color: #91c4ff;
+      background: #f0f7ff;
+    }
+
+    .node.control {
+      border-color: #a8d8c8;
+      background: #effaf6;
+    }
+
+    .node.safety {
+      border-color: #f0c98e;
+      background: #fff7e8;
+    }
+
+    .split {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 20px;
+    }
+
+    .card {
+      background: var(--panel);
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      padding: 22px;
+      box-shadow: 0 8px 22px rgba(31, 45, 61, 0.08);
+    }
+
+    .card h3 {
+      margin: 0 0 12px;
+      font-size: 20px;
+    }
+
+    .card p {
+      margin: 0;
+      color: var(--muted);
+    }
+
+    .score {
+      display: grid;
+      grid-template-columns: 140px 1fr;
+      gap: 12px;
+      align-items: center;
+      margin-top: 16px;
+    }
+
+    .bar {
+      height: 12px;
+      background: #e8edf4;
+      border-radius: 999px;
+      overflow: hidden;
+    }
+
+    .bar span {
+      display: block;
+      height: 100%;
+      border-radius: inherit;
+    }
+
+    .b-blue { background: var(--blue); }
+    .b-green { background: var(--green); }
+    .b-amber { background: var(--amber); }
+    .b-slate { background: var(--slate); }
+
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      background: var(--panel);
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      overflow: hidden;
+      box-shadow: 0 8px 22px rgba(31, 45, 61, 0.08);
+    }
+
+    th,
+    td {
+      text-align: left;
+      vertical-align: top;
+      padding: 14px 16px;
+      border-bottom: 1px solid var(--line);
+      font-size: 14px;
+    }
+
+    th {
+      background: #eef2f7;
+      color: #233041;
+      font-weight: 800;
+    }
+
+    tr:last-child td {
+      border-bottom: 0;
+    }
+
+    .tag {
+      display: inline-block;
+      border: 1px solid var(--line);
+      background: #f7f9fc;
+      color: #334155;
+      border-radius: 999px;
+      padding: 3px 9px;
+      margin: 2px 3px 2px 0;
+      font-size: 12px;
+      font-weight: 700;
+    }
+
+    .tag.good {
+      border-color: #b5dccf;
+      background: #effaf6;
+      color: #0f6b53;
+    }
+
+    .tag.warn {
+      border-color: #efcf98;
+      background: #fff8ea;
+      color: #83540f;
+    }
+
+    .roadmap {
+      display: grid;
+      grid-template-columns: repeat(4, minmax(0, 1fr));
+      gap: 16px;
+    }
+
+    .phase {
+      background: var(--panel);
+      border: 1px solid var(--line);
+      border-top: 5px solid var(--blue);
+      border-radius: 8px;
+      padding: 18px;
+      min-height: 210px;
+    }
+
+    .phase:nth-child(2) { border-top-color: var(--green); }
+    .phase:nth-child(3) { border-top-color: var(--amber); }
+    .phase:nth-child(4) { border-top-color: var(--red); }
+
+    .phase h3 {
+      margin: 0 0 10px;
+      font-size: 18px;
+    }
+
+    ul {
+      margin: 10px 0 0;
+      padding-left: 18px;
+      color: var(--muted);
+    }
+
+    li {
+      margin: 6px 0;
+    }
+
+    .footer {
+      margin-top: 36px;
+      padding-top: 20px;
+      border-top: 1px solid var(--line);
+      color: var(--muted);
+      font-size: 13px;
+    }
+
+    @media (max-width: 920px) {
+      .hero,
+      .split {
+        grid-template-columns: 1fr;
+      }
+
+      .flow,
+      .roadmap {
+        grid-template-columns: 1fr;
+      }
+
+      .node::after {
+        content: "↓";
+        top: auto;
+        right: 50%;
+        bottom: -20px;
+        transform: translateX(50%);
+      }
+
+      .page {
+        padding: 20px 16px 40px;
+      }
+
+      .section-title {
+        display: block;
+      }
+
+      .note {
+        margin-top: 8px;
+      }
+    }
+  </style>
+</head>
+<body>
+  <main class="page">
+    <section class="hero">
+      <div>
+        <div class="eyebrow">Industrial Embodied AI Stack</div>
+        <h1>工业装备具身智能落地选型分析</h1>
+        <p>
+          面向装载机、挖掘机、四足巡检和移动机器人，推荐采用分层架构：
+          高层 embodied VLM 负责理解与规划，下游 VLA 或传统控制器负责执行，
+          EMOS/RAI 负责把模型、导航、ROS2、控制和事件恢复串成真实系统。
+        </p>
+      </div>
+      <aside class="recommendation">
+        <h2>推荐结论</h2>
+        <div class="verdict"><span class="dot"></span>主运行时优先选择 EMOS</div>
+        <p>
+          EMOS 更贴近真实机器人任务闭环，尤其是 VLM/VLA 编排、导航、事件恢复、
+          Web UI、模型服务和硬件适配。RAI 更适合仿真验证、ROS2 agent 研究和
+          benchmark，可作为辅助方法论。
+        </p>
+      </aside>
+    </section>
+
+    <section class="section">
+      <div class="section-title">
+        <h2>推荐系统架构</h2>
+        <div class="note">不要让 VLA 一开始裸控工程机械液压动作。先用传统控制器和安全层兜底，再逐步引入局部 VLA。</div>
+      </div>
+      <div class="architecture">
+        <div class="flow">
+          <div class="node emphasis">
+            <strong>EMOS Recipe</strong>
+            <span>任务编排、状态机、模型调用、事件恢复、Dashboard。</span>
+          </div>
+          <div class="node emphasis">
+            <strong>Embodied VLM</strong>
+            <span>Cosmos Reason、RynnBrain、RoboBrain 负责场景理解、规划、风险判断。</span>
+          </div>
+          <div class="node">
+            <strong>结构化计划</strong>
+            <span>目标区域、阶段、轨迹、可操作点、成功条件、重规划条件。</span>
+          </div>
+          <div class="node control">
+            <strong>执行层</strong>
+            <span>传统导航、MPC、轨迹跟踪、液压控制，叠加局部 VLA 策略。</span>
+          </div>
+          <div class="node safety">
+            <strong>安全层</strong>
+            <span>限速、急停、地理围栏、防碰撞、倾覆风险、人工接管。</span>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section class="section">
+      <div class="section-title">
+        <h2>EMOS vs RAI</h2>
+        <div class="note">EMOS 更像现场任务运行时；RAI 更像成熟 ROS2 embodied agent 工程框架。</div>
+      </div>
+      <div class="split">
+        <article class="card">
+          <h3>EMOS</h3>
+          <p>更适合真实机器人闭环和 Physical AI recipe，尤其是导航、VLM/VLA、事件恢复和硬件适配。</p>
+          <div class="score"><span>VLM/VLA 编排</span><div class="bar"><span class="b-blue" style="width: 92%"></span></div></div>
+          <div class="score"><span>导航闭环</span><div class="bar"><span class="b-green" style="width: 88%"></span></div></div>
+          <div class="score"><span>工业现场适配</span><div class="bar"><span class="b-amber" style="width: 84%"></span></div></div>
+          <div class="score"><span>生态成熟度</span><div class="bar"><span class="b-slate" style="width: 58%"></span></div></div>
+        </article>
+        <article class="card">
+          <h3>RAI</h3>
+          <p>更适合 ROS2 工程、仿真验证、benchmark、开发者工具链，以及 simulation-first 的系统研发。</p>
+          <div class="score"><span>ROS2 工程成熟</span><div class="bar"><span class="b-blue" style="width: 90%"></span></div></div>
+          <div class="score"><span>仿真/Benchmark</span><div class="bar"><span class="b-green" style="width: 86%"></span></div></div>
+          <div class="score"><span>VLA 编排直观性</span><div class="bar"><span class="b-amber" style="width: 62%"></span></div></div>
+          <div class="score"><span>现场任务闭环</span><div class="bar"><span class="b-slate" style="width: 70%"></span></div></div>
+        </article>
+      </div>
+    </section>
+
+    <section class="section">
+      <div class="section-title">
+        <h2>模型和框架分层</h2>
+        <div class="note">核心原则：慢思考低频运行，动作策略中频运行，控制器高频运行。</div>
+      </div>
+      <table>
+        <thead>
+          <tr>
+            <th>层级</th>
+            <th>代表工作</th>
+            <th>主要职责</th>
+            <th>在工业装备中的角色</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td>Embodied VLM / Reasoner</td>
+            <td>
+              <span class="tag good">Cosmos Reason</span>
+              <span class="tag good">RynnBrain</span>
+              <span class="tag">RoboBrain</span>
+              <span class="tag">Robix</span>
+            </td>
+            <td>理解场景、识别目标区域、做任务拆解、判断失败和风险。</td>
+            <td>判断料堆、卸料区、人员风险、禁入区、当前作业阶段。</td>
+          </tr>
+          <tr>
+            <td>VLA / Action Policy</td>
+            <td>
+              <span class="tag">GR00T</span>
+              <span class="tag">PI / openpi</span>
+              <span class="tag">OpenVLA</span>
+              <span class="tag">Cosmos Policy</span>
+              <span class="tag">RynnVLA</span>
+            </td>
+            <td>根据图像、语言、状态输出局部动作或 action chunk。</td>
+            <td>适合做对准、视觉伺服、异常恢复建议，不建议初期直接裸控液压。</td>
+          </tr>
+          <tr>
+            <td>传统控制器</td>
+            <td>
+              <span class="tag good">导航控制</span>
+              <span class="tag good">MPC</span>
+              <span class="tag good">轨迹跟踪</span>
+              <span class="tag good">液压控制</span>
+            </td>
+            <td>保证可达性、稳定性、实时性和安全边界。</td>
+            <td>负责行驶、转向、铲斗、动臂、斗杆、回转等可控执行。</td>
+          </tr>
+          <tr>
+            <td>运行时编排</td>
+            <td>
+              <span class="tag good">EMOS</span>
+              <span class="tag warn">RAI</span>
+            </td>
+            <td>串联模型、导航、控制、ROS2、事件恢复、日志和 UI。</td>
+            <td>EMOS 做主运行时；RAI 可用于仿真验证和 ROS2 agent 参考。</td>
+          </tr>
+        </tbody>
+      </table>
+    </section>
+
+    <section class="section">
+      <div class="section-title">
+        <h2>装载机 / 挖掘机落地路线</h2>
+        <div class="note">从低风险感知与编排开始，逐步引入局部策略，最后形成半自动作业闭环。</div>
+      </div>
+      <div class="roadmap">
+        <article class="phase">
+          <h3>阶段 1：低风险感知闭环</h3>
+          <ul>
+            <li>接入相机、激光、IMU、CAN、液压状态。</li>
+            <li>VLM 做料堆、禁区、人员、车辆、目标区域识别。</li>
+            <li>EMOS 负责任务状态和异常事件。</li>
+          </ul>
+        </article>
+        <article class="phase">
+          <h3>阶段 2：导航与定点作业</h3>
+          <ul>
+            <li>导航到料堆、卸料点、挖掘区或巡检点。</li>
+            <li>传统控制器负责路径跟踪和安全限速。</li>
+            <li>模型只做低频规划和重规划。</li>
+          </ul>
+        </article>
+        <article class="phase">
+          <h3>阶段 3：局部 VLA 策略</h3>
+          <ul>
+            <li>VLA 做对准料堆、判断铲斗装满、选择重试动作。</li>
+            <li>动作经过控制器和安全层过滤。</li>
+            <li>失败时回到 VLM 重新规划。</li>
+          </ul>
+        </article>
+        <article class="phase">
+          <h3>阶段 4：半自动作业闭环</h3>
+          <ul>
+            <li>装载：取料、运输、卸料、复检。</li>
+            <li>挖掘：定位工作面、挖掘、回转、装车。</li>
+            <li>保留人工接管和独立安全链路。</li>
+          </ul>
+        </article>
+      </div>
+    </section>
+
+    <section class="section">
+      <div class="section-title">
+        <h2>最终建议</h2>
+        <div class="note">选型不是模型越端到端越好，而是谁能在真实现场稳定闭环。</div>
+      </div>
+      <table>
+        <tbody>
+          <tr>
+            <th>主框架</th>
+            <td><strong>EMOS</strong>，用于工业现场任务编排、导航、VLM/VLA 调度、事件恢复和 UI。</td>
+          </tr>
+          <tr>
+            <th>辅助参考</th>
+            <td><strong>RAI / Robotec.ai 方法论</strong>，用于仿真验证、数字孪生、SIL/HIL 和 ROS2 agent 工程参考。</td>
+          </tr>
+          <tr>
+            <th>上游模型</th>
+            <td><strong>Cosmos Reason 或 RynnBrain</strong>。前者适合 NVIDIA 生态，后者在 grounding、trajectory、affordance 上更直接。</td>
+          </tr>
+          <tr>
+            <th>下游执行</th>
+            <td><strong>传统控制器为主，VLA 为辅</strong>。初期不要让 VLA 直接控制装载机/挖掘机全部动作。</td>
+          </tr>
+          <tr>
+            <th>POC 周期</th>
+            <td><strong>6-8 周</strong>，从巡检、定点行驶、料堆识别、禁区识别等低风险任务开始。</td>
+          </tr>
+        </tbody>
+      </table>
+    </section>
+
+    <footer class="footer">
+      版本：2026-07-10。此页面基于前序讨论整理，面向工业装备具身智能落地选型。
+    </footer>
+  </main>
+</body>
+</html>

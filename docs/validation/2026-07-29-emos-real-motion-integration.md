@@ -129,6 +129,26 @@ Sequence (times approximate, driver container `0.2.0-rc1-b90fa1c`):
 - The physical motor-power cutoff remains the authoritative stop; software
   stops are secondary.
 
+## Deployment outcome (same day, evening)
+
+- Built `ubrobot/emos:jazzy-7a64982` and
+  `ubrobot/lekiwi-base-driver:0.2.0-rc1-7a64982` on the Pi from a
+  checksummed git archive (build dir `/home/china/ubrobot-builds/7a64982-stack`).
+- First supervised boot exposed two startup bugs, fixed in `start-stack.sh`
+  and re-deployed:
+  1. `set -u` aborted on `COLCON_TRACE` referenced by the ROS setup scripts
+     (container restart loop);
+  2. `librealsense2.so.2.58` / `librtabmap_core.so.0.22` live in non-default
+     paths in the EMOS base image — the supervisor now exports
+     `LD_LIBRARY_PATH` (the old manual processes did this inline).
+- Final supervised state verified: `/scan` 11.2 Hz, `/odom` 2.4 Hz, all
+  lifecycle components active, `/vision_detections` 1 pub + 1 sub,
+  TF `base_link → camera_depth_link` present via the single-parent chain,
+  `/track_vision_target` available, `/cmd_vel` silent.
+- `lekiwi-base-driver` recreated in mock mode with the hardened image
+  (healthy, no device mapping). Motor power and USB remained unplugged after
+  the incident; no real-mode run was attempted.
+
 ## Open items
 
 - **VLM server GPU inference**: torch 2.12.0+cu130 vs driver 535 (CUDA 12.2).
@@ -137,9 +157,8 @@ Sequence (times approximate, driver container `0.2.0-rc1-b90fa1c`):
   tracking unusable beyond static proof-of-concept.
 - **Motor state dump before next real test**: read goal-velocity, present
   velocity, and error registers before enabling torque, to close the
-  -250 steps/s open question.
-- Build the new `emos` image on the Pi and recreate the container under the
-  supervisor; rebuild the lekiwi driver image with the feetech hardening.
+  -250 steps/s open question. The new `assert_wheels_stationary(150)` will
+  additionally fail activation if the anomaly recurs.
 - Branch `codex/lekiwi-hardware-0.2.0-rc1` still unpushed.
 
 ## Evidence pointers (on the Pi)

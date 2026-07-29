@@ -8,12 +8,18 @@
 # Everything logs to ${EMOS_LOG_DIR}. If either process group dies, the
 # script exits non-zero so Docker `restart: always` recreates a clean stack.
 
-set -u
+# NOTE: no `set -u` here — the ROS and colcon setup scripts reference
+# unbound variables (e.g. COLCON_TRACE) and would abort the supervisor.
 
 source /opt/ros/jazzy/setup.bash
 if [ -f /opt/emos_overlay/setup.bash ]; then
   source /opt/emos_overlay/setup.bash
 fi
+
+# The EMOS base image keeps librealsense2 and librtabmap_core in non-default
+# library paths; without this the RealSense and rgbd_odometry nodes fail to
+# load (dlopen / ld.so errors) even though the packages are installed.
+export LD_LIBRARY_PATH="/opt/ros/jazzy/lib/aarch64-linux-gnu:/opt/ros/jazzy/lib${LD_LIBRARY_PATH:+:${LD_LIBRARY_PATH}}"
 
 LOG_DIR="${EMOS_LOG_DIR:-/home/china/emos/logs}"
 RECIPE="${EMOS_RECIPE:-/emos/recipes/vision_depth_follower/recipe.py}"

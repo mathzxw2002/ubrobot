@@ -60,6 +60,8 @@ RUN /ros_entrypoint.sh python3 /opt/ubrobot/verify_cortex_api.py
 COPY deploy/emos/start-stack.sh /usr/local/bin/emos-stack.sh
 COPY deploy/emos/recipes/vision_depth_follower/recipe.py \
     /opt/ubrobot/recipes/vision_depth_follower/recipe.py
+COPY deploy/emos/recipes/cortex_navigation/recipe.py \
+    /opt/ubrobot/recipes/cortex_navigation/recipe.py
 RUN chmod 0755 /usr/local/bin/emos-stack.sh
 
 WORKDIR /

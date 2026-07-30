@@ -1,0 +1,8 @@
+services:
+  emos:
+    environment:
+      EMOS_RECIPE: /emos/recipes/cortex_navigation/recipe.py
+      CORTEX_MODEL_HOST: ${CORTEX_MODEL_HOST:-127.0.0.1}
+      CORTEX_MODEL_PORT: ${CORTEX_MODEL_PORT:-8000}
+      CORTEX_MODEL_CHECKPOINT: ${CORTEX_MODEL_CHECKPOINT:-gpt-4o-mini}
+      CORTEX_MODEL_API_KEY: ${CORTEX_MODEL_API_KEY:-}

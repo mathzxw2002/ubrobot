@@ -1,9 +1,7 @@
 #!/bin/bash
-# Start the full EMOS stack for LeKiwi vision tracking:
-#   1. sensor chain (RealSense, static TFs, RGB-D odometry, depth scan,
-#      detection header relay) via emos_bringup launch
-#   2. vision_depth_follower recipe (detection, controller, drive manager,
-#      mapper)
+# Start the guarded EMOS stack:
+#   1. sensor chain plus semantic navigation server and velocity guard
+#   2. selected recipe (legacy vision follower or Cortex orchestration)
 #
 # Everything logs to ${EMOS_LOG_DIR}. If either process group dies, the
 # script exits non-zero so Docker `restart: always` recreates a clean stack.
@@ -24,30 +22,38 @@ export LD_LIBRARY_PATH="/opt/ros/jazzy/lib/aarch64-linux-gnu:/opt/ros/jazzy/lib$
 LOG_DIR="${EMOS_LOG_DIR:-/home/china/emos/logs}"
 RECIPE="${EMOS_RECIPE:-/emos/recipes/vision_depth_follower/recipe.py}"
 RECIPE_START_DELAY="${EMOS_RECIPE_START_DELAY:-15}"
+BRINGUP_LAUNCH="${EMOS_BRINGUP_LAUNCH:-cortex_navigation_bringup.launch.py}"
 mkdir -p "${LOG_DIR}"
 STAMP="$(date +%Y%m%d_%H%M%S)"
 
-# On a fresh EMOS data dir the upstream recipe lacks the detections_raw
-# wiring. Seed it from the image-shipped copy, but never overwrite an
-# existing recipe.
-if [ ! -f "${RECIPE}" ] && [ -f /opt/ubrobot/recipes/vision_depth_follower/recipe.py ]; then
+# Seed only a selected recipe under /emos/recipes from the matching immutable
+# image copy. Existing host data is never overwritten.
+RECIPE_RELATIVE=""
+case "${RECIPE}" in
+  /emos/recipes/*)
+    RECIPE_RELATIVE="${RECIPE#/emos/recipes/}"
+    ;;
+esac
+IMAGE_RECIPE="/opt/ubrobot/recipes/${RECIPE_RELATIVE}"
+if [ ! -f "${RECIPE}" ] && [ -n "${RECIPE_RELATIVE}" ] && [ -f "${IMAGE_RECIPE}" ]; then
   mkdir -p "$(dirname "${RECIPE}")"
-  cp /opt/ubrobot/recipes/vision_depth_follower/recipe.py "${RECIPE}"
-  echo "seeded recipe from /opt/ubrobot/recipes into ${RECIPE}"
+  cp "${IMAGE_RECIPE}" "${RECIPE}"
+  echo "seeded selected recipe from ${IMAGE_RECIPE} into ${RECIPE}"
 fi
 
-echo "starting sensor chain, log: ${LOG_DIR}/vision_depth_bringup_${STAMP}.log"
-ros2 launch emos_bringup vision_depth_bringup.launch.py \
-  >> "${LOG_DIR}/vision_depth_bringup_${STAMP}.log" 2>&1 &
+echo "starting guarded bringup, log: ${LOG_DIR}/cortex_navigation_bringup_${STAMP}.log"
+ros2 launch emos_bringup "${BRINGUP_LAUNCH}" \
+  >> "${LOG_DIR}/cortex_navigation_bringup_${STAMP}.log" 2>&1 &
 SENSOR_PID=$!
 
 # Give RealSense, TFs, and odometry time to publish before the recipe's
 # controller checks its inputs.
 sleep "${RECIPE_START_DELAY}"
 
-echo "starting recipe ${RECIPE}, log: ${LOG_DIR}/vision_depth_follower_${STAMP}.log"
+RECIPE_ID="$(basename "$(dirname "${RECIPE}")")"
+echo "starting recipe ${RECIPE}, log: ${LOG_DIR}/${RECIPE_ID}_${STAMP}.log"
 python3 -u "${RECIPE}" \
-  >> "${LOG_DIR}/vision_depth_follower_${STAMP}.log" 2>&1 &
+  >> "${LOG_DIR}/${RECIPE_ID}_${STAMP}.log" 2>&1 &
 RECIPE_PID=$!
 
 shutdown_stack() {

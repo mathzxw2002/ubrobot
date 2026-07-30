@@ -98,7 +98,11 @@ class LeKiwiDeploymentContractTest(unittest.TestCase):
         self.assertIn("bool enable_motor_torque_{false};", hardware_header)
         self.assertIn('boolean_parameter(parameters, "enable_motor_torque")', hardware_source)
         self.assertIn("if (enable_motor_torque_)", hardware_source)
-        self.assertIn("bus_.write_velocities({0, 0, 0});", hardware_source)
+        preflight_write_branch = hardware_source.split(
+            "if (!enable_motor_torque_) {", 1
+        )[1].split("FeetechBus::RawVelocities", 1)[0]
+        self.assertNotIn("write_velocities", preflight_write_branch)
+        self.assertIn("return hardware_interface::return_type::OK", preflight_write_branch)
 
     def test_real_plugin_is_built_into_the_image(self):
         dockerfile = read_repository_file(DEPLOYMENT_ROOT / "Dockerfile")

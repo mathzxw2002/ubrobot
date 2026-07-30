@@ -19,4 +19,9 @@ setup(
     description="Controlled ROS 2 navigation capability for UBRobot.",
     license="MIT",
     tests_require=["pytest"],
+    entry_points={
+        "console_scripts": [
+            "cmd_vel_guard = ubrobot_navigation.cmd_vel_guard:main",
+        ],
+    },
 )

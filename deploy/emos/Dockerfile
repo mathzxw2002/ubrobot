@@ -44,6 +44,7 @@ RUN apt-get update \
 
 WORKDIR /opt/emos_overlay_ws
 COPY ros_depends_ws/src/ubrobot_interfaces src/ubrobot_interfaces
+COPY ros_depends_ws/src/ubrobot_navigation src/ubrobot_navigation
 COPY ros_depends_ws/src/emos_bringup src/emos_bringup
 SHELL ["/bin/bash", "-c"]
 RUN source /opt/ros/jazzy/setup.bash \

@@ -135,7 +135,7 @@ class LeKiwiDeploymentContractTest(unittest.TestCase):
     def test_emos_image_contains_recipe_runtime_dependencies(self):
         dockerfile = read_repository_file(EMOS_DEPLOYMENT_ROOT / "Dockerfile")
         for token in (
-            "ARG EMOS_BASE_IMAGE=ghcr.io/automatika-robotics/emos:jazzy-latest",
+            "ARG EMOS_BASE_IMAGE=ghcr.io/automatika-robotics/emos@sha256:8ee294cffd187328ac3c2776e3389d8d93ad0bc7479e0dac284ae3d095e90f41",
             "libompl16t64",
             "libboost-system1.83.0",
             "libfcl0.7",

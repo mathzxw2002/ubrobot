@@ -1,7 +1,11 @@
-ARG EMOS_BASE_IMAGE=ghcr.io/automatika-robotics/emos:jazzy-latest
+ARG EMOS_BASE_IMAGE=ghcr.io/automatika-robotics/emos@sha256:8ee294cffd187328ac3c2776e3389d8d93ad0bc7479e0dac284ae3d095e90f41
 FROM ${EMOS_BASE_IMAGE}
 
 ARG KOMPASS_CORE_VERSION=0.8.1
+
+# Cortex imports initialize the configured ROS middleware. Keep build-time API
+# verification on the same implementation used by the deployed containers.
+ENV RMW_IMPLEMENTATION=rmw_fastrtps_cpp
 
 RUN apt-get update \
     && apt-get install -y --no-install-recommends \
@@ -43,6 +47,11 @@ COPY ros_depends_ws/src/emos_bringup src/emos_bringup
 SHELL ["/bin/bash", "-c"]
 RUN source /opt/ros/jazzy/setup.bash \
     && colcon build --merge-install --install-base /opt/emos_overlay
+
+# Refuse to publish an image when its EMOS base no longer exposes the Cortex
+# planning/action API required by the UBRobot navigation recipe.
+COPY deploy/emos/verify_cortex_api.py /opt/ubrobot/verify_cortex_api.py
+RUN /ros_entrypoint.sh python3 /opt/ubrobot/verify_cortex_api.py
 
 # Full-stack supervisor and the reference recipe (with detections_raw wiring)
 # used to seed fresh EMOS data directories.

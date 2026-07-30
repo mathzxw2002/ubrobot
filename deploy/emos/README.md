@@ -102,3 +102,30 @@ with a shell process timeout.
 
 The validated procedure and Raspberry Pi evidence are recorded in
 `docs/validation/2026-07-30-cortex-navigation-mock.md`.
+
+## Chat UI to Cortex no-motion smoke test
+
+`test/chat_cortex_smoke_test.py` exercises the production Chat UI ROS Action
+transport against disposable Cortex and bringup containers. Run the bringup
+with `start_sensors:=false`, do not start a LeKiwi container, and require every
+container to report an empty device list and `Privileged=false` before testing.
+
+Copy the smoke client and `src/chat_ui/cortex_client.py` into a disposable UI
+client container using the same ROS domain and UDP-only Fast DDS profile, then
+run:
+
+```bash
+source /opt/ros/jazzy/setup.bash
+source /opt/emos_overlay/setup.bash
+python3 -u /tmp/chat_cortex_smoke_test.py \
+  --output /tmp/task9-chat-cortex-smoke.json
+```
+
+The deterministic model fixture must return text only. The test fails if it
+observes a non-empty `/navigation/command_lease`, a non-zero `/cmd_vel`, no
+successful response, or no cancellation acknowledgement within two seconds.
+An acknowledgement proves that the ROS Action server accepted cancellation;
+it does not, by itself, prove the model HTTP request was interrupted.
+
+The validated Raspberry Pi run and artifact locations are recorded in
+`docs/validation/2026-07-30-chat-cortex-smoke.md`.

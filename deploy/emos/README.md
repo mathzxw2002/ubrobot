@@ -62,3 +62,43 @@ Do not run `emos install` over this deployment. It creates the container with th
 CLI's built-in Docker arguments and would discard the profile environment and
 mount. Update the image with a backup followed by `docker compose pull` and
 `docker compose up -d`, then repeat the cross-container topic test.
+
+## Cortex navigation mock validation
+
+Use `test/cortex_navigation_mock_test.py` only with a disposable EMOS test
+container running `cortex_navigation_bringup.launch.py start_sensors:=false`
+and an independent LeKiwi container running `hardware_mode:=mock`. Neither
+container may be privileged or map a device. The test embeds a deterministic
+`/track_vision_target` fixture, so camera and VLM services are not required.
+
+Available scenarios are:
+
+```text
+baseline goal cancel timeout orphan_client capability_loss raw_loss
+stale_downstream driver_restart
+```
+
+Example inside the EMOS test container:
+
+```bash
+source /opt/ros/jazzy/setup.bash
+source /opt/emos_overlay/setup.bash
+python3 -u /tmp/cortex_navigation_mock_test.py \
+  --scenario baseline --duration 30 --output /tmp/task8-baseline.json
+python3 -u /tmp/cortex_navigation_mock_test.py \
+  --scenario goal --output /tmp/task8-goal.json
+```
+
+Run each failure scenario against a freshly restarted EMOS test container.
+`capability_loss` intentionally terminates `navigate_to_object_server` inside
+that disposable container. For `driver_restart`, run the observer for at least
+12 seconds and restart only the mock LeKiwi container after about 3 seconds.
+
+The client always cancels owned Action goals in `finally` and waits for the
+cancellation result. `orphan_client` is the deliberate exception at runtime:
+the same client is SIGKILLed to prove the server timeout and lease expiry stop
+motion even when cleanup cannot execute. Do not replace Action cancellation
+with a shell process timeout.
+
+The validated procedure and Raspberry Pi evidence are recorded in
+`docs/validation/2026-07-30-cortex-navigation-mock.md`.

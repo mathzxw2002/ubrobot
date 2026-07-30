@@ -42,6 +42,29 @@ class FakeWorker:
         self.events.append(f"join:{self.name}")
 
 
+class FakeGo2Manager:
+    instances = []
+
+    def __init__(self):
+        self.started = False
+        self.tasks = []
+        self.nav_tasks = []
+        type(self).instances.append(self)
+
+    def start_threads(self):
+        self.started = True
+
+    def agent_response(self, task):
+        self.tasks.append(task)
+        return "legacy response"
+
+    def nav_by_user_instruction(self, task):
+        self.nav_tasks.append(task)
+
+    def visualize_robot_observation(self):
+        return "nav-image", "arm-image"
+
+
 def load_pipeline_module():
     torch = ModuleType("torch")
     torch.no_grad = lambda: (lambda value: value)
@@ -154,6 +177,43 @@ class ChatPipelineRoutingTest(unittest.TestCase):
         )
 
         self.assertEqual(pipeline.get_robot_observation(), (None, None))
+
+    def test_explicit_legacy_backend_delegates_without_changing_text(self):
+        FakeGo2Manager.instances.clear()
+        ubrobot = ModuleType("ubrobot")
+        ubrobot.__path__ = []
+        robots = ModuleType("ubrobot.robots")
+        robots.__path__ = []
+        legacy_module = ModuleType("ubrobot.robots.ubrobot")
+        legacy_module.Go2Manager = FakeGo2Manager
+        with patch.dict(
+            sys.modules,
+            {
+                "ubrobot": ubrobot,
+                "ubrobot.robots": robots,
+                "ubrobot.robots.ubrobot": legacy_module,
+            },
+        ):
+            backend = self.pipeline_module._LegacyBackend()
+
+        seen = []
+        reply = backend.execute("nav: chair", on_feedback=seen.append)
+
+        manager = FakeGo2Manager.instances[-1]
+        self.assertTrue(manager.started)
+        self.assertEqual(manager.tasks, ["nav: chair"])
+        self.assertEqual(reply, "legacy response")
+        self.assertEqual(seen, ["legacy backend"])
+
+    def test_legacy_agent_response_is_marked_deprecated(self):
+        source = (ROOT / "src/ubrobot/robots/ubrobot.py").read_text(
+            encoding="utf-8"
+        )
+        agent_response = source.split("def agent_response", 1)[1].split(
+            'if __name__ == "__main__"', 1
+        )[0]
+        self.assertIn("warnings.warn", agent_response)
+        self.assertIn("DeprecationWarning", agent_response)
 
 
 if __name__ == "__main__":

@@ -72,6 +72,34 @@ class CmdVelGuardStateTest(unittest.TestCase):
         outputs = [self.guard.tick().twist for _ in range(3)]
         self.assertEqual(outputs, [ZERO, ZERO, ZERO])
 
+    def test_lease_and_raw_timeouts_are_independently_configurable(self):
+        raw_short = CmdVelGuardState(
+            clock=self.clock,
+            lease_timeout_sec=0.5,
+            raw_command_timeout_sec=0.1,
+        )
+        raw_short.on_lease("nav-1")
+        raw_short.on_raw_command(0.02, 0.0, 0.0)
+        self.clock.advance(0.11)
+        raw_short.on_lease("nav-1")
+        self.assertEqual(raw_short.tick().twist, ZERO)
+
+        self.clock.now_sec = 0.0
+        lease_short = CmdVelGuardState(
+            clock=self.clock,
+            lease_timeout_sec=0.1,
+            raw_command_timeout_sec=0.5,
+        )
+        lease_short.on_lease("nav-1")
+        lease_short.on_raw_command(0.02, 0.0, 0.0)
+        self.clock.advance(0.11)
+        self.assertEqual(lease_short.tick().twist, ZERO)
+
+    def test_non_positive_or_non_finite_timeouts_are_rejected(self):
+        for value in (0.0, -0.1, math.nan, math.inf):
+            with self.subTest(value=value), self.assertRaises(ValueError):
+                CmdVelGuardState(clock=self.clock, lease_timeout_sec=value)
+
 
 if __name__ == "__main__":
     unittest.main()

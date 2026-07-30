@@ -44,14 +44,22 @@ def validate_goal(target: str, timeout_sec: float) -> ValidatedGoal:
     return ValidatedGoal(normalized_target, normalized_timeout)
 
 
-def lease_is_fresh(*, active: bool, heartbeat_age_sec: float) -> bool:
+def lease_is_fresh(
+    *,
+    active: bool,
+    heartbeat_age_sec: float,
+    max_age_sec: float = COMMAND_FRESHNESS_SEC,
+) -> bool:
     """Return whether command authority is both active and recently renewed."""
-    return bool(active) and _age_is_fresh(heartbeat_age_sec)
+    return bool(active) and _age_is_fresh(heartbeat_age_sec, max_age_sec)
 
 
-def command_is_fresh(command_age_sec: float) -> bool:
+def command_is_fresh(
+    command_age_sec: float,
+    max_age_sec: float = COMMAND_FRESHNESS_SEC,
+) -> bool:
     """Return whether the most recent raw velocity command is recent enough."""
-    return _age_is_fresh(command_age_sec)
+    return _age_is_fresh(command_age_sec, max_age_sec)
 
 
 def sanitize_twist(
@@ -81,12 +89,18 @@ def sanitize_twist(
     )
 
 
-def _age_is_fresh(age_sec: float) -> bool:
+def _age_is_fresh(age_sec: float, max_age_sec: float) -> bool:
     try:
         age = float(age_sec)
+        maximum_age = float(max_age_sec)
     except (TypeError, ValueError):
         return False
-    return math.isfinite(age) and 0.0 <= age <= COMMAND_FRESHNESS_SEC
+    return (
+        math.isfinite(age)
+        and math.isfinite(maximum_age)
+        and maximum_age > 0.0
+        and 0.0 <= age <= maximum_age
+    )
 
 
 def _clamp(value: float, magnitude: float) -> float:

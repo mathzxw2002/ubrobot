@@ -108,6 +108,17 @@ controller.direct_sensor = False
 
 driver = DriveManager(component_name="my_driver")
 
+# Verified against Kompass 0.8.1 on 2026-07-30: DriveManager.outputs() is the
+# supported component-level topic override and serializes only my_driver's
+# robot_command output into the generated --outputs launch argument. The
+# launch_cmd_args setter cannot safely encode consecutive ROS remap flags.
+driver.outputs(
+    robot_command=Topic(
+        name="/navigation/raw_cmd_vel",
+        msg_type="Twist",
+    )
+)
+
 mapper = LocalMapper(
     component_name="mapper",
     config=LocalMapperConfig(

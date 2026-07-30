@@ -4,7 +4,12 @@ from dataclasses import dataclass
 import math
 from typing import Callable, Optional
 
-from .policy import command_is_fresh, lease_is_fresh, sanitize_twist
+from .policy import (
+    COMMAND_FRESHNESS_SEC,
+    command_is_fresh,
+    lease_is_fresh,
+    sanitize_twist,
+)
 
 
 ZERO_TWIST = (0.0, 0.0, 0.0)
@@ -21,8 +26,22 @@ class GuardOutput:
 class CmdVelGuardState:
     """DDS-independent state machine; all time comes from the injected clock."""
 
-    def __init__(self, *, clock: Callable[[], float]):
+    def __init__(
+        self,
+        *,
+        clock: Callable[[], float],
+        lease_timeout_sec: float = COMMAND_FRESHNESS_SEC,
+        raw_command_timeout_sec: float = COMMAND_FRESHNESS_SEC,
+    ):
         self._clock = clock
+        self._lease_timeout_sec = _positive_finite(
+            "lease_timeout_sec",
+            lease_timeout_sec,
+        )
+        self._raw_command_timeout_sec = _positive_finite(
+            "raw_command_timeout_sec",
+            raw_command_timeout_sec,
+        )
         self._lease_id: Optional[str] = None
         self._lease_time: Optional[float] = None
         self._raw_twist: Optional[tuple[float, float, float]] = None
@@ -85,11 +104,15 @@ class CmdVelGuardState:
             and lease_is_fresh(
                 active=True,
                 heartbeat_age_sec=now - self._lease_time,
+                max_age_sec=self._lease_timeout_sec,
             )
         )
         raw_command_is_fresh = (
             self._raw_time is not None
-            and command_is_fresh(now - self._raw_time)
+            and command_is_fresh(
+                now - self._raw_time,
+                self._raw_command_timeout_sec,
+            )
         )
         return GuardOutput(
             sanitize_twist(
@@ -137,7 +160,24 @@ def main(args=None) -> None:
     class CmdVelGuardNode(Node):
         def __init__(self):
             super().__init__("cmd_vel_guard")
-            self._state = CmdVelGuardState(clock=self._now_sec)
+            self.declare_parameter(
+                "lease_timeout_sec",
+                COMMAND_FRESHNESS_SEC,
+            )
+            self.declare_parameter(
+                "raw_command_timeout_sec",
+                COMMAND_FRESHNESS_SEC,
+            )
+            self.declare_parameter("guard_period_sec", GUARD_PERIOD_SEC)
+            self._state = CmdVelGuardState(
+                clock=self._now_sec,
+                lease_timeout_sec=self.get_parameter(
+                    "lease_timeout_sec"
+                ).value,
+                raw_command_timeout_sec=self.get_parameter(
+                    "raw_command_timeout_sec"
+                ).value,
+            )
             self._last_reported_error = None
             self._publisher = self.create_publisher(Twist, "/cmd_vel", velocity_qos)
             self.create_subscription(
@@ -152,7 +192,11 @@ def main(args=None) -> None:
                 self._on_lease,
                 lease_qos,
             )
-            self.create_timer(GUARD_PERIOD_SEC, self._on_guard_tick)
+            guard_period_sec = _positive_finite(
+                "guard_period_sec",
+                self.get_parameter("guard_period_sec").value,
+            )
+            self.create_timer(guard_period_sec, self._on_guard_tick)
 
         def _now_sec(self) -> float:
             return self.get_clock().now().nanoseconds / 1_000_000_000.0
@@ -191,3 +235,13 @@ def main(args=None) -> None:
     finally:
         node.destroy_node()
         rclpy.shutdown()
+
+
+def _positive_finite(name: str, value: float) -> float:
+    try:
+        result = float(value)
+    except (TypeError, ValueError) as exc:
+        raise ValueError(f"{name} must be numeric") from exc
+    if not math.isfinite(result) or result <= 0.0:
+        raise ValueError(f"{name} must be finite and greater than zero")
+    return result

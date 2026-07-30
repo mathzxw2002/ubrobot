@@ -453,7 +453,25 @@ Check final velocity command:
 docker exec -it emos bash -c "source /ros_entrypoint.sh && ros2 topic echo /cmd_vel"
 ```
 
-If `/control` has messages but `/cmd_vel` does not, inspect `DriveManager`.
+For the guarded navigation bringup, inspect both sides of the safety boundary:
+
+```bash
+docker exec -it emos bash -c "source /ros_entrypoint.sh && ros2 topic echo /navigation/raw_cmd_vel"
+docker exec -it emos bash -c "source /ros_entrypoint.sh && ros2 topic echo /navigation/command_lease"
+docker exec -it emos bash -c "source /ros_entrypoint.sh && ros2 topic echo /cmd_vel"
+```
+
+Kompass 0.8.1 was introspected on 2026-07-30. Its Launcher has no component
+`remappings=` argument, while `DriveManager.outputs(robot_command=Topic(...))`
+serializes the selected topic into only `my_driver`'s generated `--outputs`
+argument. The recipe therefore routes the DriveManager output to
+`/navigation/raw_cmd_vel` through that supported component API. Do not add a
+global `/cmd_vel` remap: the guard must retain `/cmd_vel` as its protected
+output.
+
+If `/control` has messages but `/navigation/raw_cmd_vel` does not, inspect
+`DriveManager`. If raw commands exist but `/cmd_vel` remains zero, verify that
+the semantic Action owns a fresh `/navigation/command_lease`.
 
 ## 12. Known Warnings and Their Meaning
 

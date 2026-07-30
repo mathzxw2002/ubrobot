@@ -22,6 +22,7 @@ setup(
     entry_points={
         "console_scripts": [
             "cmd_vel_guard = ubrobot_navigation.cmd_vel_guard:main",
+            "navigate_to_object_server = ubrobot_navigation.navigate_to_object_server:main",
         ],
     },
 )

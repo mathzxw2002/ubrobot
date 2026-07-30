@@ -3,6 +3,7 @@
 from geometry_msgs.msg import Twist, TwistStamped
 import rclpy
 from rclpy.node import Node
+from rclpy.qos import DurabilityPolicy, HistoryPolicy, QoSProfile, ReliabilityPolicy
 
 from .velocity_safety import VelocityLimits, sanitize_velocity
 
@@ -32,11 +33,20 @@ class CmdVelAdapter(Node):
         input_topic = str(self.get_parameter("input_topic").value)
         output_topic = str(self.get_parameter("output_topic").value)
         self._publisher = self.create_publisher(TwistStamped, output_topic, 10)
+        # The navigation guard intentionally publishes high-rate velocity data
+        # as best effort. Match it here: stale velocity is never worth DDS
+        # retransmission, and the independent command watchdog fails closed.
+        velocity_qos = QoSProfile(
+            history=HistoryPolicy.KEEP_LAST,
+            depth=1,
+            reliability=ReliabilityPolicy.BEST_EFFORT,
+            durability=DurabilityPolicy.VOLATILE,
+        )
         self._subscription = self.create_subscription(
             Twist,
             input_topic,
             self._on_command,
-            10,
+            velocity_qos,
         )
         self._last_valid_command_ns: int | None = None
         self._watchdog = self.create_timer(watchdog_period, self._on_watchdog)

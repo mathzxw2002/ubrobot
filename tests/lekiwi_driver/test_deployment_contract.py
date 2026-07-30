@@ -191,6 +191,20 @@ class LeKiwiDeploymentContractTest(unittest.TestCase):
         self.assertIn("cmd_vel_timeout: 0.25", controllers)
         self.assertIn("enable_odom_tf: false", controllers)
 
+    def test_cmd_vel_adapter_accepts_best_effort_guard_output(self):
+        adapter = read_repository_file(
+            BRINGUP_ROOT / "lekiwi_bringup" / "cmd_vel_adapter.py"
+        )
+        for token in (
+            "QoSProfile(",
+            "ReliabilityPolicy.BEST_EFFORT",
+            "DurabilityPolicy.VOLATILE",
+            "HistoryPolicy.KEEP_LAST",
+        ):
+            self.assertIn(token, adapter)
+        subscription = adapter.split("self._subscription =", 1)[1].split(")", 1)[0]
+        self.assertIn("velocity_qos", subscription)
+
     def test_udev_rule_creates_stable_lekiwi_device(self):
         rule = read_repository_file(DEPLOYMENT_ROOT / "99-lekiwi-base.rules")
         for token in ('ATTRS{idVendor}=="1a86"', 'ATTRS{idProduct}=="55d3"'):

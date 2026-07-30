@@ -7,6 +7,7 @@ import math
 import os
 import threading
 import time
+from types import SimpleNamespace
 from typing import Callable, Protocol
 
 
@@ -285,16 +286,15 @@ def _load_ros_bindings():
     from rclpy.executors import MultiThreadedExecutor
     from rclpy.node import Node
 
-    class Bindings:
-        ActionType = VisionLanguageAction
-        ActionClient = ActionClient
-        Context = Context
-        Node = Node
-        Executor = MultiThreadedExecutor
-        init = staticmethod(rclpy.init)
-        shutdown = staticmethod(rclpy.shutdown)
-
-    return Bindings()
+    return SimpleNamespace(
+        ActionType=VisionLanguageAction,
+        ActionClient=ActionClient,
+        Context=Context,
+        Node=Node,
+        Executor=MultiThreadedExecutor,
+        init=rclpy.init,
+        shutdown=rclpy.shutdown,
+    )
 
 
 def _positive_finite(name: str, value: float) -> float:

@@ -1,8 +1,9 @@
 from pathlib import Path
-from types import SimpleNamespace
+from types import ModuleType, SimpleNamespace
 import sys
 import threading
 import unittest
+from unittest import mock
 
 
 ROOT = Path(__file__).resolve().parents[2]
@@ -17,6 +18,7 @@ from cortex_client import (  # noqa: E402
     CortexResult,
     CortexUnavailableError,
     RosCortexTransport,
+    _load_ros_bindings,
 )
 
 
@@ -355,6 +357,37 @@ class RosCortexTransportTest(unittest.TestCase):
             client.execute("first")
 
         self.assertFalse(client.cancel_active())
+
+    def test_lazy_ros_binding_loader_preserves_imported_classes(self):
+        action_module = ModuleType("automatika_embodied_agents.action")
+        action_module.VisionLanguageAction = FakeVisionLanguageAction
+        rclpy_module = ModuleType("rclpy")
+        rclpy_module.__path__ = []
+        rclpy_module.init = lambda **_kwargs: None
+        rclpy_module.shutdown = lambda **_kwargs: None
+        rclpy_action = ModuleType("rclpy.action")
+        rclpy_action.ActionClient = FakeActionClient
+        rclpy_context = ModuleType("rclpy.context")
+        rclpy_context.Context = object
+        rclpy_executors = ModuleType("rclpy.executors")
+        rclpy_executors.MultiThreadedExecutor = FakeExecutor
+        rclpy_node = ModuleType("rclpy.node")
+        rclpy_node.Node = FakeNode
+
+        modules = {
+            "automatika_embodied_agents.action": action_module,
+            "rclpy": rclpy_module,
+            "rclpy.action": rclpy_action,
+            "rclpy.context": rclpy_context,
+            "rclpy.executors": rclpy_executors,
+            "rclpy.node": rclpy_node,
+        }
+        with mock.patch.dict(sys.modules, modules):
+            bindings = _load_ros_bindings()
+
+        self.assertIs(bindings.ActionType, FakeVisionLanguageAction)
+        self.assertIs(bindings.ActionClient, FakeActionClient)
+        self.assertIs(bindings.Executor, FakeExecutor)
 
 
 if __name__ == "__main__":

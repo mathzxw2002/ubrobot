@@ -36,13 +36,14 @@ p.write_text(s.replace(old, new, 1))
 print('patched vision follower setup condition')
 PY
 
-# Build the emos_bringup overlay (sensor-chain launch + detection header relay).
+# Build stable capability interfaces with the EMOS sensor-chain overlay.
 RUN apt-get update \
     && apt-get install -y --no-install-recommends \
         python3-colcon-common-extensions \
     && rm -rf /var/lib/apt/lists/*
 
 WORKDIR /opt/emos_overlay_ws
+COPY ros_depends_ws/src/ubrobot_interfaces src/ubrobot_interfaces
 COPY ros_depends_ws/src/emos_bringup src/emos_bringup
 SHELL ["/bin/bash", "-c"]
 RUN source /opt/ros/jazzy/setup.bash \

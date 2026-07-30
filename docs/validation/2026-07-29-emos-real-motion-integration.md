@@ -168,3 +168,27 @@ Sequence (times approximate, driver container `0.2.0-rc1-b90fa1c`):
 - `/tmp/stage1c_joints.log` — mock wheel velocities
 - `/home/china/emos/logs/` — recipe, sensor chain, relay logs
 - Driver container logs via `docker logs lekiwi-base-driver` (pre-stop)
+
+## 2026-07-30 follow-up: torque-enable anomaly root-caused
+
+The unexplained torque state observed during 2026-07-30 preflight was
+traced to STS3215 firmware behavior, proven by minimal reproduction
+(`deploy/lekiwi-driver/bisect_torque_enable.py`, bus-exclusive):
+
+- Writing the goal-speed register (addr 46) in velocity (wheel) mode
+  **auto-enables torque — even when writing 0**. Verified: torque=0 write
+  reads back 0; a subsequent goal=0 write flips torque_enable to 1;
+  sync-writing goal=0 flips all three motors.
+- Consequence: the driver's preflight `write()` loop sync-writes
+  `goal={0,0,0}` every control cycle, silently re-enabling torque every
+  cycle. "Torque-disabled preflight mode" was never actually torque-free.
+  Graceful shutdown and explicit torque-off writes DO hold (torque=0 is
+  the last write and nothing follows).
+- This also demystifies the 2026-07-29 "-250 steps/s at T+14 s": with
+  torque auto-enabled by any goal write, the stale 0.2465 m/s goal stream
+  drove the wheels as soon as it reached the bus.
+- Standing rules: never share the serial bus between diagnostics and the
+  driver (pause or stop the driver first); never hand-turn wheels against
+  live torque.
+- Open fix: preflight `write()` should not sync-write goals every cycle
+  (write nothing in preflight, or follow every goal write with torque=0).

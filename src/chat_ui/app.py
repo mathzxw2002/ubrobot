@@ -52,6 +52,7 @@ def create_gradio():
         user_messages = gr.State([{'role': 'system', 'content': None}])
         user_processing_flag = gr.State(False)
         lifecycle = mgr.Lifecycle()
+        stop_button = gr.Button("Stop")
 
         # Submit
         user_input.submit(chat_pipeline.run_pipeline,
@@ -61,6 +62,11 @@ def create_gradio():
         user_input.submit(chat_pipeline.yield_results, 
             inputs=[user_input, user_chatbot, user_processing_flag],
             outputs = [user_input, user_chatbot, user_processing_flag]
+        )
+        stop_button.click(
+            chat_pipeline.stop_pipeline,
+            inputs=user_processing_flag,
+            outputs=user_processing_flag,
         )
 
         # refresh

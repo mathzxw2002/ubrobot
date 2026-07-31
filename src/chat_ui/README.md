@@ -16,6 +16,26 @@ python src/chat_ui/app.py
 `cortex` is the default when `UBROBOT_CHAT_BACKEND` is unset. The UI and EMOS
 must use the same ROS domain, RMW implementation, and Fast DDS profile.
 
+## Offline development mode (Windows, no ROS)
+
+For UI development without a robot, ROS, or ASR/TTS models, run the in-process
+mock backend with media disabled:
+
+```powershell
+$env:UBROBOT_CHAT_BACKEND = "cortex-mock"
+$env:UBROBOT_CHAT_MEDIA = "off"
+$env:PYTHONPATH = "src;src/chat_ui"
+python src/chat_ui/app.py
+```
+
+`cortex-mock` simulates Cortex feedback, multi-second navigation execution,
+and bounded cancellation (Stop button), raising the same
+`CortexRequestError("Plan aborted ...")` the real client produces on cancel.
+`UBROBOT_CHAT_MEDIA=off` skips Fun_ASR/CosyVoice initialization, disables
+audio-file transcription (marked inline), and closes the video queue after
+the text reply. `modelscope-studio` must match `requirements.txt` (1.6.1);
+2.x renames `Chatbot` to `ProChatbot` and breaks the UI.
+
 ## Legacy rollback mode
 
 The previous keyword-routing implementation remains available only as an

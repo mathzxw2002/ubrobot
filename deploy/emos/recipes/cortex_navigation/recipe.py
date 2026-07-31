@@ -103,11 +103,17 @@ def build_recipe(*, include_robot_stack=True):
         actions=None,
         model_client=planner_client,
         config=CortexConfig(
-            max_planning_steps=4,
-            max_execution_steps=4,
-            monitoring_interval=0.5,
-            temperature=0.1,
-            max_new_tokens=600,
+            max_planning_steps=int(os.environ.get("CORTEX_MAX_PLANNING_STEPS", "4")),
+            max_execution_steps=int(
+                os.environ.get("CORTEX_MAX_EXECUTION_STEPS", "4")
+            ),
+            # Each step confirmation is a full planner round trip; with a
+            # remote LLM (~5-8 s per call) a longer interval cuts latency.
+            monitoring_interval=float(
+                os.environ.get("CORTEX_MONITORING_INTERVAL_SEC", "0.5")
+            ),
+            temperature=float(os.environ.get("CORTEX_TEMPERATURE", "0.1")),
+            max_new_tokens=int(os.environ.get("CORTEX_MAX_NEW_TOKENS", "600")),
         ),
         component_name="navigation_cortex",
     )

@@ -25,8 +25,28 @@ class CortexRecipeContractTest(unittest.TestCase):
         self.assertIn("from agents.ros import Launcher", source)
         self.assertIn("Cortex(", source)
         self.assertIn("CortexConfig(", source)
-        self.assertRegex(source, r"max_planning_steps\s*=\s*[1-9]")
-        self.assertRegex(source, r"max_execution_steps\s*=\s*[1-9]")
+        # Bounds stay small by default and are env-tunable, never unlimited.
+        self.assertRegex(
+            source,
+            r'max_planning_steps=int\(os\.environ\.get\('
+            r'"CORTEX_MAX_PLANNING_STEPS",\s*"[1-9]',
+        )
+        self.assertRegex(
+            source,
+            r'max_execution_steps=int\(\s*os\.environ\.get\('
+            r'"CORTEX_MAX_EXECUTION_STEPS",\s*"[1-9]',
+        )
+
+    def test_cortex_tuning_comes_from_environment_with_defaults(self):
+        source = RECIPE.read_text(encoding="utf-8")
+        for name, default in (
+            ("CORTEX_MONITORING_INTERVAL_SEC", "0.5"),
+            ("CORTEX_TEMPERATURE", "0.1"),
+            ("CORTEX_MAX_NEW_TOKENS", "600"),
+        ):
+            self.assertIn(f'os.environ.get("{name}", "{default}")', source)
+        compose = OVERRIDE.read_text(encoding="utf-8")
+        self.assertIn("CORTEX_MONITORING_INTERVAL_SEC", compose)
 
     def test_recipe_discovers_only_the_semantic_navigation_action(self):
         source = RECIPE.read_text(encoding="utf-8")

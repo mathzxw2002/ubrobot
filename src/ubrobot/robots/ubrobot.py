@@ -3,6 +3,7 @@ import copy
 import numpy as np
 import datetime
 import re
+import warnings
 
 from ubrobot.robots.unitree_go2_robot import UnitreeGo2Robot
 from PIL import Image as PIL_Image
@@ -283,6 +284,12 @@ class Go2Manager():
     
     # main entrance the user interaction
     def agent_response(self, instruction):
+        warnings.warn(
+            "Go2Manager.agent_response() is legacy rollback/research code; "
+            "the production Chat UI routes requests through Cortex.",
+            DeprecationWarning,
+            stacklevel=2,
+        )
         # parse user instruction, TODO solve this by llm intent understanding
         llm_response_txt = ""
         if instruction.startswith("nav:"):

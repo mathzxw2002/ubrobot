@@ -1,5 +1,38 @@
 
 
+# UBRobot Chat UI
+
+The production request path submits ordinary text to the EMOS Cortex Action at
+`/cortex_input_command`. It does not require a `nav:` prefix and does not
+initialize `Go2Manager`, the local camera/VLM stack, or direct LeKiwi control.
+
+Start the primary Cortex path from the repository root:
+
+```powershell
+$env:UBROBOT_CHAT_BACKEND = "cortex"
+python src/chat_ui/app.py
+```
+
+`cortex` is the default when `UBROBOT_CHAT_BACKEND` is unset. The UI and EMOS
+must use the same ROS domain, RMW implementation, and Fast DDS profile.
+
+## Legacy rollback mode
+
+The previous keyword-routing implementation remains available only as an
+explicit rollback/research path:
+
+```powershell
+$env:UBROBOT_CHAT_BACKEND = "legacy"
+python src/chat_ui/app.py
+```
+
+Legacy mode constructs `Go2Manager`, reconnects local camera, VLM, and robot
+dependencies, and retains the historical `nav:`/`grasp:` behavior. Do not use
+it as the production Cortex path or enable it during controlled hardware
+validation without repeating the legacy safety preflight.
+
+## Upstream and historical environment notes
+
 https://github.com/mathzxw2002/VideoChat
 
 forked from: https://github.com/Henry-23/VideoChat

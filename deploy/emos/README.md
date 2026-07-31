@@ -62,3 +62,70 @@ Do not run `emos install` over this deployment. It creates the container with th
 CLI's built-in Docker arguments and would discard the profile environment and
 mount. Update the image with a backup followed by `docker compose pull` and
 `docker compose up -d`, then repeat the cross-container topic test.
+
+## Cortex navigation mock validation
+
+Use `test/cortex_navigation_mock_test.py` only with a disposable EMOS test
+container running `cortex_navigation_bringup.launch.py start_sensors:=false`
+and an independent LeKiwi container running `hardware_mode:=mock`. Neither
+container may be privileged or map a device. The test embeds a deterministic
+`/track_vision_target` fixture, so camera and VLM services are not required.
+
+Available scenarios are:
+
+```text
+baseline goal cancel timeout orphan_client capability_loss raw_loss
+stale_downstream driver_restart
+```
+
+Example inside the EMOS test container:
+
+```bash
+source /opt/ros/jazzy/setup.bash
+source /opt/emos_overlay/setup.bash
+python3 -u /tmp/cortex_navigation_mock_test.py \
+  --scenario baseline --duration 30 --output /tmp/task8-baseline.json
+python3 -u /tmp/cortex_navigation_mock_test.py \
+  --scenario goal --output /tmp/task8-goal.json
+```
+
+Run each failure scenario against a freshly restarted EMOS test container.
+`capability_loss` intentionally terminates `navigate_to_object_server` inside
+that disposable container. For `driver_restart`, run the observer for at least
+12 seconds and restart only the mock LeKiwi container after about 3 seconds.
+
+The client always cancels owned Action goals in `finally` and waits for the
+cancellation result. `orphan_client` is the deliberate exception at runtime:
+the same client is SIGKILLed to prove the server timeout and lease expiry stop
+motion even when cleanup cannot execute. Do not replace Action cancellation
+with a shell process timeout.
+
+The validated procedure and Raspberry Pi evidence are recorded in
+`docs/validation/2026-07-30-cortex-navigation-mock.md`.
+
+## Chat UI to Cortex no-motion smoke test
+
+`test/chat_cortex_smoke_test.py` exercises the production Chat UI ROS Action
+transport against disposable Cortex and bringup containers. Run the bringup
+with `start_sensors:=false`, do not start a LeKiwi container, and require every
+container to report an empty device list and `Privileged=false` before testing.
+
+Copy the smoke client and `src/chat_ui/cortex_client.py` into a disposable UI
+client container using the same ROS domain and UDP-only Fast DDS profile, then
+run:
+
+```bash
+source /opt/ros/jazzy/setup.bash
+source /opt/emos_overlay/setup.bash
+python3 -u /tmp/chat_cortex_smoke_test.py \
+  --output /tmp/task9-chat-cortex-smoke.json
+```
+
+The deterministic model fixture must return text only. The test fails if it
+observes a non-empty `/navigation/command_lease`, a non-zero `/cmd_vel`, no
+successful response, or no cancellation acknowledgement within two seconds.
+An acknowledgement proves that the ROS Action server accepted cancellation;
+it does not, by itself, prove the model HTTP request was interrupted.
+
+The validated Raspberry Pi run and artifact locations are recorded in
+`docs/validation/2026-07-30-chat-cortex-smoke.md`.

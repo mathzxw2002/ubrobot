@@ -11,7 +11,8 @@ The repository is a work in progress, but the current codebase is organized arou
 
 - LeRobot-compatible robot abstractions for Piper, SO-101 follower, LeKiwi base, and Unitree Go2 experiments.
 - RGB-D camera utilities for Intel RealSense and aligned color/depth observations.
-- Natural-language navigation loop in `Go2Manager`, including instruction handling, policy-server calls, trajectory following, and annotated visual feedback.
+- Cortex-orchestrated navigation on LeKiwi: plain-language chat input is planned by EMOS Cortex and executed through a guarded semantic `NavigateToObject` ROS 2 Action (see "Cortex-Orchestrated Navigation" below).
+- Legacy natural-language navigation loop in `Go2Manager` (rollback/research path only), including instruction handling, policy-server calls, trajectory following, and annotated visual feedback.
 - Flask services for navigation policy inference and vision-language reasoning.
 - Gradio chat interface for text or microphone input, live robot observation display, and command routing.
 - Teleoperation examples for Piper and SO-101 robots, including keyboard, gamepad, and networked workflows.
@@ -64,6 +65,46 @@ The project separates heavyweight model inference into HTTP services:
 ### Chat UI
 
 `src/chat_ui/app.py` starts a Gradio interface served through FastAPI. It accepts text or microphone input, sends commands through `ChatPipeline`, and displays navigation/manipulation observations. By default it runs on port `7863` with the local TLS certificate files under `assets/`.
+
+### Cortex-Orchestrated Navigation (LeKiwi)
+
+The primary navigation path no longer relies on keyword prefixes or a locally
+connected robot. Plain-language UI text is submitted unchanged to the EMOS
+Cortex Action, which plans and executes through one semantic capability:
+
+```text
+Chat UI -> /cortex_input_command (Cortex Action)
+        -> /ubrobot/navigation/navigate_to_object (semantic capability, owns command lease)
+        -> Kompass /track_vision_target -> /navigation/raw_cmd_vel
+        -> cmd_vel_guard (lease + freshness gate, 50 ms tick)
+        -> /cmd_vel -> lekiwi-base-driver (final clamp, watchdog, torque lifecycle)
+```
+
+Safety properties enforced in software:
+
+- Cortex can discover only the semantic `NavigateToObject` capability — never
+  raw velocity, torque, or device controls.
+- The capability server never publishes `/cmd_vel`; it owns a short-lived
+  command lease (`/navigation/command_lease`, 250 ms freshness).
+- `cmd_vel_guard` forwards clamped velocity only while both the lease and the
+  raw command are fresh, and emits zeros otherwise; cancellation, timeout,
+  client death, and capability loss all stop motion within 300 ms (validated
+  in `docs/validation/2026-07-30-cortex-navigation-mock.md`).
+- Only the LeKiwi driver container maps `/dev/lekiwi-base` and manages motor
+  torque; planner credentials come from runtime environment variables only.
+
+**Rollback:** the previous keyword-based path remains available behind an
+explicit switch — set `UBROBOT_CHAT_BACKEND=legacy` before starting the Chat
+UI to use `Go2Manager.agent_response()` (deprecated; research/rollback only).
+On the robot, the pre-Cortex `vision_depth_follower` recipe remains in the
+EMOS image: deploy without `deploy/emos/compose.cortex-navigation.yaml` to
+roll back, or pin a recorded image tag such as `ubrobot/emos:jazzy-7a64982`.
+
+See `emos.md` for operations, `docs/plans/2026-07-30-cortex-navigation.md`
+and `docs/plans/2026-07-30-cortex-ui-routing-and-hardware-gate.md` for the
+implementation plans, and
+`docs/plans/2026-07-30-cortex-navigation-hardware-validation.md` for the
+(authorized-separately) real-hardware gate.
 
 ## Installation
 

@@ -1,5 +1,43 @@
 # EMOS Vision Depth Follower Runbook
 
+> **2026-07-31 update — Cortex orchestration is now the primary path.** The
+> supervised stack can run the `cortex_navigation` recipe, in which EMOS
+> Cortex plans plain-language tasks and executes them through one guarded
+> semantic capability:
+>
+> ```text
+> Chat UI -> /cortex_input_command (Cortex Action)
+>         -> /ubrobot/navigation/navigate_to_object (capability server; owns the command lease)
+>         -> Kompass /track_vision_target -> /navigation/raw_cmd_vel
+>         -> cmd_vel_guard -> /cmd_vel -> lekiwi-base-driver
+> ```
+>
+> Key operational differences from the manual follower below:
+>
+> - Deploy with `deploy/emos/compose.cortex-navigation.yaml` (sets
+>   `EMOS_RECIPE=/emos/recipes/cortex_navigation/recipe.py` and the
+>   `CORTEX_MODEL_*` planner environment). The planner API key is injected at
+>   runtime only; never commit it.
+> - The bringup launch `cortex_navigation_bringup.launch.py` starts
+>   `navigate_to_object_server` and `cmd_vel_guard`; the Kompass DriveManager
+>   output is remapped to `/navigation/raw_cmd_vel`, so `/cmd_vel` is non-zero
+>   only while an outer goal holds a fresh command lease (250 ms) and fresh
+>   raw commands (250 ms).
+> - The Kompass patch (§7) is baked into the image; the sensor chain, relay,
+>   and recipe still start under `emos-stack.sh` supervision.
+> - **Rollback:** deploy without the override to use the original
+>   `vision_depth_follower` recipe (still in the image), or pin a recorded
+>   image tag (e.g. `ubrobot/emos:jazzy-7a64982`). The Chat UI legacy path is
+>   `UBROBOT_CHAT_BACKEND=legacy`.
+> - Mock fail-safe evidence:
+>   `docs/validation/2026-07-30-cortex-navigation-mock.md`; UI transport
+>   evidence: `docs/validation/2026-07-30-chat-cortex-smoke.md`; real-hardware
+>   execution requires the separately authorized plan
+>   `docs/plans/2026-07-30-cortex-navigation-hardware-validation.md`.
+>
+> The manual sequence below remains the reference for debugging and for
+> understanding the stack.
+
 This document records the working command sequence for running an EMOS
 vision-depth follower on the LeKiwi robot with:
 
@@ -453,7 +491,25 @@ Check final velocity command:
 docker exec -it emos bash -c "source /ros_entrypoint.sh && ros2 topic echo /cmd_vel"
 ```
 
-If `/control` has messages but `/cmd_vel` does not, inspect `DriveManager`.
+For the guarded navigation bringup, inspect both sides of the safety boundary:
+
+```bash
+docker exec -it emos bash -c "source /ros_entrypoint.sh && ros2 topic echo /navigation/raw_cmd_vel"
+docker exec -it emos bash -c "source /ros_entrypoint.sh && ros2 topic echo /navigation/command_lease"
+docker exec -it emos bash -c "source /ros_entrypoint.sh && ros2 topic echo /cmd_vel"
+```
+
+Kompass 0.8.1 was introspected on 2026-07-30. Its Launcher has no component
+`remappings=` argument, while `DriveManager.outputs(robot_command=Topic(...))`
+serializes the selected topic into only `my_driver`'s generated `--outputs`
+argument. The recipe therefore routes the DriveManager output to
+`/navigation/raw_cmd_vel` through that supported component API. Do not add a
+global `/cmd_vel` remap: the guard must retain `/cmd_vel` as its protected
+output.
+
+If `/control` has messages but `/navigation/raw_cmd_vel` does not, inspect
+`DriveManager`. If raw commands exist but `/cmd_vel` remains zero, verify that
+the semantic Action owns a fresh `/navigation/command_lease`.
 
 ## 12. Known Warnings and Their Meaning
 

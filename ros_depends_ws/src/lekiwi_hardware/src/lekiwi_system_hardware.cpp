@@ -253,7 +253,10 @@ hardware_interface::return_type LeKiwiSystemHardware::write(
 {
   try {
     if (!enable_motor_torque_) {
-      bus_.write_velocities({0, 0, 0});
+      // STS3215 wheel mode automatically enables torque whenever the goal
+      // velocity register is written, even when the requested goal is zero.
+      // on_activate() has already cleared the goals and left torque disabled;
+      // preflight must therefore remain read-only until shutdown.
       return hardware_interface::return_type::OK;
     }
     FeetechBus::RawVelocities raw_velocities{};

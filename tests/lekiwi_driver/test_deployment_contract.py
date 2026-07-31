@@ -98,7 +98,11 @@ class LeKiwiDeploymentContractTest(unittest.TestCase):
         self.assertIn("bool enable_motor_torque_{false};", hardware_header)
         self.assertIn('boolean_parameter(parameters, "enable_motor_torque")', hardware_source)
         self.assertIn("if (enable_motor_torque_)", hardware_source)
-        self.assertIn("bus_.write_velocities({0, 0, 0});", hardware_source)
+        preflight_write_branch = hardware_source.split(
+            "if (!enable_motor_torque_) {", 1
+        )[1].split("FeetechBus::RawVelocities", 1)[0]
+        self.assertNotIn("write_velocities", preflight_write_branch)
+        self.assertIn("return hardware_interface::return_type::OK", preflight_write_branch)
 
     def test_real_plugin_is_built_into_the_image(self):
         dockerfile = read_repository_file(DEPLOYMENT_ROOT / "Dockerfile")
@@ -131,7 +135,7 @@ class LeKiwiDeploymentContractTest(unittest.TestCase):
     def test_emos_image_contains_recipe_runtime_dependencies(self):
         dockerfile = read_repository_file(EMOS_DEPLOYMENT_ROOT / "Dockerfile")
         for token in (
-            "ARG EMOS_BASE_IMAGE=ghcr.io/automatika-robotics/emos:jazzy-latest",
+            "ARG EMOS_BASE_IMAGE=ghcr.io/automatika-robotics/emos@sha256:8ee294cffd187328ac3c2776e3389d8d93ad0bc7479e0dac284ae3d095e90f41",
             "libompl16t64",
             "libboost-system1.83.0",
             "libfcl0.7",
@@ -186,6 +190,20 @@ class LeKiwiDeploymentContractTest(unittest.TestCase):
         controllers = read_repository_file(BRINGUP_ROOT / "config" / "controllers.yaml")
         self.assertIn("cmd_vel_timeout: 0.25", controllers)
         self.assertIn("enable_odom_tf: false", controllers)
+
+    def test_cmd_vel_adapter_accepts_best_effort_guard_output(self):
+        adapter = read_repository_file(
+            BRINGUP_ROOT / "lekiwi_bringup" / "cmd_vel_adapter.py"
+        )
+        for token in (
+            "QoSProfile(",
+            "ReliabilityPolicy.BEST_EFFORT",
+            "DurabilityPolicy.VOLATILE",
+            "HistoryPolicy.KEEP_LAST",
+        ):
+            self.assertIn(token, adapter)
+        subscription = adapter.split("self._subscription =", 1)[1].split(")", 1)[0]
+        self.assertIn("velocity_qos", subscription)
 
     def test_udev_rule_creates_stable_lekiwi_device(self):
         rule = read_repository_file(DEPLOYMENT_ROOT / "99-lekiwi-base.rules")

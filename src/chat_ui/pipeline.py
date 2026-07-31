@@ -4,35 +4,74 @@ import time
 import shutil
 import threading
 import queue
-import time
 import gradio as gr
-import threading
 
 from utils import get_timestamp_str, merge_audios, merge_frames_with_audio
 from ubrobot.robots.tts import CosyVoice_API
 from ubrobot.robots.asr import Fun_ASR
-from ubrobot.robots.ubrobot import Go2Manager
+from cortex_client import create_ros_cortex_client
+
+
+class _LegacyBackend:
+    """Explicit rollback adapter; never constructed by the primary path."""
+
+    def __init__(self):
+        from ubrobot.robots.ubrobot import Go2Manager
+
+        self.manager = Go2Manager()
+        self.manager.start_threads()
+
+    def execute(self, task, *, on_feedback):
+        on_feedback("legacy backend")
+        return self.manager.agent_response(task)
+
+    def cancel_active(self):
+        self.manager.nav_by_user_instruction("stop")
+        return True
+
+    def get_robot_observation(self):
+        return self.manager.visualize_robot_observation()
 
 @torch.no_grad()
 class ChatPipeline:
-    def __init__(self):
+    def __init__(self, *, backend=None, initialize_media=True):
+        if initialize_media:
+            print("[1/3] Start initializing funasr")
+            self.asr = Fun_ASR()
 
-        print(f"[1/4] Start initializing funasr")
-        self.asr = Fun_ASR()
-
-        print(f"[3/4] Start initializing tts")
-        self.tts_api = CosyVoice_API()
+            print("[2/3] Start initializing tts")
+            self.tts_api = CosyVoice_API()
+        else:
+            self.asr = None
+            self.tts_api = None
         
         self.timeout=180
         self.video_queue = queue.Queue()
         self.vlm_queue = queue.Queue()
         self.tts_queue = queue.Queue()
+        self.cortex_feedback_queue = queue.Queue()
         self.chat_history = []
         self.stop = threading.Event()
+        self._feedback_lock = threading.Lock()
+        self.latest_cortex_feedback = ""
 
-        print(f"[4/4] Start initializing Go2Manager")
-        self.manager = Go2Manager()
-        self.manager.start_threads()
+        if backend is not None:
+            self.backend_name = "injected"
+            self.backend = backend
+        else:
+            self.backend_name = os.environ.get(
+                "UBROBOT_CHAT_BACKEND", "cortex"
+            ).strip().lower()
+            if self.backend_name == "cortex":
+                print("[3/3] Start initializing Cortex client")
+                self.backend = create_ros_cortex_client()
+            elif self.backend_name == "legacy":
+                print("[3/3] Start initializing legacy Go2Manager")
+                self.backend = _LegacyBackend()
+            else:
+                raise ValueError(
+                    "UBROBOT_CHAT_BACKEND must be 'cortex' or 'legacy'"
+                )
         print("[Done] Initialzation finished")
     
     def load_voice(self, avatar_voice = None, tts_module = None):
@@ -52,6 +91,7 @@ class ChatPipeline:
         self.video_queue = queue.Queue()
         self.vlm_queue = queue.Queue()
         self.tts_queue = queue.Queue()
+        self.cortex_feedback_queue = queue.Queue()
         self.chat_history = []
         self.idx = 0
         self.start_time = None
@@ -61,10 +101,13 @@ class ChatPipeline:
         if user_processing_flag:
             print("Stopping pipeline....")
             self.stop.set()
-            time.sleep(1)
+            self.backend.cancel_active()
 
-            self.tts_thread.join()
-            self.ffmpeg_thread.join()
+            join_timeout = min(float(self.timeout), 5.0)
+            for name in ("tts_thread", "ffmpeg_thread"):
+                worker = getattr(self, name, None)
+                if worker is not None:
+                    worker.join(timeout=join_timeout)
 
             self.flush_pipeline()
             user_processing_flag = False
@@ -75,6 +118,20 @@ class ChatPipeline:
         else:
             gr.Info("Pipeline is not running.", duration = 2)
             return user_processing_flag
+
+    def _on_cortex_feedback(self, text):
+        with self._feedback_lock:
+            self.latest_cortex_feedback = text
+        self.cortex_feedback_queue.put(text)
+
+    def request_text(self, text):
+        response = self.backend.execute(
+            text,
+            on_feedback=self._on_cortex_feedback,
+        )
+        if response:
+            self.vlm_queue.put(response)
+        return response
 
     def run_pipeline(self, user_input, user_messages):
         self.flush_pipeline()
@@ -112,10 +169,9 @@ class ChatPipeline:
             user_messages.append({'role': 'user', 'content': user_input})
             print(user_messages)
             
-            llm_response_txt = self.manager.agent_response(user_input_txt)
+            llm_response_txt = self.request_text(user_input_txt)
             
             if llm_response_txt:
-                self.vlm_queue.put(llm_response_txt)
                 print(f"[LLM] Put into queue: {llm_response_txt}")
 
             self.vlm_queue.put(None) 
@@ -181,6 +237,16 @@ class ChatPipeline:
                     start_time = time.time()
                     
                 except queue.Empty: 
+                    try:
+                        status = self.cortex_feedback_queue.get_nowait()
+                        user_chatbot[-1][1]["text"] = status + "\n"
+                        yield (
+                            gr.update(interactive=False, value=None),
+                            user_chatbot,
+                            user_processing_flag,
+                        )
+                    except queue.Empty:
+                        pass
                     if time.time() - start_time > self.timeout:
                         gr.Info("Timeout, stop listening video stream queue.")
                         break
@@ -256,4 +322,7 @@ class ChatPipeline:
         self.video_queue.put(None)
 
     def get_robot_observation(self):
-        return self.manager.visualize_robot_observation()
+        observer = getattr(self.backend, "get_robot_observation", None)
+        if observer is None:
+            return None, None
+        return observer()

@@ -254,11 +254,16 @@ class EndToEndMockTest:
                 outcome["error"] = f"{type(exc).__name__}: {exc}"
 
         worker = threading.Thread(target=execute, name="e2e-cancel-probe")
+        worker_started = time.monotonic()
         worker.start()
         try:
+            # Only samples from THIS request count; earlier goals leave
+            # non-empty lease entries in the harness history.
             wait_for(
                 lambda: any(
-                    value for _ts, value in self.harness.snapshot()[3]
+                    value
+                    for ts, value in self.harness.snapshot()[3]
+                    if ts > worker_started and value
                 ),
                 30.0,
                 "cancel probe never acquired a command lease",
@@ -279,13 +284,18 @@ class EndToEndMockTest:
             # Motion must stop: either cancellation propagated downstream, or
             # the revoked lease gates /cmd_vel. Measure from lease emptiness.
             wait_for(
-                lambda: not any(
-                    value for _ts, value in self.harness.snapshot()[3]
+                lambda: any(
+                    ts > cancel_started and not value
+                    for ts, value in self.harness.snapshot()[3]
                 ),
                 5.0,
                 "lease never emptied after cancellation",
             )
-            lease_empty_at = time.monotonic()
+            lease_empty_at = min(
+                ts
+                for ts, value in self.harness.snapshot()[3]
+                if ts > cancel_started and not value
+            )
             time.sleep(STOP_DEADLINE_SEC + POST_STOP_OBSERVATION_SEC)
             zero_after = assert_stopped(self.harness, lease_empty_at)
             return {

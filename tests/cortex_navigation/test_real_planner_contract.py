@@ -49,6 +49,13 @@ class PlannerRelayContractTest(unittest.TestCase):
         source = (ROOT / "deploy/emos/planner_relay.py").read_text(encoding="utf-8")
         self.assertIn("Never log bodies", source)
 
+    def test_relay_disables_upstream_compression(self):
+        # Response bytes are forwarded verbatim without Content-Encoding, so
+        # the upstream must never gzip (httpx would fail to decode).
+        source = (ROOT / "deploy/emos/planner_relay.py").read_text(encoding="utf-8")
+        self.assertIn('"accept-encoding",', source)
+        self.assertIn('headers["Accept-Encoding"] = "identity"', source)
+
     def test_relay_maps_v1_prefix_to_upstream_base(self):
         handler_cls = planner_relay.make_handler(
             "https://ark.cn-beijing.volces.com/api/v3", 60.0

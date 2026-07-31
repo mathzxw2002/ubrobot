@@ -39,6 +39,10 @@ HOP_BY_HOP_HEADERS = {
     "upgrade",
     "host",
     "content-length",
+    # Never negotiate compression: the relay forwards response bytes verbatim
+    # and does not re-add Content-Encoding, so a gzipped upstream body would
+    # reach the client undecodable.
+    "accept-encoding",
 }
 
 
@@ -66,6 +70,7 @@ def make_handler(upstream: str, timeout_sec: float):
                 for key, value in self.headers.items()
                 if key.lower() not in HOP_BY_HOP_HEADERS
             }
+            headers["Accept-Encoding"] = "identity"
             request = urllib.request.Request(
                 self._target_url(),
                 data=body,

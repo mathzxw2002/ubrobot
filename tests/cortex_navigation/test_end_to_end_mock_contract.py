@@ -63,6 +63,38 @@ class MockPlannerFixtureTest(unittest.TestCase):
         self.assertNotIn("tool_calls", message)
         self.assertIn("报告编排状态", message["content"])
 
+    def test_confirmation_with_active_action_returns_continue(self):
+        confirmation = (
+            "Original plan:\n"
+            "  1. send_goal_to__ubrobot_navigation_navigate_to_object [NEXT]\n"
+            "\nNext action: send_goal_to__ubrobot_navigation_navigate_to_object"
+            " with arguments {'target': 'chair'}\n\n"
+            "[Active Tools Status]\n"
+            "- send_goal_to__ubrobot_navigation_navigate_to_object: active "
+            "(running for 1.2s)\n[End Of Tools Status Update]\n\n"
+            "Respond EXECUTE, SKIP, ABORT, or CONTINUE."
+        )
+        message = decide_response(
+            chat_payload([{"role": "user", "content": confirmation}]),
+            self.config,
+        )
+        self.assertEqual(message, {"role": "assistant", "content": "CONTINUE"})
+
+    def test_confirmation_without_active_action_returns_execute(self):
+        # The confirmation text mentions the navigation tool name; it must
+        # not be mistaken for a navigation request.
+        confirmation = (
+            "Original plan:\n"
+            "  1. send_goal_to__ubrobot_navigation_navigate_to_object [NEXT]\n"
+            "\nNext action: send_goal_to__ubrobot_navigation_navigate_to_object"
+            "\n\nRespond EXECUTE, SKIP, ABORT, or CONTINUE."
+        )
+        message = decide_response(
+            chat_payload([{"role": "user", "content": confirmation}]),
+            self.config,
+        )
+        self.assertEqual(message, {"role": "assistant", "content": "EXECUTE"})
+
     def test_executed_tool_result_yields_final_text(self):
         messages = [
             {"role": "user", "content": "请走到椅子旁边"},

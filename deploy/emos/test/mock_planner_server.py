@@ -38,6 +38,13 @@ from typing import Any, Optional
 NAVIGATION_TOOL_NAME = "send_goal_to__ubrobot_navigation_navigate_to_object"
 DEFAULT_NAV_PATTERN = r"(走到|走向|导航|navigate|go to|move to|follow)"
 EXECUTION_TOOL_CALL_PREFIX = "exec_"
+# Markers from EMOS Cortex `_build_confirmation_message` /
+# `_monitor_active_clients`. During step confirmation the planner MUST answer
+# with plain-text decisions: CONTINUE while an async action is still running,
+# EXECUTE otherwise. Answering with a tool call (or completing text) makes
+# Cortex finalize immediately and cancel the in-flight navigation action.
+CONFIRMATION_MARKER = "Respond EXECUTE, SKIP, ABORT, or CONTINUE"
+ACTIVE_ACTION_MARKER = "(running for"
 
 
 @dataclass(frozen=True)
@@ -100,6 +107,14 @@ def decide_response(
         return {"role": "assistant", "content": content}
 
     user_text = _last_user_text(messages)
+
+    # Step-confirmation calls take precedence: their text mentions the
+    # navigation tool name, so the pattern check below must not fire here.
+    if CONFIRMATION_MARKER in user_text:
+        if ACTIVE_ACTION_MARKER in user_text:
+            return {"role": "assistant", "content": "CONTINUE"}
+        return {"role": "assistant", "content": "EXECUTE"}
+
     if user_text and re.search(config.nav_pattern, user_text, re.IGNORECASE):
         # NOTE: EMOS Cortex `_parse_tool_args` iterates `arguments.items()`
         # and crashes on the OpenAI-standard JSON-string form. This fixture

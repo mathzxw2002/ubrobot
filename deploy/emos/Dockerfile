@@ -64,4 +64,10 @@ COPY deploy/emos/recipes/cortex_navigation/recipe.py \
     /opt/ubrobot/recipes/cortex_navigation/recipe.py
 RUN chmod 0755 /usr/local/bin/emos-stack.sh
 
+# Mock-validation utilities: the deterministic planner fixture, the test
+# harnesses, and the production UI Cortex transport used by test clients.
+COPY src/chat_ui/cortex_client.py /opt/ubrobot/test/cortex_client.py
+COPY deploy/emos/test/ /opt/ubrobot/test/
+RUN chmod 0755 /opt/ubrobot/test/run_end_to_end_mock.sh
+
 WORKDIR /

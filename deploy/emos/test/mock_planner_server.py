@@ -101,6 +101,11 @@ def decide_response(
 
     user_text = _last_user_text(messages)
     if user_text and re.search(config.nav_pattern, user_text, re.IGNORECASE):
+        # NOTE: EMOS Cortex `_parse_tool_args` iterates `arguments.items()`
+        # and crashes on the OpenAI-standard JSON-string form. This fixture
+        # therefore emulates a vLLM-style server that returns arguments as an
+        # already-parsed object. A real OpenAI endpoint would hit the same
+        # upstream crash — see the M1 validation record.
         arguments = {"target": config.target, "timeout_sec": config.timeout_sec}
         return {
             "role": "assistant",
@@ -111,7 +116,7 @@ def decide_response(
                     "type": "function",
                     "function": {
                         "name": NAVIGATION_TOOL_NAME,
-                        "arguments": json.dumps(arguments),
+                        "arguments": arguments,
                     },
                 }
             ],

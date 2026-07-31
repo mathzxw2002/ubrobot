@@ -38,8 +38,11 @@ class MockPlannerFixtureTest(unittest.TestCase):
         self.assertEqual(len(tool_calls), 1)
         function = tool_calls[0]["function"]
         self.assertEqual(function["name"], NAVIGATION_TOOL_NAME)
-        arguments = json.loads(function["arguments"])
-        self.assertEqual(arguments, {"target": "chair", "timeout_sec": 20.0})
+        # EMOS Cortex `_parse_tool_args` requires the already-parsed object
+        # form; the OpenAI JSON-string form crashes it upstream.
+        self.assertEqual(
+            function["arguments"], {"target": "chair", "timeout_sec": 20.0}
+        )
 
     def test_english_navigation_prompt_also_triggers(self):
         message = decide_response(

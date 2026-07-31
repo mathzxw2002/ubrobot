@@ -49,6 +49,31 @@ class PlannerRelayContractTest(unittest.TestCase):
         source = (ROOT / "deploy/emos/planner_relay.py").read_text(encoding="utf-8")
         self.assertIn("Never log bodies", source)
 
+    def test_relay_maps_v1_prefix_to_upstream_base(self):
+        handler_cls = planner_relay.make_handler(
+            "https://ark.cn-beijing.volces.com/api/v3", 60.0
+        )
+        handler = handler_cls.__new__(handler_cls)
+        handler.path = "/v1/chat/completions"
+        self.assertEqual(
+            handler._target_url(),
+            "https://ark.cn-beijing.volces.com/api/v3/chat/completions",
+        )
+        handler.path = "/v1/models"
+        self.assertEqual(
+            handler._target_url(),
+            "https://ark.cn-beijing.volces.com/api/v3/models",
+        )
+
+    def test_relay_maps_v1_prefix_for_openai_style_base(self):
+        handler_cls = planner_relay.make_handler("https://api.deepseek.com/v1", 60.0)
+        handler = handler_cls.__new__(handler_cls)
+        handler.path = "/v1/chat/completions"
+        self.assertEqual(
+            handler._target_url(),
+            "https://api.deepseek.com/v1/chat/completions",
+        )
+
 
 class RealPlannerDeploymentTest(unittest.TestCase):
     def test_run_script_requires_credentials_from_environment(self):

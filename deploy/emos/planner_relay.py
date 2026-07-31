@@ -12,7 +12,11 @@ here — the API key travels in the client's Authorization header:
 
 - ``PLANNER_RELAY_HOST`` (default ``0.0.0.0``)
 - ``PLANNER_RELAY_PORT`` (default ``18081``)
-- ``PLANNER_UPSTREAM_URL`` (required, e.g. ``https://api.deepseek.com``)
+- ``PLANNER_UPSTREAM_URL`` (required) — full https base INCLUDING the API
+  version path. The client always calls ``/v1/<resource>``; the relay strips
+  the leading ``/v1`` and appends the rest. Examples:
+  ``https://api.deepseek.com/v1`` (DeepSeek),
+  ``https://ark.cn-beijing.volces.com/api/v3`` (Volcengine ARK).
 - ``PLANNER_UPSTREAM_TIMEOUT_SEC`` (default ``60``)
 """
 
@@ -39,8 +43,20 @@ HOP_BY_HOP_HEADERS = {
 
 
 def make_handler(upstream: str, timeout_sec: float):
+    base = upstream.rstrip("/")
+
     class RelayHandler(BaseHTTPRequestHandler):
         protocol_version = "HTTP/1.1"
+
+        def _target_url(self) -> str:
+            # The client always calls /v1/<resource>; the configured upstream
+            # carries the provider's own version base path (e.g. /api/v3).
+            path = self.path
+            if path == "/v1":
+                path = ""
+            elif path.startswith("/v1/"):
+                path = path[len("/v1"):]
+            return base + path
 
         def _forward(self) -> None:
             length = int(self.headers.get("Content-Length") or 0)
@@ -51,7 +67,7 @@ def make_handler(upstream: str, timeout_sec: float):
                 if key.lower() not in HOP_BY_HOP_HEADERS
             }
             request = urllib.request.Request(
-                upstream.rstrip("/") + self.path,
+                self._target_url(),
                 data=body,
                 headers=headers,
                 method=self.command,

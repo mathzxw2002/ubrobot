@@ -108,7 +108,7 @@ docker run --rm --name e2e-client --network host \
   "${ROS_ENV[@]}" "${DDS_MOUNT[@]}" \
   -v "$EVIDENCE":/evidence \
   "$EMOS_IMAGE" bash -lc \
-  "source /opt/emos_overlay/setup.bash && PYTHONPATH=/opt/ubrobot/test python3 /opt/ubrobot/test/end_to_end_mock_test.py --planner-log /evidence/mock_planner_requests.jsonl --output /evidence/end_to_end_mock_result.json"
+  "source /opt/emos_overlay/setup.bash && export PYTHONPATH=/opt/ubrobot/test:\$PYTHONPATH && python3 /opt/ubrobot/test/end_to_end_mock_test.py --planner-log /evidence/mock_planner_requests.jsonl --output /evidence/end_to_end_mock_result.json"
 CLIENT_RC=$?
 set -e
 

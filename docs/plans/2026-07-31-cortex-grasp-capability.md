@@ -122,9 +122,15 @@ Remaining:
    TrackVisionTarget fixture) + mock e2e: Cortex → grasp tool → fixture,
    including navigation/grasp mutual-exclusion injection (start a
    navigation lease mid-grasp; the arm goal must fail safe).
-3. **Piper executor**: adapt `grasp_plan.py`/GraspNet + piper_ros behind
-   `GraspExecutorAdapter`, starting with `piper_station` on the real
-   workstation; workspace calibration per profile.
+3. **Piper executor**: the offline draft
+   (`executors/piper_graspnet.py::PiperGraspNetExecutor`) is done —
+   pipeline state machine, phase feedback, and adapter-side workspace/speed
+   enforcement are unit-tested with injected fakes. Remaining on-machine:
+   bind `PerceptionInterface` to arm RGB-D + `grasp_plan.py` GraspNet
+   inference, bind `MotionInterface` to pinocchio IK +
+   `PiperSDKInterface` (`optimize_traj` is an upstream TODO; the legacy
+   `grasp:` route only produced VLM text, no motion), then calibrate the
+   `piper_station` workspace on the real workstation.
 4. **Go2+Piper executor**: same adapter kind, TF rooted at the arm base on
    the quadruped; base-stationary evidence from Go2 odometry; hardware
    gates written (not executed) mirroring the LeKiwi hardware plan style.

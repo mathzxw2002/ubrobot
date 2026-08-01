@@ -68,9 +68,12 @@ class GraspPackageStructureTest(unittest.TestCase):
             "ubrobot_manipulation/lifecycle.py",
             "ubrobot_manipulation/authority.py",
             "ubrobot_manipulation/grasp_object_server.py",
+            "ubrobot_manipulation/executors/__init__.py",
+            "ubrobot_manipulation/executors/piper_graspnet.py",
             "test/test_policy.py",
             "test/test_lifecycle.py",
             "test/test_authority.py",
+            "test/test_piper_graspnet.py",
         ):
             self.assertTrue(
                 (MANIPULATION / relative).exists(), f"missing {relative}"
@@ -129,6 +132,40 @@ class GraspServerSkeletonTest(unittest.TestCase):
             "grasp_object_server = ubrobot_manipulation.grasp_object_server:main",
             setup_py,
         )
+
+
+class PiperExecutorDraftTest(unittest.TestCase):
+    def test_executor_draft_is_ros_and_torch_free(self):
+        source = (
+            MANIPULATION / "ubrobot_manipulation/executors/piper_graspnet.py"
+        ).read_text(encoding="utf-8")
+        # Module must stay importable on workstations without ROS/torch/SDK
+        # (docstring path references to the SDK interface are fine).
+        for forbidden in (
+            "import rclpy",
+            "import torch",
+            "import piper_sdk",
+            "from piper_sdk",
+        ):
+            self.assertNotIn(forbidden, source)
+        for token in (
+            "select_grasp_pose",
+            "phase_progress",
+            "PerceptionInterface",
+            "MotionInterface",
+            "hold_position",
+            "max_speed_mps=self._profile.max_approach_speed_mps",
+        ):
+            self.assertIn(token, source)
+
+    def test_executor_enforces_workspace_and_speed_from_profile(self):
+        # The adapter re-checks perception output against the profile
+        # workspace and caps motion speed from the same profile.
+        source = (
+            MANIPULATION / "ubrobot_manipulation/executors/piper_graspnet.py"
+        ).read_text(encoding="utf-8")
+        self.assertIn("workspace.contains(candidate.position)", source)
+        self.assertIn("no reachable grasp pose", source)
 
 
 class GraspDesignDocTest(unittest.TestCase):

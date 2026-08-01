@@ -36,6 +36,32 @@ p.write_text(s.replace(old, new, 1))
 print('patched vision follower setup condition')
 PY
 
+# Fix EMOS Cortex tool-argument parsing: OpenAI-compatible planners return
+# tool_call arguments as a JSON string, but _parse_tool_args iterates
+# fn_args.items() and crashes with 'str' object has no attribute 'items'.
+RUN python3 - <<'PY'
+from pathlib import Path
+
+p = Path('/opt/ros/jazzy/lib/python3.12/site-packages/agents/components/cortex.py')
+s = p.read_text()
+old = '''        """Parse tool arguments, deserializing JSON strings where needed."""
+        parsed_args = {}
+        for key, arg in fn_args.items():'''
+new = '''        """Parse tool arguments, deserializing JSON strings where needed."""
+        if isinstance(fn_args, str):
+            # OpenAI-compatible servers return arguments as one JSON string.
+            try:
+                fn_args = json.loads(fn_args) if fn_args.strip() else {}
+            except json.JSONDecodeError:
+                fn_args = {}
+        parsed_args = {}
+        for key, arg in fn_args.items():'''
+if old not in s:
+    raise SystemExit('cortex _parse_tool_args patch target not found')
+p.write_text(s.replace(old, new, 1))
+print('patched cortex string tool-arguments handling')
+PY
+
 # Build stable capability interfaces with the EMOS sensor-chain overlay.
 RUN apt-get update \
     && apt-get install -y --no-install-recommends \
@@ -68,6 +94,10 @@ RUN chmod 0755 /usr/local/bin/emos-stack.sh
 # harnesses, and the production UI Cortex transport used by test clients.
 COPY src/chat_ui/cortex_client.py /opt/ubrobot/test/cortex_client.py
 COPY deploy/emos/test/ /opt/ubrobot/test/
-RUN chmod 0755 /opt/ubrobot/test/run_end_to_end_mock.sh
+RUN chmod 0755 /opt/ubrobot/test/run_end_to_end_mock.sh \
+    && chmod 0755 /opt/ubrobot/test/run_real_planner_mock.sh
+
+# HTTP->HTTPS relay for hosted OpenAI-compatible planner endpoints.
+COPY deploy/emos/planner_relay.py /opt/ubrobot/planner_relay.py
 
 WORKDIR /

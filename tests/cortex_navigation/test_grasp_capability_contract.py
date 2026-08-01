@@ -66,8 +66,11 @@ class GraspPackageStructureTest(unittest.TestCase):
             "ubrobot_manipulation/__init__.py",
             "ubrobot_manipulation/policy.py",
             "ubrobot_manipulation/lifecycle.py",
+            "ubrobot_manipulation/authority.py",
+            "ubrobot_manipulation/grasp_object_server.py",
             "test/test_policy.py",
             "test/test_lifecycle.py",
+            "test/test_authority.py",
         ):
             self.assertTrue(
                 (MANIPULATION / relative).exists(), f"missing {relative}"
@@ -81,6 +84,50 @@ class GraspPackageStructureTest(unittest.TestCase):
         ).read_text(encoding="utf-8")
         self.assertNotIn("GraspObject", recipe)
         self.assertNotIn("grasp", recipe.lower())
+
+
+class GraspServerSkeletonTest(unittest.TestCase):
+    def test_server_wires_action_authority_and_platform(self):
+        server = (MANIPULATION / "ubrobot_manipulation/grasp_object_server.py").read_text(
+            encoding="utf-8"
+        )
+        for token in (
+            '"/ubrobot/manipulation/grasp_object"',
+            '"/navigation/command_lease"',
+            '"/cmd_vel"',
+            "UBROBOT_GRASP_PLATFORM",
+            "GraspLifecycleCoordinator",
+            "AuthorityTracker",
+            "CancelResponse.ACCEPT",
+            "GoalResponse.REJECT",
+            "build_executor",
+        ):
+            self.assertIn(token, server)
+
+    def test_server_fails_fast_without_platform_or_executor(self):
+        server = (MANIPULATION / "ubrobot_manipulation/grasp_object_server.py").read_text(
+            encoding="utf-8"
+        )
+        # Missing/unknown platform aborts startup; missing executor binding
+        # fails the goal fast instead of hanging.
+        self.assertIn("raise RuntimeError", server)
+        self.assertIn("raise NotImplementedError", server)
+
+    def test_authority_tracker_is_fail_closed(self):
+        authority = (MANIPULATION / "ubrobot_manipulation/authority.py").read_text(
+            encoding="utf-8"
+        )
+        # No ROS imports keep it unit-testable; no evidence means no grasp.
+        self.assertNotIn("import rclpy", authority)
+        self.assertIn("if not self._cmd_vel_samples:", authority)
+        self.assertIn("return False", authority)
+
+    def test_console_script_registered(self):
+        setup_py = (MANIPULATION / "setup.py").read_text(encoding="utf-8")
+        self.assertIn(
+            "grasp_object_server = ubrobot_manipulation.grasp_object_server:main",
+            setup_py,
+        )
 
 
 class GraspDesignDocTest(unittest.TestCase):

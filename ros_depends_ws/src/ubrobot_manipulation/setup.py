@@ -19,4 +19,9 @@ setup(
     description="Controlled ROS 2 grasp capability for UBRobot.",
     license="MIT",
     tests_require=["pytest"],
+    entry_points={
+        "console_scripts": [
+            "grasp_object_server = ubrobot_manipulation.grasp_object_server:main",
+        ],
+    },
 )

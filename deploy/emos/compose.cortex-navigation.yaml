@@ -6,3 +6,9 @@ services:
       CORTEX_MODEL_PORT: ${CORTEX_MODEL_PORT:-8000}
       CORTEX_MODEL_CHECKPOINT: ${CORTEX_MODEL_CHECKPOINT:-gpt-4o-mini}
       CORTEX_MODEL_API_KEY: ${CORTEX_MODEL_API_KEY:-}
+      # With a remote planner each confirmation costs a round trip (~5-8 s);
+      # raise the interval (e.g. 2.0) to cut request latency.
+      CORTEX_MONITORING_INTERVAL_SEC: ${CORTEX_MONITORING_INTERVAL_SEC:-0.5}
+      # Expose the grasp tool only after the grasp capability server is
+      # deployed; the planner must not discover an unservable Action.
+      CORTEX_ENABLE_GRASP: ${CORTEX_ENABLE_GRASP:-false}

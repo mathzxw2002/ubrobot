@@ -1,0 +1,99 @@
+"""In-process mock of the Cortex backend for Windows UI development.
+
+Simulates the production Cortex Action semantics without ROS or a robot, so
+the real Gradio UI can be exercised offline:
+
+- feedback streams through ``on_feedback`` in the same shapes the real
+  client produces (planning echo, step dispatch, waiting, completion);
+- navigation-like prompts produce a multi-step "execution" that takes a
+  few seconds and can be cancelled mid-flight;
+- ``cancel_active()`` aborts the simulated execution within ~0.1 s and the
+  running ``execute()`` raises :class:`CortexRequestError`, mirroring the
+  real "Plan aborted while waiting for async actions." outcome;
+- only one request may be active, like the real client.
+
+Select with ``UBROBOT_CHAT_BACKEND=cortex-mock`` or inject directly.
+"""
+
+from __future__ import annotations
+
+import re
+import threading
+import time
+
+from cortex_client import CortexBusyError, CortexRequestError
+
+NAV_PATTERN = re.compile(r"(走到|走向|导航|navigate|go to|move to|follow)", re.IGNORECASE)
+
+
+class MockCortexBackend:
+    """Deterministic offline stand-in for the Cortex client."""
+
+    def __init__(self, *, nav_duration_sec: float = 4.0, reply_delay_sec: float = 0.3):
+        if nav_duration_sec <= 0 or reply_delay_sec < 0:
+            raise ValueError("mock timings must be positive")
+        self._nav_duration_sec = float(nav_duration_sec)
+        self._reply_delay_sec = float(reply_delay_sec)
+        self._lock = threading.Lock()
+        self._active_cancel: threading.Event | None = None
+
+    # ------------------------------------------------------------------ API
+
+    def execute(self, task: str, *, on_feedback) -> str:
+        if not isinstance(task, str) or not task.strip():
+            raise ValueError("task must be non-empty text")
+
+        with self._lock:
+            if self._active_cancel is not None:
+                raise CortexBusyError("another Cortex request is already active")
+            cancel_event = threading.Event()
+            self._active_cancel = cancel_event
+
+        try:
+            on_feedback(f"Received task. Creating a plan for: {task}")
+            if NAV_PATTERN.search(task):
+                return self._run_navigation(task, on_feedback, cancel_event)
+            return self._run_text_only(task, on_feedback, cancel_event)
+        finally:
+            with self._lock:
+                if self._active_cancel is cancel_event:
+                    self._active_cancel = None
+
+    def cancel_active(self) -> bool:
+        with self._lock:
+            event = self._active_cancel
+        if event is None:
+            return False
+        event.set()
+        return True
+
+    def close(self) -> None:
+        self.cancel_active()
+
+    # -------------------------------------------------------------- phases
+
+    def _run_navigation(self, task, on_feedback, cancel_event) -> str:
+        on_feedback(
+            "[Step 1/1 (send_goal_to__ubrobot_navigation_navigate_to_object)]"
+            " -> EXECUTE"
+        )
+        deadline = time.monotonic() + self._nav_duration_sec
+        while time.monotonic() < deadline:
+            if cancel_event.wait(timeout=0.1):
+                on_feedback("Plan aborted while waiting for async actions.")
+                raise CortexRequestError(
+                    "Plan aborted while waiting for async actions."
+                )
+            on_feedback("Step 1/1: waiting for async actions to complete...")
+        on_feedback("All 1 steps completed.")
+        return "All 1 steps completed."
+
+    def _run_text_only(self, task, on_feedback, cancel_event) -> str:
+        if cancel_event.wait(timeout=self._reply_delay_sec):
+            on_feedback("Plan aborted while waiting for async actions.")
+            raise CortexRequestError(
+                "Plan aborted while waiting for async actions."
+            )
+        reply = f"[No actions needed]. 收到：{task}（离线开发模式，无真实规划）"
+        on_feedback(reply)
+        return reply

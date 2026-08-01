@@ -6,7 +6,11 @@ import time
 from pathlib import Path
 from datetime import datetime
 import wave
-from dashscope.audio.tts_v2 import *
+try:
+    from dashscope.audio.tts_v2 import *  # noqa: F401,F403
+except ModuleNotFoundError:
+    # TTS helpers unavailable; media-off dev mode does not need them.
+    pass
 
 from dataclasses import dataclass
 

@@ -7,8 +7,6 @@ import queue
 import gradio as gr
 
 from utils import get_timestamp_str, merge_audios, merge_frames_with_audio
-from ubrobot.robots.tts import CosyVoice_API
-from ubrobot.robots.asr import Fun_ASR
 from cortex_client import create_ros_cortex_client
 
 
@@ -36,10 +34,15 @@ class _LegacyBackend:
 class ChatPipeline:
     def __init__(self, *, backend=None, initialize_media=True):
         if initialize_media:
+            # Imported lazily so media-off dev mode needs no ASR/TTS deps.
             print("[1/3] Start initializing funasr")
+            from ubrobot.robots.asr import Fun_ASR
+
             self.asr = Fun_ASR()
 
             print("[2/3] Start initializing tts")
+            from ubrobot.robots.tts import CosyVoice_API
+
             self.tts_api = CosyVoice_API()
         else:
             self.asr = None
@@ -65,12 +68,18 @@ class ChatPipeline:
             if self.backend_name == "cortex":
                 print("[3/3] Start initializing Cortex client")
                 self.backend = create_ros_cortex_client()
+            elif self.backend_name == "cortex-mock":
+                print("[3/3] Start initializing offline mock Cortex backend")
+                from mock_backend import MockCortexBackend
+
+                self.backend = MockCortexBackend()
             elif self.backend_name == "legacy":
                 print("[3/3] Start initializing legacy Go2Manager")
                 self.backend = _LegacyBackend()
             else:
                 raise ValueError(
-                    "UBROBOT_CHAT_BACKEND must be 'cortex' or 'legacy'"
+                    "UBROBOT_CHAT_BACKEND must be 'cortex', 'cortex-mock', "
+                    "or 'legacy'"
                 )
         print("[Done] Initialzation finished")
     
@@ -152,16 +161,21 @@ class ChatPipeline:
         gr.Info("Start processing.", duration = 2)
         try:
             # warm up
-            self.tts_thread = threading.Thread(target=self.tts_worker, args=(self.project_path, tts_module, ))
-            self.ffmpeg_thread = threading.Thread(target=self.ffmpeg_worker)
-            self.tts_thread.start()
-            self.ffmpeg_thread.start()
+            media_on = self.tts_api is not None
+            if media_on:
+                self.tts_thread = threading.Thread(target=self.tts_worker, args=(self.project_path, tts_module, ))
+                self.ffmpeg_thread = threading.Thread(target=self.ffmpeg_worker)
+                self.tts_thread.start()
+                self.ffmpeg_thread.start()
 
             # ASR
             user_input_txt = user_input.text
             if user_input.files:
-                user_input_audio = user_input.files[0].path
-                user_input_txt += self.asr.infer(user_input_audio)
+                if self.asr is not None:
+                    user_input_audio = user_input.files[0].path
+                    user_input_txt += self.asr.infer(user_input_audio)
+                else:
+                    user_input_txt += " [ASR disabled: media off]"
             self.asr_cost = round(time.time()-self.start_time,2)
 
             print(f"[ASR] User input=========================================================: {user_input_txt}, cost: {self.asr_cost}s")
@@ -174,13 +188,19 @@ class ChatPipeline:
             if llm_response_txt:
                 print(f"[LLM] Put into queue: {llm_response_txt}")
 
-            self.vlm_queue.put(None) 
+            if media_on:
+                self.vlm_queue.put(None)
+            else:
+                # No TTS/ffmpeg workers in media-off dev mode; close the
+                # video queue so yield_results finishes after feedback.
+                self.video_queue.put(None)
             user_messages.append({'role': 'assistant', 'content': llm_response_txt})
             if len(user_messages) > 10:
                 user_messages.pop(0)
 
-            self.tts_thread.join()
-            self.ffmpeg_thread.join()
+            if media_on:
+                self.tts_thread.join()
+                self.ffmpeg_thread.join()
 
             # Remove frames
             if self.stop.is_set():

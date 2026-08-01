@@ -79,7 +79,9 @@ def create_gradio():
     return demo.queue()
 
 if __name__ == "__main__":
-    chat_pipeline = ChatPipeline()
+    # UBROBOT_CHAT_MEDIA=off skips ASR/TTS init (offline Windows dev mode).
+    media_enabled = os.environ.get("UBROBOT_CHAT_MEDIA", "on").strip().lower() != "off"
+    chat_pipeline = ChatPipeline(initialize_media=media_enabled)
 
     shutil.rmtree('./workspaces/results', ignore_errors= True)
 

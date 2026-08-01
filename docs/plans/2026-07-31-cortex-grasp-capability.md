@@ -101,24 +101,33 @@ uniform. Feedback phases are executor-defined (`approach`, `align`,
 
 ## Deferred until machines return (in order)
 
-1. **ROS node skeleton** `grasp_object_server.py`: serve the Action, wire
-   `MotionAuthorityAdapter` to `/navigation/command_lease` (empty = free)
-   and base odometry/`/cmd_vel` zero-check, select profile from
-   `UBROBOT_GRASP_PLATFORM` env. Overlay builds on the Pi (Dockerfile COPY
-   already in place).
+Completed offline since this document was written:
+
+- ~~ROS node skeleton~~ — done (W6, `grasp_object_server.py` +
+  fail-closed `AuthorityTracker`).
+- ~~Recipe exposure~~ — done (W7, gated): the grasp Action is registered
+  as a second `SemanticCapabilityProxy` with a semantic tool description,
+  hidden unless `CORTEX_ENABLE_GRASP=true` so the planner never discovers
+  an unservable Action.
+
+Remaining:
+
+1. **Overlay build check on the Pi**: colcon-build `ubrobot_manipulation`
+   and the two-action `ubrobot_interfaces` in the EMOS image (Dockerfile
+   COPY already in place), plus a no-executor smoke: server starts with
+   `UBROBOT_GRASP_PLATFORM=piper_station`, goals fail fast with the
+   NotImplementedError message, and `CORTEX_ENABLE_GRASP=false` keeps the
+   tool list unchanged.
 2. **Executor fixture** (deterministic, like the navigation
    TrackVisionTarget fixture) + mock e2e: Cortex → grasp tool → fixture,
-   including navigation/grasp mutual-exclusion injection.
-3. **Recipe exposure**: register the grasp Action as a second
-   `NavigationCapabilityProxy`-style metadata component, tool description
-   (grasps one visually detectable object label; cancellable; fails when
-   perception or the arm is unavailable; never moves the base).
-4. **Piper executor**: adapt `grasp_plan.py`/GraspNet + piper_ros behind
+   including navigation/grasp mutual-exclusion injection (start a
+   navigation lease mid-grasp; the arm goal must fail safe).
+3. **Piper executor**: adapt `grasp_plan.py`/GraspNet + piper_ros behind
    `GraspExecutorAdapter`, starting with `piper_station` on the real
    workstation; workspace calibration per profile.
-5. **Go2+Piper executor**: same adapter kind, TF rooted at the arm base on
+4. **Go2+Piper executor**: same adapter kind, TF rooted at the arm base on
    the quadruped; base-stationary evidence from Go2 odometry; hardware
    gates written (not executed) mirroring the LeKiwi hardware plan style.
-6. **Multi-step orchestration validation**: "导航到桌子 → 抓取杯子" as one
+5. **Multi-step orchestration validation**: "导航到桌子 → 抓取杯子" as one
    Cortex plan (two sequential semantic goals), first in mock, then lifted,
    then ground — each step separately authorized.

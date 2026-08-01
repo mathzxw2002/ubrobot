@@ -76,14 +76,15 @@ class GraspPackageStructureTest(unittest.TestCase):
                 (MANIPULATION / relative).exists(), f"missing {relative}"
             )
 
-    def test_recipe_does_not_expose_grasp_yet(self):
-        # Grasp exposure to Cortex is a separate, later task; the planner
-        # must not discover it before the capability is deployed.
+    def test_recipe_grasp_exposure_is_gated_off_by_default(self):
+        # The grasp capability server ships separately; the planner must not
+        # discover the tool until CORTEX_ENABLE_GRASP is explicitly enabled.
         recipe = (
             ROOT / "deploy/emos/recipes/cortex_navigation/recipe.py"
         ).read_text(encoding="utf-8")
-        self.assertNotIn("GraspObject", recipe)
-        self.assertNotIn("grasp", recipe.lower())
+        self.assertIn("CORTEX_ENABLE_GRASP", recipe)
+        self.assertIn('env.get(GRASP_ENABLE_ENV, "false")', recipe)
+        self.assertIn("if grasp_exposure_enabled(os.environ):", recipe)
 
 
 class GraspServerSkeletonTest(unittest.TestCase):

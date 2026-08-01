@@ -72,6 +72,30 @@ class CortexRecipeContractTest(unittest.TestCase):
         for forbidden in ("/cmd_vel", "serial", "torque", "motor id", "/dev/"):
             self.assertNotIn(forbidden, description)
 
+    def test_grasp_tool_is_semantic_and_gated(self):
+        source = RECIPE.read_text(encoding="utf-8")
+        self.assertIn(
+            'GRASP_TOOL_NAME = "send_goal_to__ubrobot_manipulation_grasp_object"',
+            source,
+        )
+        self.assertIn("SemanticCapabilityProxy(", source)
+        self.assertIn("grasp_exposure_enabled", source)
+        description = assigned_string(source, "GRASP_TOOL_DESCRIPTION").lower()
+        for phrase in (
+            "visually detectable object label",
+            "robot arm",
+            "can be cancelled",
+            "never moves the mobile base",
+            "may fail",
+        ):
+            self.assertIn(phrase, description)
+        for forbidden in ("/cmd_vel", "serial", "torque", "motor id", "/dev/"):
+            self.assertNotIn(forbidden, description)
+
+    def test_grasp_exposure_passthrough_in_compose(self):
+        source = OVERRIDE.read_text(encoding="utf-8")
+        self.assertIn("CORTEX_ENABLE_GRASP: ${CORTEX_ENABLE_GRASP:-false}", source)
+
     def test_planner_model_configuration_comes_from_environment(self):
         source = RECIPE.read_text(encoding="utf-8")
         for name in (

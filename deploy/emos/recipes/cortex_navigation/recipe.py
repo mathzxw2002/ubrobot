@@ -25,7 +25,7 @@ from kompass.robot import (
     RobotType,
 )
 from ros_sugar.core.component import BaseComponent
-from ubrobot_interfaces.action import NavigateToObject
+from ubrobot_interfaces.action import GraspObject, NavigateToObject
 
 
 NAVIGATION_ACTION_NAME = "/ubrobot/navigation/navigate_to_object"
@@ -35,25 +35,70 @@ NAVIGATION_TOOL_DESCRIPTION = (
     "cancelled and may fail when sensors, detection, or localization are unavailable."
 )
 
+GRASP_ACTION_NAME = "/ubrobot/manipulation/grasp_object"
+GRASP_TOOL_NAME = "send_goal_to__ubrobot_manipulation_grasp_object"
+GRASP_TOOL_DESCRIPTION = (
+    "Grasp one visually detectable object label with the robot arm. The "
+    "operation can be cancelled, never moves the mobile base, and may fail "
+    "when perception, the arm, or the target workspace is unavailable."
+)
 
-class NavigationCapabilityProxy(BaseComponent):
-    """Metadata-only component exposing the external controlled Action to Cortex."""
+# The grasp capability server ships separately; keep the tool hidden until
+# it is deployed, or the planner would discover an unservable Action.
+GRASP_ENABLE_ENV = "CORTEX_ENABLE_GRASP"
 
-    def __init__(self):
-        super().__init__(component_name="semantic_navigation_capability")
+
+def grasp_exposure_enabled(env) -> bool:
+    return env.get(GRASP_ENABLE_ENV, "false").strip().lower() in (
+        "1",
+        "true",
+        "yes",
+    )
+
+
+class SemanticCapabilityProxy(BaseComponent):
+    """Metadata-only component exposing one external controlled Action."""
+
+    def __init__(
+        self, *, component_name, action_name, action_type, tool_description
+    ):
+        super().__init__(component_name=component_name)
+        self._action_name = action_name
+        self._action_type = action_type
+        self._tool_description = tool_description
+
+    @property
+    def tool_name(self) -> str:
+        return f"send_goal_to_{self._action_name.replace('/', '_')}"
+
+    @property
+    def tool_description(self) -> str:
+        return self._tool_description
 
     def get_ros_entrypoints(self):
         return {
             "services": {},
-            "actions": {NAVIGATION_ACTION_NAME: NavigateToObject},
+            "actions": {self._action_name: self._action_type},
         }
 
     def inspect_component(self) -> str:
-        return NAVIGATION_TOOL_DESCRIPTION
+        return self._tool_description
 
     def _execution_step(self):
         # Metadata proxy only; the external Action server performs execution.
         return None
+
+
+class NavigationCapabilityProxy(SemanticCapabilityProxy):
+    """Metadata-only component exposing the external controlled Action to Cortex."""
+
+    def __init__(self):
+        super().__init__(
+            component_name="semantic_navigation_capability",
+            action_name=NAVIGATION_ACTION_NAME,
+            action_type=NavigateToObject,
+            tool_description=NAVIGATION_TOOL_DESCRIPTION,
+        )
 
 
 class NavigationCortex(Cortex):
@@ -74,15 +119,18 @@ class NavigationCortex(Cortex):
         self._managed_components = {
             component.node_name: component
             for component in components or []
-            if isinstance(component, NavigationCapabilityProxy)
+            if isinstance(component, SemanticCapabilityProxy)
         }
 
     def _register_component_entrypoints_as_tools(self, comp_name, comp):
         super()._register_component_entrypoints_as_tools(comp_name, comp)
+        proxy = self._managed_components.get(comp_name)
+        if proxy is None:
+            return
         for tool in self._execution_tool_descriptions:
             function = tool.get("function", {})
-            if function.get("name") == NAVIGATION_TOOL_NAME:
-                function["description"] = NAVIGATION_TOOL_DESCRIPTION
+            if function.get("name") == proxy.tool_name:
+                function["description"] = proxy.tool_description
 
 
 def build_recipe(*, include_robot_stack=True):
@@ -117,7 +165,16 @@ def build_recipe(*, include_robot_stack=True):
         ),
         component_name="navigation_cortex",
     )
-    capability = NavigationCapabilityProxy()
+    capabilities = [NavigationCapabilityProxy()]
+    if grasp_exposure_enabled(os.environ):
+        capabilities.append(
+            SemanticCapabilityProxy(
+                component_name="semantic_grasp_capability",
+                action_name=GRASP_ACTION_NAME,
+                action_type=GraspObject,
+                tool_description=GRASP_TOOL_DESCRIPTION,
+            )
+        )
     launcher = Launcher()
 
     if include_robot_stack:
@@ -224,10 +281,10 @@ def build_recipe(*, include_robot_stack=True):
         )
         launcher.robot = robot
 
-    # Run the metadata proxy in-process. The real Action server is started by
-    # cortex_navigation_bringup.launch.py and owns all ROS execution semantics.
+    # Run the metadata proxies in-process. The real Action servers are
+    # started outside this recipe and own all ROS execution semantics.
     launcher.add_pkg(
-        components=[capability, cortex],
+        components=[*capabilities, cortex],
         multiprocessing=False,
     )
     return launcher, cortex

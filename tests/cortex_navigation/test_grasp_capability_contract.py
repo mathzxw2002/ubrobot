@@ -69,6 +69,7 @@ class GraspPackageStructureTest(unittest.TestCase):
             "ubrobot_manipulation/authority.py",
             "ubrobot_manipulation/grasp_object_server.py",
             "ubrobot_manipulation/executors/__init__.py",
+            "ubrobot_manipulation/executors/fixture.py",
             "ubrobot_manipulation/executors/piper_graspnet.py",
             "test/test_policy.py",
             "test/test_lifecycle.py",

@@ -104,12 +104,19 @@ class RosMotionAuthorityAdapter:
 
 
 def build_executor(node: Node, profile):
-    """Bind the platform grasp executor. Not implemented offline.
+    """Bind only the explicit offline fixture; real hardware stays deferred.
 
-    The first binding (``piper_graspnet`` for ``piper_station``) arrives
-    with the executor milestone; raising here makes an unbound deployment
-    fail fast and loud instead of accepting goals it cannot serve.
+    Real Piper/Go2 bindings intentionally remain unavailable. This prevents
+    an accidental hardware connection while still allowing a complete local
+    EMOS Action harness.
     """
+    if os.environ.get("UBROBOT_GRASP_EXECUTOR", "").strip().lower() == "fixture":
+        from .executors.fixture import DeterministicGraspExecutor
+
+        return DeterministicGraspExecutor(
+            profile=profile,
+            phase_delay_sec=node.get_parameter("fixture_phase_delay_sec").value,
+        )
     raise NotImplementedError(
         f"no grasp executor binding implemented for profile "
         f"'{profile.name}' (executor kind '{profile.executor_kind}'); "
@@ -124,6 +131,7 @@ class GraspObjectServer(Node):
         self.declare_parameter("executor_cancel_timeout_sec", 2.0)
         self.declare_parameter("lease_max_age_sec", 0.5)
         self.declare_parameter("cmd_vel_window_sec", 0.5)
+        self.declare_parameter("fixture_phase_delay_sec", 0.05)
 
         platform_name = os.environ.get(PLATFORM_ENV, "").strip()
         if not platform_name:

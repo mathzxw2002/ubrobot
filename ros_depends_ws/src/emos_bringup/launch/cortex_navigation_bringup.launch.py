@@ -15,6 +15,10 @@ def generate_launch_description():
     lease_timeout_sec = LaunchConfiguration("lease_timeout_sec")
     raw_command_timeout_sec = LaunchConfiguration("raw_command_timeout_sec")
     guard_period_sec = LaunchConfiguration("guard_period_sec")
+    start_grasp_server = LaunchConfiguration("start_grasp_server")
+    grasp_platform = LaunchConfiguration("grasp_platform")
+    grasp_executor = LaunchConfiguration("grasp_executor")
+    fixture_phase_delay_sec = LaunchConfiguration("fixture_phase_delay_sec")
 
     sensor_launch = PathJoinSubstitution(
         [
@@ -46,6 +50,26 @@ def generate_launch_description():
                 default_value="0.05",
                 description="Fixed guarded /cmd_vel publication period.",
             ),
+            DeclareLaunchArgument(
+                "start_grasp_server",
+                default_value="false",
+                description="Start grasp only for an explicit offline harness.",
+            ),
+            DeclareLaunchArgument(
+                "grasp_platform",
+                default_value="piper_station",
+                description="Offline grasp platform profile.",
+            ),
+            DeclareLaunchArgument(
+                "grasp_executor",
+                default_value="none",
+                description="Use fixture only; real bindings are deferred.",
+            ),
+            DeclareLaunchArgument(
+                "fixture_phase_delay_sec",
+                default_value="0.05",
+                description="Delay used by the deterministic grasp fixture.",
+            ),
             IncludeLaunchDescription(
                 PythonLaunchDescriptionSource(sensor_launch),
                 condition=IfCondition(start_sensors),
@@ -55,6 +79,25 @@ def generate_launch_description():
                 executable="navigate_to_object_server",
                 name="navigate_to_object_server",
                 output="screen",
+            ),
+            Node(
+                package="ubrobot_manipulation",
+                executable="grasp_object_server",
+                name="grasp_object_server",
+                output="screen",
+                condition=IfCondition(start_grasp_server),
+                env={
+                    "UBROBOT_GRASP_PLATFORM": grasp_platform,
+                    "UBROBOT_GRASP_EXECUTOR": grasp_executor,
+                },
+                parameters=[
+                    {
+                        "fixture_phase_delay_sec": ParameterValue(
+                            fixture_phase_delay_sec,
+                            value_type=float,
+                        )
+                    }
+                ],
             ),
             Node(
                 package="ubrobot_navigation",

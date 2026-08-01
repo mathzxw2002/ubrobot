@@ -44,6 +44,46 @@ class MockCortexBackendTest(unittest.TestCase):
         self.assertIn("[No actions needed].", reply)
         self.assertIn("报告系统状态", reply)
 
+    def test_navigation_then_grasp_runs_two_semantic_steps(self):
+        backend = MockCortexBackend(nav_duration_sec=0.05)
+        feedback = []
+
+        reply = backend.execute(
+            "导航到桌子旁边，然后抓取杯子",
+            on_feedback=feedback.append,
+        )
+
+        self.assertEqual(reply, "All 2 steps completed.")
+        self.assertEqual(backend.completed_actions, ["navigation", "grasp"])
+        self.assertTrue(
+            any("ubrobot_navigation_navigate_to_object" in text for text in feedback)
+        )
+        self.assertTrue(
+            any("ubrobot_manipulation_grasp_object" in text for text in feedback)
+        )
+        self.assertTrue(any("grasp phase: approach" in text for text in feedback))
+
+    def test_grasp_cancel_is_bounded(self):
+        backend = MockCortexBackend(nav_duration_sec=30.0)
+        outcome = {}
+
+        def execute():
+            try:
+                backend.execute("抓取杯子", on_feedback=lambda _text: None)
+            except CortexRequestError as exc:
+                outcome["error"] = str(exc)
+
+        worker = threading.Thread(target=execute)
+        worker.start()
+        time.sleep(0.1)
+        started = time.monotonic()
+        self.assertTrue(backend.cancel_active())
+        worker.join(2.0)
+
+        self.assertFalse(worker.is_alive())
+        self.assertLess(time.monotonic() - started, 1.0)
+        self.assertIn("Plan aborted", outcome["error"])
+
     def test_cancel_mid_navigation_raises_and_returns_fast(self):
         backend = MockCortexBackend(nav_duration_sec=30.0)
         feedback = []
@@ -71,8 +111,15 @@ class MockCortexBackendTest(unittest.TestCase):
 
     def test_second_request_is_rejected_while_active(self):
         backend = MockCortexBackend(nav_duration_sec=5.0)
+
+        def run_first_request():
+            try:
+                backend.execute("走到椅子", on_feedback=lambda _t: None)
+            except CortexRequestError:
+                pass
+
         worker = threading.Thread(
-            target=lambda: backend.execute("走到椅子", on_feedback=lambda _t: None)
+            target=run_first_request
         )
         worker.start()
         time.sleep(0.2)

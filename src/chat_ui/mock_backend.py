@@ -24,6 +24,9 @@ import time
 from cortex_client import CortexBusyError, CortexRequestError
 
 NAV_PATTERN = re.compile(r"(走到|走向|导航|navigate|go to|move to|follow)", re.IGNORECASE)
+GRASP_PATTERN = re.compile(
+    r"(抓取|抓住|拿起|grasp|pick up|pick)", re.IGNORECASE
+)
 
 
 class MockCortexBackend:
@@ -36,6 +39,7 @@ class MockCortexBackend:
         self._reply_delay_sec = float(reply_delay_sec)
         self._lock = threading.Lock()
         self._active_cancel: threading.Event | None = None
+        self.completed_actions = []
 
     # ------------------------------------------------------------------ API
 
@@ -51,8 +55,12 @@ class MockCortexBackend:
 
         try:
             on_feedback(f"Received task. Creating a plan for: {task}")
+            if NAV_PATTERN.search(task) and GRASP_PATTERN.search(task):
+                return self._run_sequence(task, on_feedback, cancel_event)
             if NAV_PATTERN.search(task):
                 return self._run_navigation(task, on_feedback, cancel_event)
+            if GRASP_PATTERN.search(task):
+                return self._run_grasp(task, on_feedback, cancel_event)
             return self._run_text_only(task, on_feedback, cancel_event)
         finally:
             with self._lock:
@@ -86,7 +94,53 @@ class MockCortexBackend:
                 )
             on_feedback("Step 1/1: waiting for async actions to complete...")
         on_feedback("All 1 steps completed.")
+        self.completed_actions.append("navigation")
         return "All 1 steps completed."
+
+    def _run_grasp(self, task, on_feedback, cancel_event):
+        on_feedback(
+            "[Step 1/1 (send_goal_to__ubrobot_manipulation_grasp_object)]"
+            " -> EXECUTE"
+        )
+        for phase in ("approach", "align", "grasp", "retreat"):
+            if cancel_event.wait(timeout=self._nav_duration_sec / 8.0):
+                on_feedback("Plan aborted while waiting for async actions.")
+                raise CortexRequestError(
+                    "Plan aborted while waiting for async actions."
+                )
+            on_feedback(f"grasp phase: {phase}")
+        self.completed_actions.append("grasp")
+        on_feedback("All 1 steps completed.")
+        return "All 1 steps completed."
+
+    def _run_sequence(self, task, on_feedback, cancel_event):
+        on_feedback(
+            "[Step 1/2 (send_goal_to__ubrobot_navigation_navigate_to_object)]"
+            " -> EXECUTE"
+        )
+        deadline = time.monotonic() + self._nav_duration_sec
+        while time.monotonic() < deadline:
+            if cancel_event.wait(timeout=0.1):
+                on_feedback("Plan aborted while waiting for async actions.")
+                raise CortexRequestError(
+                    "Plan aborted while waiting for async actions."
+                )
+            on_feedback("Step 1/2: waiting for async actions to complete...")
+        self.completed_actions.append("navigation")
+        on_feedback(
+            "[Step 2/2 (send_goal_to__ubrobot_manipulation_grasp_object)]"
+            " -> EXECUTE"
+        )
+        for phase in ("approach", "align", "grasp", "retreat"):
+            if cancel_event.wait(timeout=self._nav_duration_sec / 8.0):
+                on_feedback("Plan aborted while waiting for async actions.")
+                raise CortexRequestError(
+                    "Plan aborted while waiting for async actions."
+                )
+            on_feedback(f"Step 2/2 grasp phase: {phase}")
+        self.completed_actions.append("grasp")
+        on_feedback("All 2 steps completed.")
+        return "All 2 steps completed."
 
     def _run_text_only(self, task, on_feedback, cancel_event) -> str:
         if cancel_event.wait(timeout=self._reply_delay_sec):

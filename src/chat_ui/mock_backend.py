@@ -21,7 +21,10 @@ import re
 import threading
 import time
 
-from cortex_client import CortexBusyError, CortexRequestError
+try:  # Package import for tests and `python -m chat_ui.app`.
+    from .cortex_client import CortexBusyError, CortexRequestError
+except ImportError:  # Script compatibility: direct module import.
+    from cortex_client import CortexBusyError, CortexRequestError
 
 NAV_PATTERN = re.compile(r"(走到|走向|导航|navigate|go to|move to|follow)", re.IGNORECASE)
 GRASP_PATTERN = re.compile(

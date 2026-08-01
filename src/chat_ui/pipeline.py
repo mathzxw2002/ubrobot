@@ -6,8 +6,12 @@ import threading
 import queue
 import gradio as gr
 
-from utils import get_timestamp_str, merge_audios, merge_frames_with_audio
-from cortex_client import create_ros_cortex_client
+try:  # Package import for tests and `python -m chat_ui.app`.
+    from .utils import get_timestamp_str, merge_audios, merge_frames_with_audio
+    from .cortex_client import create_ros_cortex_client
+except ImportError:  # Script compatibility: `python src/chat_ui/app.py`.
+    from utils import get_timestamp_str, merge_audios, merge_frames_with_audio
+    from cortex_client import create_ros_cortex_client
 
 
 class _LegacyBackend:
@@ -70,7 +74,10 @@ class ChatPipeline:
                 self.backend = create_ros_cortex_client()
             elif self.backend_name == "cortex-mock":
                 print("[3/3] Start initializing offline mock Cortex backend")
-                from mock_backend import MockCortexBackend
+                try:
+                    from .mock_backend import MockCortexBackend
+                except ImportError:
+                    from mock_backend import MockCortexBackend
 
                 self.backend = MockCortexBackend()
             elif self.backend_name == "legacy":

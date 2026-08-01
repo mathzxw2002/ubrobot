@@ -9,7 +9,10 @@ import time
 import logging
 logging.basicConfig(level=logging.WARNING)
 
-from pipeline import ChatPipeline
+try:  # Package import for tests and `python -m chat_ui.app`.
+    from .pipeline import ChatPipeline
+except ImportError:  # Script compatibility: `python src/chat_ui/app.py`.
+    from pipeline import ChatPipeline
 
 chat_pipeline = None
 

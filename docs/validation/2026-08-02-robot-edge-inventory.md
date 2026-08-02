@@ -57,6 +57,16 @@ started with motion authority still disabled.
    profile remains **`lekiwi`**, consistent with the "exactly one base
    profile" constraint.
 
+## Owner confirmation (2026-08-02, after initial inventory)
+
+- LeKiwi real-hardware mode was previously exercised on the real base and
+  confirmed normal by the owner; the container is intentionally left in its
+  current (stopped, torque-enabled hard-gate) configuration. It remains
+  **stopped** and must not be started without a supervised preflight.
+- The LeKiwi base is wired and connected to the Raspberry Pi via the stable
+  serial device.
+- Piper is not connected to this host; mobile-base profile remains `lekiwi`.
+
 ## Evidence
 
 - Raw output preserved in the terminal session; the committed report is

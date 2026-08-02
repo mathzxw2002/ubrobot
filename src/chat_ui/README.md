@@ -24,6 +24,59 @@ python src/chat_ui/app.py
 `cortex` is the default when `UBROBOT_CHAT_BACKEND` is unset. The UI and EMOS
 must use the same ROS domain, RMW implementation, and Fast DDS profile.
 
+## Robot Edge backend (M5 milestone)
+
+The Robot Edge backend connects to a separate FastAPI service instead of
+talking directly to ROS/EMOS Cortex. It adds authentication, replay protection,
+lease management, and local safety supervision, while keeping ROS and hardware
+SDKs on the robot side.
+
+```powershell
+$env:UBROBOT_CHAT_BACKEND = "robot-edge"
+$env:UBROBOT_EDGE_URL = "http://127.0.0.1:8780"
+$env:UBROBOT_EDGE_OPERATOR_ID = "operator"
+$env:UBROBOT_EDGE_TOKEN = "test-token"  # or set UBROBOT_EDGE_TOKEN_FILE
+python src/chat_ui/app.py
+```
+
+The Robot Edge service runs on the robot-side computer and exposes these
+endpoints:
+
+- `GET /v1/health/live`, `GET /v1/health/ready`
+- `GET /v1/capabilities`
+- `GET /v1/telemetry/snapshot`
+- `GET /v1/events?after=<event_id>`
+- `POST /v1/commands`
+- `POST /v1/commands/{command_id}/cancel`
+- `POST /v1/safety/stop`
+- `POST /v1/lease/acquire`, `GET /v1/lease`
+
+All command/control endpoints require a bearer token, a timestamp within the
+request window, and a unique nonce to prevent replay attacks. Health endpoints
+do not require authentication but reveal no secrets.
+
+Run the Robot Edge service in fixture mode (no hardware):
+
+```powershell
+$env:UBROBOT_EDGE_MODE = "fixture"
+$env:UBROBOT_EDGE_HARDWARE_AUTHORITY = "false"
+python -m robot_edge.app
+```
+
+The fixture service accepts any token in test mode but rejects replayed nonces,
+expired timestamps, and insufficient scopes in the real configuration.
+
+For hardware deployment, set:
+
+```powershell
+$env:UBROBOT_EDGE_MODE = "hardware"
+$env:UBROBOT_EDGE_HARDWARE_AUTHORITY = "true"
+$env:UBROBOT_EDGE_SAFETY_CHECKLIST = "path/to/checklist"
+```
+
+Even with `HARDWARE_AUTHORITY=true`, M5 does not actually bind ROS or
+hardware. Physical E-stop validation happens in later milestones.
+
 ## Offline development mode (Windows, no ROS)
 
 Install the validated runtime and optional test dependencies from the

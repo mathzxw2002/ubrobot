@@ -120,19 +120,33 @@ class ChatPipeline:
                         os.environ.get("UBROBOT_MOCK_REPLY_DELAY_SEC", "0.3")
                     ),
                 )
+            elif self.backend_name == "robot-edge":
+                print("[3/3] Start initializing Robot Edge backend")
+                try:
+                    from .adapters.robot_edge import RobotEdgeBackend
+                except ImportError:
+                    from adapters.robot_edge import RobotEdgeBackend
+
+                self.backend = RobotEdgeBackend(
+                    edge_url=os.environ.get("UBROBOT_EDGE_URL", "http://127.0.0.1:8780"),
+                    operator_id=os.environ.get("UBROBOT_EDGE_OPERATOR_ID", "operator"),
+                    token_file=os.environ.get("UBROBOT_EDGE_TOKEN_FILE"),
+                    token=os.environ.get("UBROBOT_EDGE_TOKEN"),
+                )
             elif self.backend_name == "legacy":
                 print("[3/3] Start initializing legacy Go2Manager")
                 self.backend = _LegacyBackend()
             else:
                 raise ValueError(
                     "UBROBOT_CHAT_BACKEND must be 'cortex', 'cortex-mock', "
-                    "or 'legacy'"
+                    "'robot-edge', or 'legacy'"
                 )
         self.event_stream = EventStream()
         execution_modes = {
             "cortex-mock": ExecutionMode.MOCK,
             "injected": ExecutionMode.FIXTURE,
             "cortex": ExecutionMode.REMOTE,
+            "robot-edge": ExecutionMode.REMOTE,
             "legacy": ExecutionMode.HARDWARE,
         }
         simulated_capabilities = (
@@ -155,17 +169,62 @@ class ChatPipeline:
         self.telemetry_hub = TelemetryHub(
             event_publisher=self.event_stream.publish,
         )
-        self.telemetry_adapter = FixtureTelemetryAdapter(
-            {
-                "capability_health": CapabilityHealthTelemetry(
-                    state=TelemetryState.AVAILABLE,
-                    source="capability_registry",
-                    capabilities=self.capability_registry.snapshot(),
-                    detail="serialized operator capability inventory",
+        # Robot Edge telemetry and capability clients. The backend constructor
+        # already raises if no token is configured, so reaching here means a
+        # valid operator token is available; reuse the same loader for clients.
+        self.edge_telemetry_client = None
+        self.edge_capability_client = None
+        if self.backend_name == "robot-edge":
+            try:
+                from .adapters.robot_edge import RobotEdgeBackend as _EdgeBackend
+            except ImportError:
+                from adapters.robot_edge import RobotEdgeBackend as _EdgeBackend
+            try:
+                from .adapters.robot_edge_telemetry import (
+                    RobotEdgeTelemetryClient,
+                    RobotEdgeCapabilityClient,
                 )
-            }
-        )
-        self.telemetry_adapter.publish_all(self.telemetry_hub)
+            except ImportError:
+                from adapters.robot_edge_telemetry import (
+                    RobotEdgeTelemetryClient,
+                    RobotEdgeCapabilityClient,
+                )
+            edge_url = os.environ.get("UBROBOT_EDGE_URL", "http://127.0.0.1:8780")
+            # No default token: _load_token returns "" when nothing is
+            # configured, and the telemetry clients reject an empty token.
+            edge_token = _EdgeBackend._load_token(
+                os.environ.get("UBROBOT_EDGE_TOKEN_FILE"),
+                os.environ.get("UBROBOT_EDGE_TOKEN"),
+            )
+            local_hardware_permitted = os.environ.get(
+                "UBROBOT_EDGE_LOCAL_HARDWARE_PERMITTED", "false"
+            ).lower() == "true"
+            self.edge_telemetry_client = RobotEdgeTelemetryClient(
+                edge_url=edge_url,
+                token=edge_token,
+                telemetry_hub=self.telemetry_hub,
+            )
+            self.edge_capability_client = RobotEdgeCapabilityClient(
+                edge_url=edge_url,
+                token=edge_token,
+                capability_registry=self.capability_registry,
+                local_hardware_permitted=local_hardware_permitted,
+            )
+            self.edge_telemetry_client.start()
+            self.edge_capability_client.start()
+        else:
+            # Use fixture telemetry for other backends
+            self.telemetry_adapter = FixtureTelemetryAdapter(
+                {
+                    "capability_health": CapabilityHealthTelemetry(
+                        state=TelemetryState.AVAILABLE,
+                        source="capability_registry",
+                        capabilities=self.capability_registry.snapshot(),
+                        detail="serialized operator capability inventory",
+                    )
+                }
+            )
+            self.telemetry_adapter.publish_all(self.telemetry_hub)
         self.voice_provider = voice_provider or self._create_voice_provider()
         self.voice_runtime = VoiceSessionManager(
             self.voice_provider,

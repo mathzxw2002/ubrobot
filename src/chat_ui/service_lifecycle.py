@@ -101,6 +101,17 @@ def shutdown_pipeline(pipeline: Any) -> None:
             except Exception:
                 logger.exception("backend cancellation failed during shutdown")
 
+    # Shut down Robot Edge telemetry and capability clients
+    for name in ("edge_telemetry_client", "edge_capability_client"):
+        client = getattr(pipeline, name, None)
+        if client is not None:
+            close_fn = getattr(client, "close", None) or getattr(client, "stop", None)
+            if callable(close_fn):
+                try:
+                    close_fn()
+                except Exception:
+                    logger.exception(f"{name} close failed")
+
     for name in ("tts_thread", "ffmpeg_thread"):
         worker = getattr(pipeline, name, None)
         if worker is not None and worker.is_alive():

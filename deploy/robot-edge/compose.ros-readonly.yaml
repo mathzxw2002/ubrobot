@@ -1,0 +1,40 @@
+# M6: Robot Edge read-only ROS profile.
+#
+# Serves capability/telemetry snapshots from the real ROS graph while every
+# command endpoint rejects with "hardware authority disabled". No devices are
+# mapped and no control topics are ever published by this profile.
+#
+# Use together with the base fixture compose file:
+#   docker compose -f deploy/robot-edge/compose.fixture.yaml \
+#                  -f deploy/robot-edge/compose.ros-readonly.yaml up
+services:
+  robot-edge:
+    build:
+      context: ../..
+      dockerfile: deploy/robot-edge/Dockerfile.ros
+    image: ubrobot/robot-edge:readonly-ros
+    network_mode: host
+    environment:
+      - UBROBOT_EDGE_MODE=hardware
+      - UBROBOT_EDGE_HARDWARE_AUTHORITY=false
+      - RMW_IMPLEMENTATION=rmw_fastrtps_cpp
+      - ROS_DOMAIN_ID=${ROS_DOMAIN_ID:-0}
+      - FASTRTPS_DEFAULT_PROFILES_FILE=/etc/fastdds/udp-only.xml
+      - FASTDDS_DEFAULT_PROFILES_FILE=/etc/fastdds/udp-only.xml
+      - UBROBOT_EDGE_TOKENS_FILE=/app/config/tokens.json
+    volumes:
+      - ../fastdds/udp-only.xml:/etc/fastdds/udp-only.xml:ro
+      - ./config:/app/config:ro
+    read_only: true
+    tmpfs:
+      - /tmp:rw,nosuid,nodev,size=64m
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request,sys;sys.exit(0 if urllib.request.urlopen('http://127.0.0.1:8780/v1/health/live', timeout=2).status==200 else 1)"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 10s

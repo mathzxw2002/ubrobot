@@ -1,0 +1,22 @@
+# Robot Edge service container with ROS support (M6 read-only).
+# Based on the official ROS 2 Jazzy base image so rclpy is available for
+# read-only graph introspection. No hardware SDKs are installed.
+FROM ros:jazzy-ros-base-noble
+
+WORKDIR /app
+
+# Runtime Python deps for the Edge service itself.
+COPY requirements-robot-edge.txt .
+RUN pip install --no-cache-dir -r requirements-robot-edge.txt
+
+# Copy source code (contracts + edge service + ROS adapters).
+COPY src/ubrobot_contracts /app/ubrobot_contracts/
+COPY src/robot_edge /app/robot_edge/
+
+# Health check uses stdlib urllib (no curl dependency).
+HEALTHCHECK --interval=30s --timeout=5s \
+    CMD python -c "import urllib.request,sys;sys.exit(0 if urllib.request.urlopen('http://127.0.0.1:8780/v1/health/live', timeout=2).status==200 else 1)" || exit 1
+
+EXPOSE 8780
+
+CMD ["python", "-m", "robot_edge.app"]

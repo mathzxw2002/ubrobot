@@ -65,13 +65,34 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
     step_delay = getattr(app.state, "fixture_step_delay_sec", None)
     if step_delay is None:
         step_delay = float(os.environ.get("UBROBOT_EDGE_FIXTURE_STEP_DELAY_SEC", "0.0"))
-    app.state.runtime = RobotEdgeRuntime(backend=FixtureBackend(step_delay_sec=float(step_delay)))
+    app.state.runtime = RobotEdgeRuntime(
+        backend=_create_backend(execution_mode, fixture_step_delay_sec=float(step_delay))
+    )
 
     yield
 
     app.state.runtime = None
     app.state.token_verifier = None
     app.state.replay_protection = None
+
+
+def _create_backend(execution_mode: str, *, fixture_step_delay_sec: float):
+    """Create the runtime backend for the execution mode.
+
+    - ``fixture`` (default): deterministic fixture backend, no hardware.
+    - ``hardware``: read-only ROS graph backend (M6). Imports rclpy lazily
+      inside the factory; fixture/mock modes never touch the ROS stack.
+      ``fixture_step_delay_sec`` widens the fixture active window for
+      process-level cancel/E-stop tests (<=100 ms per step).
+    """
+    if execution_mode == "hardware":
+        from robot_edge.ros.backend import create_readonly_ros_backend
+
+        backend = create_readonly_ros_backend(execution_mode="hardware")
+        if backend is None:
+            raise RuntimeError("hardware mode requested but ROS context unavailable")
+        return backend
+    return FixtureBackend(step_delay_sec=fixture_step_delay_sec)
 
 
 def get_runtime(request: Request) -> RobotEdgeRuntime:

@@ -15,6 +15,8 @@ from ubrobot_contracts.telemetry import TelemetryChannel, TelemetrySnapshot
 
 from robot_edge.event_stream import EventStream, EventRecord
 from robot_edge.fixture_backend import FixtureBackend
+from robot_edge.lease import LeaseManager
+from robot_edge.safety import SafetySupervisor, StopSink
 
 
 class RobotEdgeRuntime:
@@ -24,12 +26,14 @@ class RobotEdgeRuntime:
         self,
         backend: FixtureBackend,
         max_event_history: int = 1000,
+        lease_manager: LeaseManager | None = None,
+        safety_supervisor: SafetySupervisor | None = None,
     ) -> None:
         self._backend = backend
         self._events = EventStream(max_history=max_event_history)
-        self._lease: LeaseRecord | None = None
+        self._lease_manager = lease_manager or LeaseManager()
+        self._safety = safety_supervisor or SafetySupervisor()
         self._active_command_id: str | None = None
-        self._safety_latched = False
         self._command_generator: Iterator[tuple[CommandState, str, dict[str, Any]]] | None = None
 
     @property
@@ -41,14 +45,8 @@ class RobotEdgeRuntime:
         return self._backend.hardware_authority
 
     @property
-    def lease_state(self) -> str:
-        if self._lease is None:
-            return "none"
-        return self._lease.state.value
-
-    @property
     def safety_latched(self) -> bool:
-        return self._safety_latched
+        return self._safety.is_latched()
 
     def get_capabilities(self) -> dict[CapabilityName, CapabilitySnapshot]:
         """Get current capability inventory."""
@@ -65,8 +63,15 @@ class RobotEdgeRuntime:
         correlation_id: str,
     ) -> str:
         """Submit a command for execution."""
-        if self._safety_latched:
+        if self._safety.is_latched():
             raise RuntimeError("Safety latched - cannot execute commands")
+
+        if not self._safety.allows_commands():
+            raise RuntimeError("Safety disallows commands")
+
+        # Check lease for navigation commands
+        # In fixture mode, we skip strict lease checks for testing
+        # In hardware mode, this would enforce lease ownership
 
         command_id = str(uuid4())
         self._active_command_id = command_id
@@ -91,12 +96,8 @@ class RobotEdgeRuntime:
                 payload=payload,
             )
 
-            # If not terminal, schedule next step
-            if state not in {CommandState.SUCCEEDED, CommandState.FAILED, CommandState.CANCELLED}:
-                # In a real implementation, we'd schedule this with asyncio
-                # For fixture, we just step immediately when polled
-                pass
-            else:
+            # If terminal, clean up
+            if state in (CommandState.SUCCEEDED, CommandState.FAILED, CommandState.CANCELLED):
                 self._command_generator = None
                 self._active_command_id = None
 
@@ -141,7 +142,10 @@ class RobotEdgeRuntime:
         correlation_id: str,
     ) -> None:
         """Trigger emergency stop (latching)."""
-        self._safety_latched = True
+        self._safety.emergency_stop(
+            reason=f"emergency stop from {operator_id}",
+            operator_id=operator_id,
+        )
 
         # Cancel active command if any
         if self._active_command_id:
@@ -162,9 +166,9 @@ class RobotEdgeRuntime:
             payload={"operator_id": operator_id, "correlation_id": correlation_id, "critical": True},
         )
 
-    def reset_safety(self, operator_id: str) -> None:
+    def reset_safety(self, operator_id: str, authorized: bool = True) -> None:
         """Reset safety latch (for testing only)."""
-        self._safety_latched = False
+        self._safety.reset(authorized=authorized)
 
     def acquire_lease(
         self,
@@ -172,25 +176,17 @@ class RobotEdgeRuntime:
         duration_sec: float = 30.0,
     ) -> LeaseRecord:
         """Acquire a navigation lease."""
-        now = datetime.now(timezone.utc)
-        lease_id = str(uuid4())
-        self._lease = LeaseRecord(
-            lease_id=lease_id,
-            owner=operator_id,
-            issued_at=now,
-            expires_at=now,
-            last_renewed_at=now,
-            state=LeaseState.ACTIVE,
+        lease = self._lease_manager.acquire(
+            operator_id=operator_id,
+            duration_sec=duration_sec,
         )
-        return self._lease
+        return lease.to_record()
 
     def release_lease(self, lease_id: str, operator_id: str) -> bool:
         """Release a navigation lease."""
-        if self._lease and self._lease.lease_id == lease_id:
-            self._lease = None
-            return True
-        return False
+        return self._lease_manager.release(lease_id, operator_id)
 
     def get_lease(self) -> LeaseRecord | None:
         """Get current lease, if any."""
-        return self._lease
+        lease = self._lease_manager.get_current_lease()
+        return lease.to_record() if lease else None

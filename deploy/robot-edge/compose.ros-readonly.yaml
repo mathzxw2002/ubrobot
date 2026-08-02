@@ -22,9 +22,26 @@ services:
       - FASTRTPS_DEFAULT_PROFILES_FILE=/etc/fastdds/udp-only.xml
       - FASTDDS_DEFAULT_PROFILES_FILE=/etc/fastdds/udp-only.xml
       - UBROBOT_EDGE_TOKENS_FILE=/app/config/tokens.json
+      # M7 physical E-stop binding. Enabled only after the owner wires and
+      # verifies the NC auxiliary contact (ADR-0002). While disabled the
+      # service reports local_stop.bound=false and may not claim hardware
+      # authority (app-level fail-closed gate).
+      - UBROBOT_EDGE_ESTOP_ENABLED=false
+      - UBROBOT_EDGE_ESTOP_CHIP=gpiochip4
+      - UBROBOT_EDGE_ESTOP_LINE=23
+      - UBROBOT_EDGE_ESTOP_LINE_NAME=ubrobot-estop
+      - UBROBOT_EDGE_ESTOP_DEBOUNCE_SEC=0.02
     volumes:
       - ../fastdds/udp-only.xml:/etc/fastdds/udp-only.xml:ro
       - ./config:/app/config:ro
+    devices:
+      # E-stop auxiliary contact via libgpiod (Raspberry Pi 5 exposes
+      # gpiochip0..4). Map all five chips so the configured line resolves.
+      - /dev/gpiochip0:/dev/gpiochip0
+      - /dev/gpiochip1:/dev/gpiochip1
+      - /dev/gpiochip2:/dev/gpiochip2
+      - /dev/gpiochip3:/dev/gpiochip3
+      - /dev/gpiochip4:/dev/gpiochip4
     read_only: true
     tmpfs:
       - /tmp:rw,nosuid,nodev,size=64m

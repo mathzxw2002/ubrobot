@@ -96,13 +96,18 @@ class SafetySupervisor:
                 pass
 
     def reset(self, authorized: bool = False) -> None:
-        """Reset safety latch (requires explicit authorization)."""
+        """Reset safety latch (requires explicit authorization).
+
+        Re-arms the stop fan-out so a subsequent stop (e.g. a re-pressed
+        E-stop after an authorized reset while the contact is still open)
+        executes the sinks again. Idempotence within one latch cycle is
+        preserved by the ``_latched`` early-return in ``emergency_stop``.
+        """
         if not authorized:
             raise PermissionError("Reset requires explicit authorization")
 
         self._latched = False
-        # Note: _stop_executed NOT reset to prevent multiple stops
-        # After reset, new emergency stops will still work
+        self._stop_executed = False
 
     def clear_stop_executed(self, authorized: bool = False) -> None:
         """Clear stop executed flag (for testing only)."""

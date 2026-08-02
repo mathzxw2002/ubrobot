@@ -128,15 +128,28 @@ Wiring: auxiliary contact between 3.3 V and the chosen GPIO line; the line
 is configured with internal PULL_DOWN, so a pressed button **or a broken
 wire** reads low and triggers the fail-closed stop.
 
-Software chain (`src/robot_edge/hardware/local_stop.py`):
+Software chain (wired into the running service since 2026-08-03;
+`src/robot_edge/hardware/local_stop.py` + `app.py` lifespan):
 
 ```text
 GPIO contact  ->  LocalStopButton (debounced, fail-closed)
-              ->  SafetySupervisor.on_local_stop()  (latched)
+              ->  runtime.local_emergency_stop()  (latches supervisor,
+                  cancels the active command, emits the critical event)
               ->  stop fan-out sinks
               ->  safety.emergency_stop event (priority=critical)
               ->  explicit authorized /v1/safety/reset required
 ```
+
+Runtime behavior:
+
+- Set `UBROBOT_EDGE_ESTOP_ENABLED=true` (with chip/line) to bind; the
+  service aborts startup on missing/invalid config (fail-closed).
+- `/v1/health/ready` reports `local_stop.bound`, `source`, and
+  `contact_closed` truthfully from the first poll.
+- `/v1/safety/reset` re-arms the button: a still-open contact re-latches
+  and re-executes the stop fan-out; the reset is never trusted blindly.
+- Hardware authority (`UBROBOT_EDGE_HARDWARE_AUTHORITY=true` in hardware
+  mode) is refused unless the E-stop is bound.
 
 Robot-side latency measurement (wheels lifted, torque disabled, dry-run
 first):

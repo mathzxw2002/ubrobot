@@ -88,7 +88,13 @@ class GpiodEstopLineReader(EstopLineReader):
 
 
 class LocalStopButton:
-    """Debounced binding of a physical E-stop to SafetySupervisor."""
+    """Debounced binding of a physical E-stop to SafetySupervisor.
+
+    ``on_stop`` is the notification hook the app wires to the runtime so a
+    physical stop cancels the active command and emits the critical event,
+    not just the supervisor latch. When None (unit tests, standalone use),
+    only ``supervisor.on_local_stop()`` is called.
+    """
 
     def __init__(
         self,
@@ -97,11 +103,13 @@ class LocalStopButton:
         *,
         debounce_sec: float = 0.02,
         clock: Optional[Callable[[], float]] = None,
+        on_stop: Optional[Callable[[str], None]] = None,
     ) -> None:
         self._reader = reader
         self._supervisor = supervisor
         self._debounce_sec = debounce_sec
         self._clock = clock or (lambda: datetime.now(timezone.utc).timestamp())
+        self._on_stop = on_stop
         self._open_since: Optional[float] = None
         self._triggered = False
         self._last_read_at: Optional[float] = None
@@ -111,6 +119,22 @@ class LocalStopButton:
     @property
     def triggered(self) -> bool:
         return self._triggered
+
+    def _fire(self, detail: str) -> None:
+        if self._on_stop is not None:
+            self._on_stop(detail)
+        else:
+            self._supervisor.on_local_stop(detail)
+
+    def rearm(self) -> None:
+        """Re-arm after an explicit authorized safety reset.
+
+        Clears the triggered latch and the debounce window so the next poll
+        re-samples the physical contact. If the contact is still open the
+        next poll re-latches (fail-closed) instead of trusting the reset.
+        """
+        self._triggered = False
+        self._open_since = None
 
     def poll_once(self) -> bool:
         """Sample the contact once; returns True when a stop is triggered.
@@ -140,8 +164,8 @@ class LocalStopButton:
         # Small epsilon absorbs float rounding (e.g. 1000.02 - 1000).
         if now - self._open_since >= self._debounce_sec - 1e-9:
             self._triggered = True
-            self._supervisor.on_local_stop(
-                detail=f"local stop: contact open ({self._reader.describe()})"
+            self._fire(
+                f"local stop: contact open ({self._reader.describe()})"
             )
             return True
         return False

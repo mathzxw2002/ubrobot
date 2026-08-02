@@ -3,7 +3,7 @@
 import os
 from contextlib import asynccontextmanager
 from datetime import datetime, timezone
-from typing import Any, AsyncIterator
+from typing import Any, AsyncIterator, Callable
 
 from fastapi import Depends, FastAPI, HTTPException, Request, status
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
@@ -28,6 +28,78 @@ from robot_edge.runtime import RobotEdgeRuntime
 
 # Security scheme for bearer tokens
 security = HTTPBearer(auto_error=False)
+
+
+def _estop_enabled() -> bool:
+    """True when the physical E-stop binding is explicitly requested."""
+    return os.environ.get("UBROBOT_EDGE_ESTOP_ENABLED", "false").strip().lower() in (
+        "1",
+        "true",
+        "yes",
+    )
+
+
+def _bind_local_stop(app: FastAPI, runtime: RobotEdgeRuntime) -> None:
+    """Bind the physical E-stop contact to the runtime safety latch (M7).
+
+    Fail-closed by design:
+
+    - enabled but chip/line missing -> startup fails (no unprotected run);
+    - reader fault/open contact -> supervisor latch via ``on_local_stop``;
+    - any gpiod import failure propagates here, failing startup.
+
+    ``app.state.estop_reader_factory`` is the injection point for tests
+    (and for future non-gpiod readers); the default constructs the
+    gpiod-backed reader lazily, so workstations without libgpiod can still
+    import this module.
+    """
+    from robot_edge.hardware.local_stop import (
+        EstopLineReader,
+        EstopPoller,
+        GpiodEstopLineReader,
+        LocalStopButton,
+    )
+
+    chip = os.environ.get("UBROBOT_EDGE_ESTOP_CHIP", "").strip()
+    line_raw = os.environ.get("UBROBOT_EDGE_ESTOP_LINE", "").strip()
+    if not chip or not line_raw:
+        raise RuntimeError(
+            "UBROBOT_EDGE_ESTOP_ENABLED=true requires UBROBOT_EDGE_ESTOP_CHIP "
+            "and UBROBOT_EDGE_ESTOP_LINE (fail-closed startup)"
+        )
+    try:
+        line = int(line_raw)
+    except ValueError:
+        raise RuntimeError(
+            f"UBROBOT_EDGE_ESTOP_LINE must be an integer, got {line_raw!r}"
+        ) from None
+    line_name = os.environ.get("UBROBOT_EDGE_ESTOP_LINE_NAME", "ubrobot-estop")
+    debounce_sec = float(os.environ.get("UBROBOT_EDGE_ESTOP_DEBOUNCE_SEC", "0.02"))
+
+    factory = getattr(app.state, "estop_reader_factory", None)
+    if factory is not None:
+        reader = factory(chip=chip, line=line, line_name=line_name)  # type: ignore[operator]
+    else:
+        reader = GpiodEstopLineReader(chip, line, line_name=line_name)
+    if not isinstance(reader, EstopLineReader):
+        raise RuntimeError("estop_reader_factory must return an EstopLineReader")
+
+    button = LocalStopButton(
+        reader,
+        runtime.safety,
+        debounce_sec=debounce_sec,
+        # Route the physical stop through the runtime so the active command
+        # is cancelled and the critical event is emitted (not just latched).
+        on_stop=runtime.local_emergency_stop,
+    )
+    # Seed the contact state synchronously: readiness must report the truth
+    # immediately at startup instead of waiting for the first background poll.
+    button.poll_once()
+    poller = EstopPoller(button)
+    poller.start()
+    app.state.estop_reader = reader
+    app.state.estop_button = button
+    app.state.estop_poller = poller
 
 
 @asynccontextmanager
@@ -59,6 +131,22 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
     app.state.replay_protection = ReplayProtection(auth_config)
 
     execution_mode = getattr(app.state, "execution_mode", "fixture")
+
+    # M7 hardware-authority gate: never claim hardware authority while the
+    # physical E-stop is unbound. Checked before the backend is created so a
+    # misconfigured authority request fails closed at startup.
+    estop_enabled = _estop_enabled()
+    if (
+        execution_mode == "hardware"
+        and os.environ.get("UBROBOT_EDGE_HARDWARE_AUTHORITY", "").strip().lower()
+        in ("1", "true", "yes")
+        and not estop_enabled
+    ):
+        raise RuntimeError(
+            "hardware authority requires a bound physical E-stop "
+            "(set UBROBOT_EDGE_ESTOP_ENABLED=true with chip/line, M7)"
+        )
+
     # Tests may inject a step delay directly; the environment variable is the
     # deployment path (compose profiles / E2E subprocess). Default zero keeps
     # unit tests fast.
@@ -69,8 +157,26 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
         backend=_create_backend(execution_mode, fixture_step_delay_sec=float(step_delay))
     )
 
+    # M7: bind the physical E-stop to the runtime safety latch when enabled.
+    # Failure to bind (missing config, gpiod unavailable, reader fault) aborts
+    # startup so the service never runs unprotected.
+    app.state.estop_reader = None
+    app.state.estop_button = None
+    app.state.estop_poller = None
+    if estop_enabled:
+        _bind_local_stop(app, app.state.runtime)
+
     yield
 
+    poller = getattr(app.state, "estop_poller", None)
+    if poller is not None:
+        poller.stop()
+    reader = getattr(app.state, "estop_reader", None)
+    if reader is not None:
+        try:
+            reader.close()
+        except Exception:
+            pass  # best-effort release; supervisor state is already latched
     app.state.runtime = None
     app.state.token_verifier = None
     app.state.replay_protection = None
@@ -163,12 +269,18 @@ def create_app(
     execution_mode: str = "fixture",
     test_tokens: dict[str, list[str]] | None = None,
     fixture_step_delay_sec: float | None = None,
+    estop_reader_factory: Callable[..., Any] | None = None,
 ) -> FastAPI:
     """Create the Robot Edge FastAPI application.
 
     ``fixture_step_delay_sec`` widens the active-command window in the fixture
     backend so cancellation/E-stop tests can observe a command mid-flight.
     Kept <= 100 ms per the plan's test-time constraint.
+
+    ``estop_reader_factory`` is the test/alternative-reader injection point
+    for the physical E-stop binding (M7): it is called with
+    ``chip=, line=, line_name=`` and must return an ``EstopLineReader``.
+    Defaults to the gpiod-backed reader (robot-side only).
     """
     app = FastAPI(
         title="Robot Edge API",
@@ -183,6 +295,8 @@ def create_app(
         app.state.test_tokens = test_tokens
     if fixture_step_delay_sec is not None:
         app.state.fixture_step_delay_sec = float(fixture_step_delay_sec)
+    if estop_reader_factory is not None:
+        app.state.estop_reader_factory = estop_reader_factory
 
     # Health endpoints (no auth required)
     @app.get("/v1/health/live")
@@ -192,13 +306,30 @@ def create_app(
 
     @app.get("/v1/health/ready")
     async def get_health_ready(
+        request: Request,
         runtime: RobotEdgeRuntime = Depends(get_runtime),
     ) -> dict[str, Any]:
-        """Readiness probe with mode and authority."""
+        """Readiness probe with mode, authority, and local-stop binding.
+
+        ``local_stop`` is read-only diagnostic truth about the physical
+        E-stop binding (M7): ``bound``, a non-secret source description,
+        and the last sampled contact state. It contains no file
+        descriptors, SDK objects, or credentials.
+        """
+        button = getattr(request.app.state, "estop_button", None)
+        local_stop: dict[str, Any] = {"bound": False, "source": None, "contact_closed": None}
+        if button is not None:
+            snap = button.snapshot()
+            local_stop = {
+                "bound": True,
+                "source": snap.get("source"),
+                "contact_closed": snap.get("contact_closed"),
+            }
         return {
             "status": "ready",
             "execution_mode": runtime.execution_mode,
             "hardware_authority": runtime.hardware_authority,
+            "local_stop": local_stop,
         }
 
     # Observe-scoped endpoints
@@ -343,6 +474,7 @@ def create_app(
 
     @app.post("/v1/safety/reset", dependencies=[Depends(require_scope(Scope.SAFETY_STOP.value))])
     async def reset_safety(
+        http_request: Request,
         request: EmergencyStopRequest,
         replay: ReplayProtection = Depends(get_replay_protection),
         runtime: RobotEdgeRuntime = Depends(get_runtime),
@@ -351,6 +483,10 @@ def create_app(
 
         Reuses the safety.stop scope: an operator authorized to stop is
         authorized to clear the latch after verifying the scene is safe.
+
+        A bound physical E-stop is re-armed on reset: if the contact is
+        still open, the next poll re-latches (fail-closed) instead of
+        trusting the reset.
         """
         if not replay.check_timestamp(request.timestamp):
             raise HTTPException(
@@ -364,6 +500,9 @@ def create_app(
             )
 
         runtime.reset_safety(operator_id=request.operator_id, authorized=True)
+        button = getattr(http_request.app.state, "estop_button", None)
+        if button is not None:
+            button.rearm()
         return {
             "latched": runtime.safety_latched,
             "correlation_id": request.correlation_id,

@@ -132,6 +132,57 @@ class LocalStopButtonTests(unittest.TestCase):
         self.assertTrue(sink.stopped)
         self.assertEqual(sink.last_reason, "local stop: contact open (fake:estop#0)")
 
+    def test_rearm_after_reset_re_samples_still_open_contact(self) -> None:
+        """After an authorized reset, a still-open contact must re-latch."""
+        button, supervisor, sink, clock = self._make(FakeReader(closed=False))
+        self.assertFalse(button.poll_once())  # opens the debounce window
+        clock.advance(0.03)
+        self.assertTrue(button.poll_once())  # first stop latches
+        self.assertTrue(supervisor.is_latched())
+        self.assertTrue(sink.stopped)
+
+        supervisor.reset(authorized=True)
+        button.rearm()
+        self.assertFalse(supervisor.is_latched())
+        self.assertFalse(button.triggered)
+        # The authorized reset re-arms the stop fan-out.
+        self.assertFalse(supervisor._stop_executed)
+
+        # Contact is still open: the next polls re-latch and re-fire the sinks
+        # (the fan-out was re-armed by the authorized reset).
+        clock.advance(0.02)
+        self.assertFalse(button.poll_once())  # opens the debounce window
+        clock.advance(0.02)
+        self.assertTrue(button.poll_once())  # debounce elapsed -> re-latch
+        self.assertTrue(supervisor.is_latched())
+        self.assertTrue(sink.stopped)
+        self.assertTrue(supervisor._stop_executed)
+
+    def test_on_stop_callback_replaces_supervisor_dispatch(self) -> None:
+        """The app wires on_stop to the runtime; tests can inject it."""
+        calls: list[str] = []
+
+        def on_stop(detail: str) -> None:
+            calls.append(detail)
+
+        clock = FakeClock()
+        sink = _Sink()
+        supervisor = SafetySupervisor(stop_sinks=[sink])
+        button = LocalStopButton(
+            FakeReader(closed=False),
+            supervisor,
+            clock=clock,
+            on_stop=on_stop,
+        )
+        self.assertFalse(button.poll_once())  # opens the debounce window
+        clock.advance(0.03)
+        self.assertTrue(button.poll_once())
+        self.assertEqual(len(calls), 1)
+        self.assertIn("local stop", calls[0])
+        # The supervisor latch still happens through the callback wiring
+        # (the runtime routes through the same supervisor in the app).
+        self.assertFalse(supervisor.is_latched())  # on_stop replaced dispatch
+
 
 class LocalStopImportBoundary(unittest.TestCase):
     def test_module_import_does_not_import_gpiod(self) -> None:

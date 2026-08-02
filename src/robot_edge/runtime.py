@@ -49,6 +49,16 @@ class RobotEdgeRuntime:
         return self._backend.hardware_authority
 
     @property
+    def safety(self) -> SafetySupervisor:
+        """The latched safety supervisor (read-only access for bindings).
+
+        Robot-side bindings (physical E-stop, watchdog) call
+        ``safety.on_local_stop()`` on this instance so the latch, stop
+        fan-out, and event stream behave identically to an API stop.
+        """
+        return self._safety
+
+    @property
     def safety_latched(self) -> bool:
         return self._safety.is_latched()
 
@@ -171,6 +181,36 @@ class RobotEdgeRuntime:
             state=CommandState.CANCELLED,
             message="Emergency stop latched",
             payload={"operator_id": operator_id, "correlation_id": correlation_id, "critical": True},
+        )
+
+    def local_emergency_stop(self, detail: str) -> None:
+        """Physical/local emergency stop (E-stop contact, watchdog, M7).
+
+        Identical semantics to the API emergency stop (latch, cancel the
+        active command, emit the critical safety event) except the source
+        is a local input, not an operator request.
+        """
+        self._safety.emergency_stop(reason=detail)
+
+        # Cancel the active command under the command lock so it cannot race
+        # with a concurrent poll/submit, exactly like the API stop path.
+        with self._command_lock:
+            if self._active_command_id:
+                self._events.append(
+                    command_id=self._active_command_id,
+                    state=CommandState.CANCELLED,
+                    message="Emergency stop triggered",
+                    payload={"source": "local", "critical": True},
+                )
+                self._command_generator = None
+                self._active_command_id = None
+
+        # Always append a safety event (even without an active command).
+        self._events.append(
+            command_id="safety",
+            state=CommandState.CANCELLED,
+            message="Emergency stop latched",
+            payload={"source": "local", "detail": detail, "critical": True},
         )
 
     def reset_safety(self, operator_id: str, authorized: bool = True) -> None:

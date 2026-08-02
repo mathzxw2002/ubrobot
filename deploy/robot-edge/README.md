@@ -87,6 +87,31 @@ export UBROBOT_EDGE_HARDWARE_AUTHORITY=true
 docker-compose -f compose.hardware.yaml up -d
 ```
 
+## Raspberry Pi deployment (M6 read-only inventory)
+
+The robot-side host is the Raspberry Pi (ssh alias `rasp_pi`, Ubuntu 24.04
+ARM64, Docker). Inventory is read-only at this stage; see
+`docs/validation/2026-08-02-robot-edge-inventory.md` for the recorded state.
+
+Known deployment facts (from history + on-device read-only checks):
+
+- LeKiwi base: `ubrobot/lekiwi-base-driver` container owns the serial device
+  `/dev/lekiwi-base` (udev rule `99-lekiwi-base.rules`). The container is
+  currently stopped in a torque-enabled hard-gate configuration and must not
+  be started until a supervised preflight and a verified physical E-stop
+  exist.
+- EMOS: `ubrobot/emos` container, host network, privileged, mounts
+  `/dev/bus/usb` for the RealSense D435i.
+- Both use `rmw_fastrtps_cpp` + `deploy/fastdds/udp-only.xml` (UDP-only Fast
+  DDS) with `ROS_DOMAIN_ID=0`.
+- No CAN interface is present; Piper is not connected to this host.
+
+Reproduce the read-only inventory with:
+
+```bash
+bash scripts/hardware/robot_edge_preflight.sh rasp_pi
+```
+
 ## Stopping the Service
 
 ```bash

@@ -170,29 +170,20 @@ class TestAuthenticatedAPI(unittest.TestCase):
 
     @unittest.skipUnless(HAS_AUTH, "robot_edge.auth not available")
     def setUp(self) -> None:
-        """Set up test client with auth."""
+        """Set up test client with per-app auth and runtime state.
+
+        TestClient does not run the FastAPI lifespan, so the per-app state the
+        lifespan would populate is initialized here. State is scoped to this app
+        instance, so no cross-test cleanup is required.
+        """
         app = create_app(execution_mode="fixture", test_tokens=self.TEST_TOKENS)
         self.client = TestClient(app)
 
-        # Manually initialize globals since TestClient doesn't run lifespan properly
-        import robot_edge.app as app_module
         from robot_edge.auth import AuthConfig, TokenVerifier, ReplayProtection
-
         auth_config = AuthConfig(tokens=self.TEST_TOKENS)
-        app_module._token_verifier = TokenVerifier(auth_config)
-        app_module._replay_protection = ReplayProtection(auth_config)
-
-        backend = FixtureBackend()
-        app_module._runtime = RobotEdgeRuntime(backend=backend)
-
-        self.addCleanup(self._cleanup_globals)
-
-    def _cleanup_globals(self) -> None:
-        """Clean up global state."""
-        import robot_edge.app as app_module
-        app_module._runtime = None
-        app_module._token_verifier = None
-        app_module._replay_protection = None
+        app.state.token_verifier = TokenVerifier(auth_config)
+        app.state.replay_protection = ReplayProtection(auth_config)
+        app.state.runtime = RobotEdgeRuntime(backend=FixtureBackend())
 
     def _headers(self, token: str) -> dict[str, str]:
         """Get auth headers."""

@@ -1,0 +1,34 @@
+# Robot Edge hardware mode - requires safety checklist and explicit hardware permission
+version: '3.8'
+
+services:
+  robot-edge:
+    build:
+      context: ../..
+      dockerfile: deploy/robot-edge/Dockerfile
+    image: ubrobot/robot-edge:hardware
+    container_name: ubrobot-robot-edge-hardware
+    ports:
+      - "8780:8780"
+    environment:
+      - UBROBOT_EDGE_MODE=hardware
+      - UBROBOT_EDGE_HARDWARE_AUTHORITY=false  # Default to safe, enable only when ready
+      - UBROBOT_EDGE_TOKENS_FILE=/app/config/tokens.json
+      - UBROBOT_EDGE_REQUEST_MAX_AGE_SEC=300
+      - UBROBOT_EDGE_NONCE_TTL_SEC=600
+      - UBROBOT_EDGE_SAFETY_CHECKLIST=/app/checklist/hardware-checklist.md
+    volumes:
+      - ./config:/app/config:ro
+      - ./checklist:/app/checklist:ro
+    # For hardware access, you may need:
+    # devices:
+    #   - "/dev/bus/usb:/dev/bus/usb"
+    # privileged: true
+    # network_mode: host  # For ROS
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8780/v1/health/live"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
+    restart: unless-stopped

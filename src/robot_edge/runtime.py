@@ -1,5 +1,6 @@
 """Robot Edge runtime - core state machine."""
 
+import threading
 from datetime import datetime, timezone
 from typing import Any, Iterator
 from uuid import uuid4
@@ -35,6 +36,9 @@ class RobotEdgeRuntime:
         self._safety = safety_supervisor or SafetySupervisor()
         self._active_command_id: str | None = None
         self._command_generator: Iterator[tuple[CommandState, str, dict[str, Any]]] | None = None
+        # Serializes command state-machine transitions across concurrent
+        # submit/cancel/poll requests from FastAPI's threadpool.
+        self._command_lock = threading.RLock()
 
     @property
     def execution_mode(self) -> str:
@@ -47,6 +51,11 @@ class RobotEdgeRuntime:
     @property
     def safety_latched(self) -> bool:
         return self._safety.is_latched()
+
+    @property
+    def lease_state(self) -> LeaseState:
+        """Current lease state (none/active/expired/released)."""
+        return self._lease_manager.get_state()
 
     def get_capabilities(self) -> dict[CapabilityName, CapabilitySnapshot]:
         """Get current capability inventory."""
@@ -69,24 +78,18 @@ class RobotEdgeRuntime:
         if not self._safety.allows_commands():
             raise RuntimeError("Safety disallows commands")
 
-        # Check lease for navigation commands
-        # In fixture mode, we skip strict lease checks for testing
-        # In hardware mode, this would enforce lease ownership
-
-        command_id = str(uuid4())
-        self._active_command_id = command_id
-
-        # Start the fixture sequence
-        self._command_generator = self._backend.get_command_sequence(text)
-        self._step_command(command_id)
-
+        with self._command_lock:
+            command_id = str(uuid4())
+            self._active_command_id = command_id
+            # Start the fixture sequence and emit the first event.
+            self._command_generator = self._backend.get_command_sequence(text)
+            self._step_command_locked(command_id)
         return command_id
 
-    def _step_command(self, command_id: str) -> None:
-        """Step the command generator if there's an active command."""
-        if self._command_generator is None:
+    def _step_command_locked(self, command_id: str) -> None:
+        """Advance the active command by one step. Caller holds _command_lock."""
+        if self._command_generator is None or self._active_command_id != command_id:
             return
-
         try:
             state, message, payload = next(self._command_generator)
             self._events.append(
@@ -95,26 +98,27 @@ class RobotEdgeRuntime:
                 message=message,
                 payload=payload,
             )
-
-            # If terminal, clean up
             if state in (CommandState.SUCCEEDED, CommandState.FAILED, CommandState.CANCELLED):
                 self._command_generator = None
                 self._active_command_id = None
-
         except StopIteration:
             self._command_generator = None
             self._active_command_id = None
 
+    def _step_command(self, command_id: str) -> None:
+        with self._command_lock:
+            self._step_command_locked(command_id)
+
     def poll_events(self) -> None:
         """Poll for new events - in fixture mode, this steps the command."""
-        if self._active_command_id and self._command_generator:
-            self._step_command(self._active_command_id)
+        with self._command_lock:
+            if self._active_command_id and self._command_generator:
+                self._step_command_locked(self._active_command_id)
 
     def get_events_since(self, event_id: int) -> list[CommandEvent]:
         """Get all events since the given event ID."""
-        # First poll to advance any active command
+        # First poll to advance any active command, then replay.
         self.poll_events()
-
         records = self._events.get_since(event_id)
         return [record.event for record in records]
 
@@ -124,7 +128,9 @@ class RobotEdgeRuntime:
         operator_id: str,
     ) -> bool:
         """Cancel an active command."""
-        if self._active_command_id == command_id:
+        with self._command_lock:
+            if self._active_command_id != command_id:
+                return False
             self._events.append(
                 command_id=command_id,
                 state=CommandState.CANCELLED,
@@ -134,7 +140,6 @@ class RobotEdgeRuntime:
             self._command_generator = None
             self._active_command_id = None
             return True
-        return False
 
     def emergency_stop(
         self,
@@ -147,16 +152,18 @@ class RobotEdgeRuntime:
             operator_id=operator_id,
         )
 
-        # Cancel active command if any
-        if self._active_command_id:
-            self._events.append(
-                command_id=self._active_command_id,
-                state=CommandState.CANCELLED,
-                message="Emergency stop triggered",
-                payload={"operator_id": operator_id, "critical": True},
-            )
-            self._command_generator = None
-            self._active_command_id = None
+        # Cancel active command if any (under the command lock so it cannot
+        # race with a concurrent poll/submit).
+        with self._command_lock:
+            if self._active_command_id:
+                self._events.append(
+                    command_id=self._active_command_id,
+                    state=CommandState.CANCELLED,
+                    message="Emergency stop triggered",
+                    payload={"operator_id": operator_id, "critical": True},
+                )
+                self._command_generator = None
+                self._active_command_id = None
 
         # Always append a safety event (even without active command)
         self._events.append(

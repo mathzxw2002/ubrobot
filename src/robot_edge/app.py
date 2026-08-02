@@ -30,42 +30,88 @@ from robot_edge.runtime import RobotEdgeRuntime
 security = HTTPBearer(auto_error=False)
 
 
-# Global runtime and auth (for simplicity in fixture mode)
-_runtime: RobotEdgeRuntime | None = None
-_token_verifier: TokenVerifier | None = None
-_replay_protection: ReplayProtection | None = None
+@asynccontextmanager
+async def lifespan(app: FastAPI) -> AsyncIterator[None]:
+    """FastAPI lifespan - initialize and clean up runtime and auth on the app."""
+    # Load auth config
+    tokens_file = os.environ.get("UBROBOT_EDGE_TOKENS_FILE")
+    tokens: dict[str, list[str]] = {}
+    if tokens_file and os.path.exists(tokens_file):
+        import json
+        with open(tokens_file) as f:
+            tokens = json.load(f)
+
+    # For testing, allow in-memory tokens
+    test_tokens = getattr(app.state, "test_tokens", None)
+    if test_tokens is not None:
+        tokens = test_tokens
+
+    request_max_age = int(os.environ.get("UBROBOT_EDGE_REQUEST_MAX_AGE_SEC", "300"))
+    nonce_ttl = int(os.environ.get("UBROBOT_EDGE_NONCE_TTL_SEC", "600"))
+
+    auth_config = AuthConfig(
+        tokens=tokens,
+        request_max_age_sec=request_max_age,
+        nonce_ttl_sec=nonce_ttl,
+    )
+
+    app.state.token_verifier = TokenVerifier(auth_config)
+    app.state.replay_protection = ReplayProtection(auth_config)
+
+    execution_mode = getattr(app.state, "execution_mode", "fixture")
+    # Tests may inject a step delay directly; the environment variable is the
+    # deployment path (compose profiles / E2E subprocess). Default zero keeps
+    # unit tests fast.
+    step_delay = getattr(app.state, "fixture_step_delay_sec", None)
+    if step_delay is None:
+        step_delay = float(os.environ.get("UBROBOT_EDGE_FIXTURE_STEP_DELAY_SEC", "0.0"))
+    app.state.runtime = RobotEdgeRuntime(backend=FixtureBackend(step_delay_sec=float(step_delay)))
+
+    yield
+
+    app.state.runtime = None
+    app.state.token_verifier = None
+    app.state.replay_protection = None
 
 
-def get_runtime() -> RobotEdgeRuntime:
-    """Get the global runtime instance."""
-    if _runtime is None:
-        raise RuntimeError("Runtime not initialized")
-    return _runtime
+def get_runtime(request: Request) -> RobotEdgeRuntime:
+    """Dependency: the per-app runtime instance."""
+    runtime = getattr(request.app.state, "runtime", None)
+    if runtime is None:
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="Robot Edge runtime not initialized",
+        )
+    return runtime
 
 
-def get_token_verifier() -> TokenVerifier:
-    """Get the global token verifier."""
-    if _token_verifier is None:
-        raise RuntimeError("Auth not initialized")
-    return _token_verifier
+def get_token_verifier(request: Request) -> TokenVerifier:
+    """Dependency: the per-app token verifier."""
+    verifier = getattr(request.app.state, "token_verifier", None)
+    if verifier is None:
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="Robot Edge auth not initialized",
+        )
+    return verifier
 
 
-def get_replay_protection() -> ReplayProtection:
-    """Get the global replay protection."""
-    if _replay_protection is None:
-        raise RuntimeError("Auth not initialized")
-    return _replay_protection
+def get_replay_protection(request: Request) -> ReplayProtection:
+    """Dependency: the per-app replay protection."""
+    replay = getattr(request.app.state, "replay_protection", None)
+    if replay is None:
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="Robot Edge auth not initialized",
+        )
+    return replay
 
 
 async def get_current_scopes(
     credentials: HTTPAuthorizationCredentials | None = Depends(security),
     verifier: TokenVerifier = Depends(get_token_verifier),
 ) -> set[str]:
-    """Get current scopes from bearer token.
-
-    Raises:
-        HTTPException: If no token or invalid token.
-    """
+    """Resolve scopes from the bearer token; 401 on missing/invalid token."""
     if credentials is None:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
@@ -92,61 +138,30 @@ def require_scope(required_scope: str):
     return dependency
 
 
-@asynccontextmanager
-async def lifespan(app: FastAPI) -> AsyncIterator[None]:
-    """FastAPI lifespan - initialize and clean up runtime and auth."""
-    global _runtime, _token_verifier, _replay_protection
-
-    # Load auth config
-    tokens_file = os.environ.get("UBROBOT_EDGE_TOKENS_FILE")
-    tokens: dict[str, list[str]] = {}
-    if tokens_file and os.path.exists(tokens_file):
-        import json
-        with open(tokens_file) as f:
-            tokens = json.load(f)
-
-    # For testing, allow in-memory tokens
-    test_tokens = getattr(app.state, "test_tokens", None)
-    if test_tokens is not None:
-        tokens = test_tokens
-
-    request_max_age = int(os.environ.get("UBROBOT_EDGE_REQUEST_MAX_AGE_SEC", "300"))
-    nonce_ttl = int(os.environ.get("UBROBOT_EDGE_NONCE_TTL_SEC", "600"))
-
-    auth_config = AuthConfig(
-        tokens=tokens,
-        request_max_age_sec=request_max_age,
-        nonce_ttl_sec=nonce_ttl,
-    )
-
-    _token_verifier = TokenVerifier(auth_config)
-    _replay_protection = ReplayProtection(auth_config)
-
-    # Initialize runtime
-    execution_mode = getattr(app.state, "execution_mode", "fixture")
-    backend = FixtureBackend()
-    _runtime = RobotEdgeRuntime(backend=backend)
-
-    yield
-
-    _runtime = None
-    _token_verifier = None
-    _replay_protection = None
-
-
 def create_app(
     execution_mode: str = "fixture",
     test_tokens: dict[str, list[str]] | None = None,
+    fixture_step_delay_sec: float | None = None,
 ) -> FastAPI:
-    """Create the Robot Edge FastAPI application."""
+    """Create the Robot Edge FastAPI application.
+
+    ``fixture_step_delay_sec`` widens the active-command window in the fixture
+    backend so cancellation/E-stop tests can observe a command mid-flight.
+    Kept <= 100 ms per the plan's test-time constraint.
+    """
     app = FastAPI(
         title="Robot Edge API",
         version=PROTOCOL_VERSION,
         lifespan=lifespan,
     )
     app.state.execution_mode = execution_mode
+    app.state.runtime = None
+    app.state.token_verifier = None
+    app.state.replay_protection = None
     if test_tokens is not None:
         app.state.test_tokens = test_tokens
+    if fixture_step_delay_sec is not None:
+        app.state.fixture_step_delay_sec = float(fixture_step_delay_sec)
 
     # Health endpoints (no auth required)
     @app.get("/v1/health/live")
@@ -155,9 +170,10 @@ def create_app(
         return {"status": "alive"}
 
     @app.get("/v1/health/ready")
-    async def get_health_ready() -> dict[str, Any]:
+    async def get_health_ready(
+        runtime: RobotEdgeRuntime = Depends(get_runtime),
+    ) -> dict[str, Any]:
         """Readiness probe with mode and authority."""
-        runtime = get_runtime()
         return {
             "status": "ready",
             "execution_mode": runtime.execution_mode,
@@ -166,9 +182,10 @@ def create_app(
 
     # Observe-scoped endpoints
     @app.get("/v1/capabilities", dependencies=[Depends(require_scope(Scope.OBSERVE.value))])
-    async def get_capabilities() -> dict[str, Any]:
+    async def get_capabilities(
+        runtime: RobotEdgeRuntime = Depends(get_runtime),
+    ) -> dict[str, Any]:
         """Get capability inventory."""
-        runtime = get_runtime()
         capabilities = runtime.get_capabilities()
         return {
             "capabilities": {
@@ -178,9 +195,10 @@ def create_app(
         }
 
     @app.get("/v1/telemetry/snapshot", dependencies=[Depends(require_scope(Scope.OBSERVE.value))])
-    async def get_telemetry_snapshot() -> dict[str, Any]:
+    async def get_telemetry_snapshot(
+        runtime: RobotEdgeRuntime = Depends(get_runtime),
+    ) -> dict[str, Any]:
         """Get telemetry snapshot."""
-        runtime = get_runtime()
         telemetry = runtime.get_telemetry_snapshot()
         return {
             "channels": {
@@ -190,9 +208,11 @@ def create_app(
         }
 
     @app.get("/v1/events", dependencies=[Depends(require_scope(Scope.OBSERVE.value))])
-    async def get_events(after: int = 0) -> dict[str, Any]:
-        """Get events since the given event ID."""
-        runtime = get_runtime()
+    async def get_events(
+        after: int = 0,
+        runtime: RobotEdgeRuntime = Depends(get_runtime),
+    ) -> dict[str, Any]:
+        """Get events since the given event ID (cursor replay)."""
         events = runtime.get_events_since(after)
         return {
             "events": [event.model_dump(mode="json") for event in events],
@@ -203,9 +223,9 @@ def create_app(
     async def submit_command(
         request: CommandRequest,
         replay: ReplayProtection = Depends(get_replay_protection),
+        runtime: RobotEdgeRuntime = Depends(get_runtime),
     ) -> dict[str, Any]:
         """Submit a command for execution."""
-        # Check replay protection
         if not replay.check_timestamp(request.timestamp):
             raise HTTPException(
                 status_code=status.HTTP_409_CONFLICT,
@@ -217,12 +237,19 @@ def create_app(
                 detail="Request nonce already used",
             )
 
-        runtime = get_runtime()
-        command_id = runtime.submit_command(
-            text=request.text,
-            operator_id=request.operator_id,
-            correlation_id=request.correlation_id,
-        )
+        try:
+            command_id = runtime.submit_command(
+                text=request.text,
+                operator_id=request.operator_id,
+                correlation_id=request.correlation_id,
+            )
+        except RuntimeError as exc:
+            # A latched safety state or rejected command is a precondition
+            # conflict, not a server error.
+            raise HTTPException(
+                status_code=status.HTTP_409_CONFLICT,
+                detail=str(exc),
+            )
 
         accepted = CommandAccepted(
             command_id=command_id,
@@ -235,9 +262,9 @@ def create_app(
         command_id: str,
         request: CancelRequest,
         replay: ReplayProtection = Depends(get_replay_protection),
+        runtime: RobotEdgeRuntime = Depends(get_runtime),
     ) -> dict[str, Any]:
         """Cancel an active command."""
-        # Check replay protection
         if not replay.check_timestamp(request.timestamp):
             raise HTTPException(
                 status_code=status.HTTP_409_CONFLICT,
@@ -249,11 +276,18 @@ def create_app(
                 detail="Request nonce already used",
             )
 
-        runtime = get_runtime()
         cancelled = runtime.cancel_command(
             command_id=command_id,
             operator_id=request.operator_id,
         )
+        if not cancelled:
+            # Nothing was cancelled: the command is unknown or already
+            # terminal. 409 tells the operator that no cancellation took
+            # effect instead of a misleading 200 "acknowledged".
+            raise HTTPException(
+                status_code=status.HTTP_409_CONFLICT,
+                detail="No active command with that ID",
+            )
 
         return {"cancelled": cancelled, "correlation_id": request.correlation_id}
 
@@ -262,9 +296,9 @@ def create_app(
     async def emergency_stop(
         request: EmergencyStopRequest,
         replay: ReplayProtection = Depends(get_replay_protection),
+        runtime: RobotEdgeRuntime = Depends(get_runtime),
     ) -> dict[str, Any]:
         """Trigger emergency stop (bypasses lease requirements)."""
-        # Check replay protection
         if not replay.check_timestamp(request.timestamp):
             raise HTTPException(
                 status_code=status.HTTP_409_CONFLICT,
@@ -276,7 +310,6 @@ def create_app(
                 detail="Request nonce already used",
             )
 
-        runtime = get_runtime()
         runtime.emergency_stop(
             operator_id=request.operator_id,
             correlation_id=request.correlation_id,
@@ -287,14 +320,17 @@ def create_app(
             "correlation_id": request.correlation_id,
         }
 
-    # Lease endpoints
-    @app.post("/v1/lease/acquire", dependencies=[Depends(require_scope(Scope.LEASE_MANAGE.value))])
-    async def acquire_lease(
-        request: LeaseAcquireRequest,
+    @app.post("/v1/safety/reset", dependencies=[Depends(require_scope(Scope.SAFETY_STOP.value))])
+    async def reset_safety(
+        request: EmergencyStopRequest,
         replay: ReplayProtection = Depends(get_replay_protection),
+        runtime: RobotEdgeRuntime = Depends(get_runtime),
     ) -> dict[str, Any]:
-        """Acquire or renew a navigation lease."""
-        # Check replay protection
+        """Reset the latched safety state (explicit, authorized reset only).
+
+        Reuses the safety.stop scope: an operator authorized to stop is
+        authorized to clear the latch after verifying the scene is safe.
+        """
         if not replay.check_timestamp(request.timestamp):
             raise HTTPException(
                 status_code=status.HTTP_409_CONFLICT,
@@ -306,7 +342,31 @@ def create_app(
                 detail="Request nonce already used",
             )
 
-        runtime = get_runtime()
+        runtime.reset_safety(operator_id=request.operator_id, authorized=True)
+        return {
+            "latched": runtime.safety_latched,
+            "correlation_id": request.correlation_id,
+        }
+
+    # Lease endpoints
+    @app.post("/v1/lease/acquire", dependencies=[Depends(require_scope(Scope.LEASE_MANAGE.value))])
+    async def acquire_lease(
+        request: LeaseAcquireRequest,
+        replay: ReplayProtection = Depends(get_replay_protection),
+        runtime: RobotEdgeRuntime = Depends(get_runtime),
+    ) -> dict[str, Any]:
+        """Acquire or renew a navigation lease."""
+        if not replay.check_timestamp(request.timestamp):
+            raise HTTPException(
+                status_code=status.HTTP_409_CONFLICT,
+                detail="Request timestamp out of range",
+            )
+        if not replay.check_and_store_nonce(request.nonce):
+            raise HTTPException(
+                status_code=status.HTTP_409_CONFLICT,
+                detail="Request nonce already used",
+            )
+
         lease = runtime.acquire_lease(
             operator_id=request.operator_id,
             duration_sec=request.duration_sec,
@@ -315,9 +375,10 @@ def create_app(
         return lease.model_dump(mode="json")
 
     @app.get("/v1/lease", dependencies=[Depends(require_scope(Scope.OBSERVE.value))])
-    async def get_lease() -> dict[str, Any] | None:
+    async def get_lease(
+        runtime: RobotEdgeRuntime = Depends(get_runtime),
+    ) -> dict[str, Any] | None:
         """Get current lease, if any."""
-        runtime = get_runtime()
         lease = runtime.get_lease()
         return lease.model_dump(mode="json") if lease else None
 
@@ -326,5 +387,10 @@ def create_app(
 
 if __name__ == "__main__":
     import uvicorn
-    app = create_app(execution_mode="fixture")
-    uvicorn.run(app, host="127.0.0.1", port=8780)
+
+    execution_mode = os.environ.get("UBROBOT_EDGE_MODE", "fixture")
+    app = create_app(execution_mode=execution_mode)
+    host = os.environ.get("UBROBOT_EDGE_HOST", "127.0.0.1")
+    port = int(os.environ.get("UBROBOT_EDGE_PORT", "8780"))
+    log_level = os.environ.get("UBROBOT_EDGE_LOG_LEVEL", "info")
+    uvicorn.run(app, host=host, port=port, log_level=log_level)

@@ -1,0 +1,15 @@
+{
+  "operator-token-123": [
+    "observe",
+    "task.submit",
+    "task.cancel",
+    "lease.manage"
+  ],
+  "safety-token-456": [
+    "observe",
+    "safety.stop"
+  ],
+  "observer-token-789": [
+    "observe"
+  ]
+}

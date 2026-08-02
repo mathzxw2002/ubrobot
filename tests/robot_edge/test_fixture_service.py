@@ -4,6 +4,7 @@ import unittest
 from datetime import datetime, timezone
 from typing import Any
 from unittest.mock import MagicMock, patch
+from uuid import uuid4
 
 from fastapi.testclient import TestClient
 
@@ -175,30 +176,38 @@ class TestRobotEdgeRuntime(unittest.TestCase):
 class TestRobotEdgeAPI(unittest.TestCase):
     """Test the Robot Edge FastAPI endpoints."""
 
+    TEST_TOKENS = {
+        "observer-token": ["observe"],
+        "operator-token": ["observe", "task.submit", "task.cancel", "lease.manage"],
+    }
+
     @unittest.skipUnless(HAS_SERVICE, "robot_edge not available")
     def setUp(self) -> None:
-        """Set up test client."""
-        # Create app and manually initialize runtime for testing
-        from robot_edge.app import create_app
-        import robot_edge.app as app_module
-        app = create_app(execution_mode="fixture")
+        """Set up test client with per-app auth and runtime state.
 
-        # Manually initialize runtime
-        backend = FixtureBackend()
-        runtime = RobotEdgeRuntime(backend=backend)
-        app_module._runtime = runtime
+        TestClient does not run the FastAPI lifespan, so the per-app state the
+        lifespan would populate is initialized here. State is scoped to this
+        app instance, so no cross-test cleanup is required.
+        """
+        from robot_edge.app import create_app
+        from robot_edge.auth import AuthConfig, TokenVerifier, ReplayProtection
+
+        app = create_app(execution_mode="fixture", test_tokens=self.TEST_TOKENS)
+
+        auth_config = AuthConfig(tokens=self.TEST_TOKENS)
+        app.state.token_verifier = TokenVerifier(auth_config)
+        app.state.replay_protection = ReplayProtection(auth_config)
+        app.state.runtime = RobotEdgeRuntime(backend=FixtureBackend())
 
         self.client = TestClient(app)
-        self.addCleanup(self._cleanup_runtime)
 
-    def _cleanup_runtime(self) -> None:
-        """Clean up global runtime after test."""
-        import robot_edge.app as app_module
-        app_module._runtime = None
+    def _headers(self, token: str) -> dict[str, str]:
+        """Authorization headers for a given test token."""
+        return {"Authorization": f"Bearer {token}"}
 
     @unittest.skipUnless(HAS_SERVICE, "robot_edge not available")
     def test_health_live(self) -> None:
-        """Live endpoint must respond."""
+        """Live endpoint must respond without auth."""
         response = self.client.get("/v1/health/live")
         self.assertEqual(response.status_code, 200)
 
@@ -214,7 +223,10 @@ class TestRobotEdgeAPI(unittest.TestCase):
     @unittest.skipUnless(HAS_SERVICE, "robot_edge not available")
     def test_get_capabilities(self) -> None:
         """Capabilities endpoint must return capability inventory."""
-        response = self.client.get("/v1/capabilities")
+        response = self.client.get(
+            "/v1/capabilities",
+            headers=self._headers("observer-token"),
+        )
         self.assertEqual(response.status_code, 200)
         data = response.json()
         self.assertIn("capabilities", data)
@@ -223,17 +235,33 @@ class TestRobotEdgeAPI(unittest.TestCase):
     @unittest.skipUnless(HAS_SERVICE, "robot_edge not available")
     def test_get_telemetry_snapshot(self) -> None:
         """Telemetry endpoint must return snapshot."""
-        response = self.client.get("/v1/telemetry/snapshot")
+        response = self.client.get(
+            "/v1/telemetry/snapshot",
+            headers=self._headers("observer-token"),
+        )
         self.assertEqual(response.status_code, 200)
         data = response.json()
         self.assertIn("channels", data)
 
     @unittest.skipUnless(HAS_SERVICE, "robot_edge not available")
     def test_submit_command(self) -> None:
-        """Command submission must work through API."""
-        # In fixture mode without auth, this might be disabled
-        # or we might need to add auth headers
-        pass
+        """Command submission must work through the API with task.submit scope."""
+        cmd_request = CommandRequest(
+            text="导航到前面的椅子",
+            correlation_id="trace-1",
+            operator_id="test-operator",
+            nonce=str(uuid4()),
+            timestamp=datetime.now(timezone.utc),
+        )
+        response = self.client.post(
+            "/v1/commands",
+            headers=self._headers("operator-token"),
+            json=cmd_request.model_dump(mode="json"),
+        )
+        self.assertEqual(response.status_code, 200)
+        data = response.json()
+        self.assertIn("command_id", data)
+        self.assertEqual(data["correlation_id"], "trace-1")
 
 
 class TestEventStream(unittest.TestCase):

@@ -20,6 +20,16 @@ $env:UBROBOT_CHAT_TLS = "off"
 $env:UBROBOT_CHAT_LOG_LEVEL = "CRITICAL"
 $env:PYTHONIOENCODING = "utf-8"
 $env:PYTHONWARNINGS = "ignore::DeprecationWarning,ignore::ResourceWarning"
+# The repository uses a src/ layout: robot_edge and ubrobot_contracts are
+# importable only when src/ is on the path (tests/cortex_navigation use the
+# "src." prefix, so this is required for tests/robot_edge and the subprocess
+# E2E suites to see the packages).
+$SrcPath = Join-Path $RepositoryRoot "src"
+if ($env:PYTHONPATH) {
+    $env:PYTHONPATH = "$SrcPath;$env:PYTHONPATH"
+} else {
+    $env:PYTHONPATH = $SrcPath
+}
 
 function Invoke-ValidationCommand {
     param(
@@ -59,24 +69,31 @@ function Invoke-ValidationCommand {
 }
 
 $Software = Invoke-ValidationCommand `
-    -Name "software-only unit/integration suite" `
+    -Name "software-only unit/integration suite (cortex)" `
     -Arguments @("-m", "unittest", "discover", "-s", "tests/cortex_navigation", "-p", "test_*.py", "-q")
+$RobotEdgeSoftware = Invoke-ValidationCommand `
+    -Name "robot-edge unit/integration suite" `
+    -Arguments @("-m", "unittest", "discover", "-s", "tests/robot_edge", "-p", "test_*.py", "-q")
 $EndToEnd = Invoke-ValidationCommand `
     -Name "process-level mock acceptance suite" `
     -Arguments @("-m", "unittest", "tests.e2e.test_operator_console_mock", "-v")
+$RobotEdgeFixtureE2E = Invoke-ValidationCommand `
+    -Name "two-process robot edge fixture acceptance suite" `
+    -Arguments @("-m", "unittest", "tests.e2e.test_operator_robot_edge_fixture", "-v")
 $PythonVersion = (& $Python --version 2>&1 | Out-String).Trim()
-$Passed = $Software.ExitCode -eq 0 -and $EndToEnd.ExitCode -eq 0
+$Passed = $Software.ExitCode -eq 0 -and $RobotEdgeSoftware.ExitCode -eq 0 -and `
+    $EndToEnd.ExitCode -eq 0 -and $RobotEdgeFixtureE2E.ExitCode -eq 0
 $ResultText = if ($Passed) { "PASS" } else { "FAIL" }
 $FinishedAt = Get-Date
 
 $Report = @"
-# Operator Console M1-M4 Software Validation
+# Operator Console M5 Software Validation
 
 - Result: **$ResultText**
 - Started: $($StartedAt.ToString("o"))
 - Finished: $($FinishedAt.ToString("o"))
 - Python: $PythonVersion
-- Backend: cortex-mock
+- Backend: cortex-mock + robot-edge
 - Voice provider: mock
 - Media: off
 - Hardware authority: **false**
@@ -93,6 +110,14 @@ $Report = @"
 - Capability Registry and explicit execution/authority descriptors.
 - JSON-safe telemetry DTOs with unavailable/stale/disconnected semantics.
 - Fixture-only Cortex/telemetry adapters with no ROS or hardware SDK imports.
+- Robot Edge contract package with versioned DTOs.
+- Robot Edge fixture service with auth, scope, replay protection, lease, and safety.
+- Operator Console Robot Edge backend adapter.
+- Two independent processes (Console + Edge in fixture mode) authenticate,
+  acquire a lease, submit, cancel, latch on emergency stop, reset, and
+  reconnect event streams.
+- Edge cancel of a finished command is rejected (409), so cancellation
+  acknowledgements are truthful.
 
 ## Commands and sanitized output
 
@@ -103,11 +128,25 @@ $($Software.Command)
 $($Software.Output)
 ~~~
 
+### $($RobotEdgeSoftware.Name)
+
+~~~text
+$($RobotEdgeSoftware.Command)
+$($RobotEdgeSoftware.Output)
+~~~
+
 ### $($EndToEnd.Name)
 
 ~~~text
 $($EndToEnd.Command)
 $($EndToEnd.Output)
+~~~
+
+### $($RobotEdgeFixtureE2E.Name)
+
+~~~text
+$($RobotEdgeFixtureE2E.Command)
+$($RobotEdgeFixtureE2E.Output)
 ~~~
 
 This report intentionally records only fixed execution modes and sanitized test

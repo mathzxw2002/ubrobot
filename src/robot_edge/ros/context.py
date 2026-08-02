@@ -114,14 +114,26 @@ def _import_message_type(type_name: str) -> Any:
     return getattr(module, parts[1])
 
 
-def _json_safe(message: Any) -> dict[str, Any]:
-    """Extract a small JSON-safe subset of a ROS message.
+def _json_safe(message: Any, *, _depth: int = 0) -> dict[str, Any]:
+    """Extract a JSON-safe subset of a ROS message.
 
-    Binary/byte fields are reduced to their size; nested messages and arrays
-    are not deep-copied, so only scalar fields are exported here.
+    Scalar fields are kept; byte fields are reduced to their size (never the
+    raw frame); nested messages/arrays are converted recursively up to a
+    bounded depth. SDK-like objects that are neither ROS messages nor plain
+    containers are dropped.
     """
-    if message is None:
+    if message is None or _depth > 4:
         return {}
+    if isinstance(message, dict):
+        result: dict[str, Any] = {}
+        for key, value in message.items():
+            if isinstance(value, dict):
+                result[str(key)] = _json_safe(value, _depth=_depth + 1)
+            elif isinstance(value, list):
+                result[str(key)] = _json_safe_list(value, _depth=_depth + 1)
+            elif isinstance(value, (str, int, float, bool)):
+                result[str(key)] = value
+        return result
     data: dict[str, Any] = {}
     for name in getattr(message, "__slots__", []):
         try:
@@ -131,12 +143,31 @@ def _json_safe(message: Any) -> dict[str, Any]:
         if isinstance(value, (str, int, float, bool)):
             data[name] = value
         elif isinstance(value, list):
-            data[name] = [
-                v for v in value if isinstance(v, (str, int, float, bool))
-            ]
+            data[name] = _json_safe_list(value, _depth=_depth + 1)
+        elif isinstance(value, dict):
+            data[name] = _json_safe(value, _depth=_depth + 1)
         elif isinstance(value, (bytes, bytearray)):
             data[name] = len(value)  # size only, never the raw frame
     return data
+
+
+def _json_safe_list(values: list[Any], *, _depth: int) -> list[Any]:
+    """Convert a list of ROS values to JSON-safe scalars/containers."""
+    if _depth > 4:
+        return []
+    result: list[Any] = []
+    for value in values:
+        if isinstance(value, (str, int, float, bool)):
+            result.append(value)
+        elif isinstance(value, (bytes, bytearray)):
+            result.append(len(value))
+        elif isinstance(value, list):
+            result.append(_json_safe_list(value, _depth=_depth + 1))
+        elif isinstance(value, dict):
+            result.append(_json_safe(value, _depth=_depth + 1))
+        elif hasattr(value, "__slots__"):
+            result.append(_json_safe(value, _depth=_depth + 1))
+    return result
 
 
 def create_ros_context(*, execution_mode: str) -> RosGraph | None:

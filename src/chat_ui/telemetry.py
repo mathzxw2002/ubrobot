@@ -1,4 +1,7 @@
-"""Thread-safe in-process telemetry hub with transport-neutral snapshots."""
+"""Thread-safe in-process telemetry hub with transport-neutral snapshots.
+
+For shared contracts between Operator Console and Robot Edge, see ubrobot_contracts.
+"""
 
 from __future__ import annotations
 
@@ -9,10 +12,13 @@ import threading
 import time
 from typing import Any, Callable
 
+# Re-export from shared contracts for backward compatibility
+from ubrobot_contracts.telemetry import TelemetryState
+
 try:
-    from .adapters.telemetry import TelemetryState, serialize_transport_value
+    from .adapters.telemetry import serialize_transport_value
 except ImportError:  # Direct-script compatibility.
-    from adapters.telemetry import TelemetryState, serialize_transport_value
+    from adapters.telemetry import serialize_transport_value
 
 
 @dataclass(frozen=True)

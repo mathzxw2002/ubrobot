@@ -1,6 +1,8 @@
 """Serialized telemetry DTOs and fixture adapter.
 
 This module intentionally has no ROS, RealSense, Piper, or Go2 imports.
+
+For shared contracts between Operator Console and Robot Edge, see ubrobot_contracts.
 """
 
 from __future__ import annotations
@@ -11,12 +13,8 @@ from enum import Enum
 import math
 from typing import Any, Mapping
 
-
-class TelemetryState(str, Enum):
-    AVAILABLE = "available"
-    UNAVAILABLE = "unavailable"
-    STALE = "stale"
-    DISCONNECTED = "disconnected"
+# Re-export from shared contracts for backward compatibility
+from ubrobot_contracts.telemetry import TelemetryState
 
 
 def serialize_transport_value(value: Any) -> Any:

@@ -2,36 +2,23 @@
 
 Descriptors contain state only. They never retain ROS clients, SDK handles,
 camera objects, robot managers, or executable callbacks.
+
+For shared contracts between Operator Console and Robot Edge, see ubrobot_contracts.
 """
 
 from __future__ import annotations
 
 from dataclasses import asdict, dataclass, field, replace
 from datetime import datetime, timezone
-from enum import Enum
 import threading
 from typing import Iterable
 
-
-class CapabilityAvailability(str, Enum):
-    AVAILABLE = "available"
-    UNAVAILABLE = "unavailable"
-    DISCONNECTED = "disconnected"
-    UNKNOWN = "unknown"
-
-
-class CapabilityHealth(str, Enum):
-    HEALTHY = "healthy"
-    DEGRADED = "degraded"
-    UNHEALTHY = "unhealthy"
-    UNKNOWN = "unknown"
-
-
-class ExecutionMode(str, Enum):
-    MOCK = "mock"
-    FIXTURE = "fixture"
-    REMOTE = "remote"
-    HARDWARE = "hardware"
+# Re-export from shared contracts for backward compatibility
+from ubrobot_contracts.capabilities import (
+    CapabilityAvailability,
+    CapabilityHealth,
+    ExecutionMode,
+)
 
 
 @dataclass(frozen=True)

@@ -78,9 +78,9 @@ class SafetySupervisor:
         """Called when edge disconnects - fail-closed stop."""
         self.emergency_stop("edge disconnected")
 
-    def on_local_stop(self) -> None:
+    def on_local_stop(self, detail: str = "local stop") -> None:
         """Called when local stop button pressed - fail-closed stop."""
-        self.emergency_stop("local stop")
+        self.emergency_stop(detail)
 
     def _execute_stop(self, reason: str) -> None:
         """Execute stop on all sinks (only once)."""

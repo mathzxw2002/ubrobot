@@ -39,6 +39,11 @@ curl http://localhost:8780/v1/health/ready
 - `UBROBOT_EDGE_REQUEST_MAX_AGE_SEC`: Max age of request timestamps (default: 300)
 - `UBROBOT_EDGE_NONCE_TTL_SEC`: How long to track used nonces (default: 600)
 - `UBROBOT_EDGE_SAFETY_CHECKLIST`: Required in hardware mode - path to safety checklist
+- `UBROBOT_EDGE_ESTOP_ENABLED`: "true" to bind the physical E-stop (M7). Leave unset/`false` means local stop is unavailable and must be reported as such; hardware authority must not be claimed while it is unbound.
+- `UBROBOT_EDGE_ESTOP_CHIP`: gpiod chip for the E-stop contact, e.g. `gpiochip4` (Raspberry Pi 5)
+- `UBROBOT_EDGE_ESTOP_LINE`: GPIO line number for the NC auxiliary contact
+- `UBROBOT_EDGE_ESTOP_LINE_NAME`: diagnostic name, default `ubrobot-estop`
+- `UBROBOT_EDGE_ESTOP_DEBOUNCE_SEC`: contact-open debounce window, default 0.02
 
 ### Token Format
 
@@ -111,6 +116,40 @@ Reproduce the read-only inventory with:
 ```bash
 bash scripts/hardware/robot_edge_preflight.sh rasp_pi
 ```
+
+## Physical E-stop binding (M7)
+
+Owner-approved configuration (2026-08-02): NC (normally-closed) mushroom
+E-stop; the main contacts cut the LeKiwi motor power through a contactor
+(power-off is the final, software-independent layer), and the auxiliary
+contact is read by the Pi through libgpiod as the software input.
+
+Wiring: auxiliary contact between 3.3 V and the chosen GPIO line; the line
+is configured with internal PULL_DOWN, so a pressed button **or a broken
+wire** reads low and triggers the fail-closed stop.
+
+Software chain (`src/robot_edge/hardware/local_stop.py`):
+
+```text
+GPIO contact  ->  LocalStopButton (debounced, fail-closed)
+              ->  SafetySupervisor.on_local_stop()  (latched)
+              ->  stop fan-out sinks
+              ->  safety.emergency_stop event (priority=critical)
+              ->  explicit authorized /v1/safety/reset required
+```
+
+Robot-side latency measurement (wheels lifted, torque disabled, dry-run
+first):
+
+```bash
+python3 scripts/hardware/measure_stop_latency.py \
+  --chip gpiochip4 --line <PIN> --line-name ubrobot-estop --dry-run
+```
+
+`--execute` adds the real fan-out (three zero `/cmd_vel` messages, then
+`docker stop` of the driver container, which deactivates ros2_control and
+disables torque via SIGINT). Run `--execute` only after the dry-run passes
+and the physical E-stop was verified by a human.
 
 ## Stopping the Service
 

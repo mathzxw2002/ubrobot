@@ -34,9 +34,27 @@ Proposed，2026-07-28。
 
 ## 待确认
 
-- 采用电机控制板看门狗、外置 MCU，还是电源/使能继电器；
-- 实体急停的电气接线和恢复流程；
 - 轮式与视觉里程计的最终融合参数。
+
+## 2026-08-02 决策：实体急停方案（M7）
+
+已由 owner 确认，解除"电机看门狗 / 外置 MCU / 电源继电器"三选一悬念：
+
+1. **电气最终防线**：NC（常闭）蘑菇头急停按钮，主触点通过接触器直接切断
+   LeKiwi 电机电源，完全不依赖树莓派、容器或 ROS 软件栈（覆盖 SIGKILL、
+   内核崩溃、整机掉电——补上本 ADR 指出的软件缺口）。
+2. **软件输入**：急停按钮辅助触点接 3.3 V 与 GPIO 线（libgpiod，内部
+   PULL_DOWN）。常态闭合=高=安全；按下**或断线**=低=停止（fail-closed）。
+3. **软件链路**：`robot_edge.hardware.local_stop.LocalStopButton`
+   （去抖、fail-closed）→ `SafetySupervisor.on_local_stop()`（latched，
+   必须显式授权复位）→ stop fan-out（零 `/cmd_vel` ×3 + 驱动容器 SIGINT
+   停 torque）→ `safety.emergency_stop` 事件。
+4. **恢复流程**：按下后 latch 不自动解除；必须操作员在 Operator Console
+   显式授权 `/v1/safety/reset`，且接触器重新闭合、按钮确认复位后才能恢复。
+5. **可选增强（未实现）**：树莓派心跳保持继电器方案（Pi 死机 → 心跳停 →
+   电机断电），作为后续可选看门狗，不阻塞 M7。
+
+分段延迟测量见 `scripts/hardware/measure_stop_latency.py`（M7 Task 12）。
 
 ## 参考
 

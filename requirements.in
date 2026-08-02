@@ -5,11 +5,11 @@ deepdiff==8.6.1
 dlib==20.0.0
 draccus==0.10.0
 einops==0.8.1
-fastapi<0.113.0
+fastapi==0.124.2
 ffmpeg_python==0.2.0
 Flask==3.1.2
 funasr==1.1.6
-gradio>=4.43.0,<6.0
+gradio==5.50.0
 gymnasium==1.2.2
 homunculus==0.0.0b0
 keyboard==0.13.5
@@ -25,9 +25,9 @@ opencv_python_headless==4.10.0.82
 pandas==2.3.3
 Pillow<12.0
 piper_sdk==0.6.1
+psutil==7.2.1
 pygame==2.6.1
 pyserial==3.5
-pytest==9.0.2
 pyzbar==0.1.9
 pyzmq==27.1.0
 qrcode==8.2
@@ -43,6 +43,8 @@ tqdm==4.66.6
 transformers==4.36.2
 transforms3d==0.4.2
 ultralytics==8.4.6
-uvicorn==0.17.5
+starlette==0.47.2
+uvicorn==0.35.0
+websockets==15.0.1
 viser==0.2.11
 yourdfpy==0.0.59

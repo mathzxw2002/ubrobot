@@ -1,0 +1,5 @@
+-r requirements-operator-console.txt
+
+# Software-only operator-console validation. The production runtime remains
+# test-framework agnostic and all tests can still be run with unittest.
+pytest==9.0.2

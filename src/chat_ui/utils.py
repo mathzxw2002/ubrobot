@@ -1,7 +1,6 @@
 import os
 import re
 import subprocess
-import cv2
 import time
 from pathlib import Path
 from datetime import datetime
@@ -59,6 +58,8 @@ def merge_frames_with_audio(audio_path, fps = 25):
     return VideoInfo(video_path, audio_path)
 
 def get_video_duration(video_path):
+    import cv2
+
     cap = cv2.VideoCapture(video_path)
     fps = cap.get(cv2.CAP_PROP_FPS)
     frame_count = int(cap.get(cv2.CAP_PROP_FRAME_COUNT))

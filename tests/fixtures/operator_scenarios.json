@@ -1,0 +1,32 @@
+{
+  "navigation_success": {
+    "command": "导航到前面的椅子",
+    "source": "text",
+    "expected_task_events": [
+      "task.queued",
+      "task.started",
+      "task.feedback",
+      "task.succeeded"
+    ],
+    "expected_feedback_fragments": [
+      "Received task. Creating a plan for",
+      "send_goal_to__ubrobot_navigation_navigate_to_object",
+      "waiting for async actions to complete",
+      "All 1 steps completed"
+    ]
+  },
+  "status_query": {
+    "command": "任务进度怎么样？",
+    "source": "voice",
+    "category": "query"
+  },
+  "queued_task": {
+    "command": "抓取桌上的水瓶",
+    "source": "text"
+  },
+  "emergency_stop": {
+    "command": "紧急叫停机器人",
+    "source": "voice",
+    "expected_priority": "critical"
+  }
+}

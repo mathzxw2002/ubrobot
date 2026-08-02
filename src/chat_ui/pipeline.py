@@ -1,17 +1,51 @@
 import os
-import torch
 import time
 import shutil
 import threading
 import queue
 import gradio as gr
 
+try:
+    import torch
+
+    no_grad = torch.no_grad
+except ModuleNotFoundError:
+    # The hardware-free Operator Console does not run local torch inference.
+    def no_grad():
+        return lambda function: function
+
 try:  # Package import for tests and `python -m chat_ui.app`.
     from .utils import get_timestamp_str, merge_audios, merge_frames_with_audio
     from .cortex_client import create_ros_cortex_client
+    from .event_stream import EventStream
+    from .capability_registry import ExecutionMode, create_default_registry
+    from .adapters.telemetry import (
+        CapabilityHealthTelemetry,
+        FixtureTelemetryAdapter,
+        TelemetryState,
+    )
+    from .interaction_runtime import InteractionRuntime
+    from .task_runtime import TaskRuntime
+    from .telemetry import TelemetryHub
+    from .voice_runtime import (
+        DisabledVoiceProvider,
+        MockVoiceProvider,
+        VoiceSessionManager,
+    )
 except ImportError:  # Script compatibility: `python src/chat_ui/app.py`.
     from utils import get_timestamp_str, merge_audios, merge_frames_with_audio
     from cortex_client import create_ros_cortex_client
+    from event_stream import EventStream
+    from capability_registry import ExecutionMode, create_default_registry
+    from adapters.telemetry import (
+        CapabilityHealthTelemetry,
+        FixtureTelemetryAdapter,
+        TelemetryState,
+    )
+    from interaction_runtime import InteractionRuntime
+    from task_runtime import TaskRuntime
+    from telemetry import TelemetryHub
+    from voice_runtime import DisabledVoiceProvider, MockVoiceProvider, VoiceSessionManager
 
 
 class _LegacyBackend:
@@ -34,9 +68,8 @@ class _LegacyBackend:
     def get_robot_observation(self):
         return self.manager.visualize_robot_observation()
 
-@torch.no_grad()
 class ChatPipeline:
-    def __init__(self, *, backend=None, initialize_media=True):
+    def __init__(self, *, backend=None, initialize_media=True, voice_provider=None):
         if initialize_media:
             # Imported lazily so media-off dev mode needs no ASR/TTS deps.
             print("[1/3] Start initializing funasr")
@@ -79,7 +112,14 @@ class ChatPipeline:
                 except ImportError:
                     from mock_backend import MockCortexBackend
 
-                self.backend = MockCortexBackend()
+                self.backend = MockCortexBackend(
+                    nav_duration_sec=float(
+                        os.environ.get("UBROBOT_MOCK_NAV_DURATION_SEC", "4.0")
+                    ),
+                    reply_delay_sec=float(
+                        os.environ.get("UBROBOT_MOCK_REPLY_DELAY_SEC", "0.3")
+                    ),
+                )
             elif self.backend_name == "legacy":
                 print("[3/3] Start initializing legacy Go2Manager")
                 self.backend = _LegacyBackend()
@@ -88,7 +128,74 @@ class ChatPipeline:
                     "UBROBOT_CHAT_BACKEND must be 'cortex', 'cortex-mock', "
                     "or 'legacy'"
                 )
+        self.event_stream = EventStream()
+        execution_modes = {
+            "cortex-mock": ExecutionMode.MOCK,
+            "injected": ExecutionMode.FIXTURE,
+            "cortex": ExecutionMode.REMOTE,
+            "legacy": ExecutionMode.HARDWARE,
+        }
+        simulated_capabilities = (
+            ("navigation", "grasp", "follow", "stop")
+            if self.backend_name == "cortex-mock"
+            else ()
+        )
+        self.capability_registry = create_default_registry(
+            execution_mode=execution_modes[self.backend_name],
+            simulated_capabilities=simulated_capabilities,
+        )
+        self.task_runtime = TaskRuntime(
+            self.backend,
+            event_publisher=self.event_stream.publish,
+        )
+        self.interaction_runtime = InteractionRuntime(
+            self.task_runtime,
+            event_publisher=self.event_stream.publish,
+        )
+        self.telemetry_hub = TelemetryHub(
+            event_publisher=self.event_stream.publish,
+        )
+        self.telemetry_adapter = FixtureTelemetryAdapter(
+            {
+                "capability_health": CapabilityHealthTelemetry(
+                    state=TelemetryState.AVAILABLE,
+                    source="capability_registry",
+                    capabilities=self.capability_registry.snapshot(),
+                    detail="serialized operator capability inventory",
+                )
+            }
+        )
+        self.telemetry_adapter.publish_all(self.telemetry_hub)
+        self.voice_provider = voice_provider or self._create_voice_provider()
+        self.voice_runtime = VoiceSessionManager(
+            self.voice_provider,
+            interaction_handler=lambda text: self.request_text(text, source="voice"),
+            contextual_interaction_handler=lambda text, correlation_id: self.request_text(
+                text,
+                source="voice",
+                correlation_id=correlation_id,
+            ),
+            emergency_stop_handler=lambda source: self.task_runtime.emergency_stop(
+                source=source
+            ),
+            event_publisher=self.event_stream.publish,
+        )
         print("[Done] Initialzation finished")
+
+    @staticmethod
+    def _create_voice_provider():
+        provider_name = os.environ.get("UBROBOT_VOICE_PROVIDER", "off").strip().lower()
+        if provider_name in {"", "off", "disabled"}:
+            return DisabledVoiceProvider()
+        if provider_name == "mock":
+            return MockVoiceProvider()
+        if provider_name == "qwen":
+            try:
+                from .qwen_realtime import QwenOmniRealtimeProvider, QwenRealtimeConfig
+            except ImportError:
+                from qwen_realtime import QwenOmniRealtimeProvider, QwenRealtimeConfig
+            return QwenOmniRealtimeProvider(QwenRealtimeConfig.from_env())
+        raise ValueError("UBROBOT_VOICE_PROVIDER must be 'off', 'mock', or 'qwen'")
     
     def load_voice(self, avatar_voice = None, tts_module = None):
         start_time = time.time()
@@ -114,10 +221,10 @@ class ChatPipeline:
         self.asr_cost = 0
 
     def stop_pipeline(self, user_processing_flag):
-        if user_processing_flag:
+        if user_processing_flag or self.task_runtime.active_task() is not None:
             print("Stopping pipeline....")
             self.stop.set()
-            self.backend.cancel_active()
+            self.task_runtime.cancel_active()
 
             join_timeout = min(float(self.timeout), 5.0)
             for name in ("tts_thread", "ffmpeg_thread"):
@@ -140,17 +247,35 @@ class ChatPipeline:
             self.latest_cortex_feedback = text
         self.cortex_feedback_queue.put(text)
 
-    def request_text(self, text):
-        response = self.backend.execute(
+    def request_interaction(self, text, *, source="text", correlation_id=None):
+        """Run the transport-neutral interaction path and return its result."""
+        result = self.interaction_runtime.handle(
             text,
+            source=source,
+            correlation_id=correlation_id,
             on_feedback=self._on_cortex_feedback,
         )
+        response = result.reply
         if response:
             self.vlm_queue.put(response)
+        return result
+
+    def request_text(self, text, *, source="text", correlation_id=None):
+        """Compatibility wrapper returning only the interaction reply."""
+        result = self.request_interaction(
+            text,
+            source=source,
+            correlation_id=correlation_id,
+        )
+        response = result.reply
         return response
 
+    @no_grad()
     def run_pipeline(self, user_input, user_messages):
-        self.flush_pipeline()
+        # A status/cancel turn may arrive while the main task is active. Do not
+        # destroy its queues or feedback timeline in that case.
+        if self.task_runtime.active_task() is None:
+            self.flush_pipeline()
         self.start_time = time.time()
         avatar_name = "Avatar1"
         self.project_path = f"./workspaces/results/{avatar_name}/{get_timestamp_str()}"
@@ -169,7 +294,11 @@ class ChatPipeline:
         try:
             # warm up
             media_on = self.tts_api is not None
-            if media_on:
+            owns_media_workers = media_on and not any(
+                getattr(getattr(self, name, None), "is_alive", lambda: False)()
+                for name in ("tts_thread", "ffmpeg_thread")
+            )
+            if owns_media_workers:
                 self.tts_thread = threading.Thread(target=self.tts_worker, args=(self.project_path, tts_module, ))
                 self.ffmpeg_thread = threading.Thread(target=self.ffmpeg_worker)
                 self.tts_thread.start()
@@ -177,7 +306,9 @@ class ChatPipeline:
 
             # ASR
             user_input_txt = user_input.text
+            interaction_source = "text"
             if user_input.files:
+                interaction_source = "voice"
                 if self.asr is not None:
                     user_input_audio = user_input.files[0].path
                     user_input_txt += self.asr.infer(user_input_audio)
@@ -190,14 +321,17 @@ class ChatPipeline:
             user_messages.append({'role': 'user', 'content': user_input})
             print(user_messages)
             
-            llm_response_txt = self.request_text(user_input_txt)
+            llm_response_txt = self.request_text(
+                user_input_txt,
+                source=interaction_source,
+            )
             
             if llm_response_txt:
                 print(f"[LLM] Put into queue: {llm_response_txt}")
 
-            if media_on:
+            if owns_media_workers:
                 self.vlm_queue.put(None)
-            else:
+            elif not media_on:
                 # No TTS/ffmpeg workers in media-off dev mode; close the
                 # video queue so yield_results finishes after feedback.
                 self.video_queue.put(None)
@@ -205,7 +339,7 @@ class ChatPipeline:
             if len(user_messages) > 10:
                 user_messages.pop(0)
 
-            if media_on:
+            if owns_media_workers:
                 self.tts_thread.join()
                 self.ffmpeg_thread.join()
 
@@ -232,7 +366,8 @@ class ChatPipeline:
                 "text": "开始生成......\n",
             }
         ])
-        yield gr.update(interactive=False, value=None), user_chatbot, user_processing_flag
+        # Keep the interaction channel available for status/cancel utterances.
+        yield gr.update(interactive=True, value=None), user_chatbot, user_processing_flag
 
         time.sleep(1)
         index = 0
@@ -268,7 +403,7 @@ class ChatPipeline:
                         status = self.cortex_feedback_queue.get_nowait()
                         user_chatbot[-1][1]["text"] = status + "\n"
                         yield (
-                            gr.update(interactive=False, value=None),
+                            gr.update(interactive=True, value=None),
                             user_chatbot,
                             user_processing_flag,
                         )
@@ -308,7 +443,6 @@ class ChatPipeline:
     def tts_worker(self, project_path, tts_module):
         start_time = time.time()
         index = 0
-        tts_module = "CosyVoice"
         
         while not self.stop.is_set():
             print("waiting vlm response...")
@@ -318,8 +452,6 @@ class ChatPipeline:
                 print(f"[TTS] Get chunk from llm_queue: {llm_response_txt}, llm_queue size: {self.vlm_queue.qsize()}, chat_history {self.chat_history} ")
                 if not llm_response_txt:
                     break
-                infer_start_time = time.time()
-
                 llm_response_audio = self.tts_api.infer(project_path=project_path, text=llm_response_txt, index = index)
                 self.tts_queue.put(llm_response_audio)
                 print(f"----------------[TTS] tts_queue size:{self.tts_queue.qsize()}")
@@ -338,7 +470,6 @@ class ChatPipeline:
                 llm_response_audio = self.tts_queue.get(timeout=1)
                 if not llm_response_audio:
                     break
-                infer_start_time = time.time()
                 video_result = merge_frames_with_audio(llm_response_audio)
                 self.video_queue.put(video_result)
                 start_time = time.time()
@@ -352,4 +483,37 @@ class ChatPipeline:
         observer = getattr(self.backend, "get_robot_observation", None)
         if observer is None:
             return None, None
-        return observer()
+        navigation_image, manipulation_image = observer()
+        self.telemetry_hub.publish(
+            "camera",
+            self._observation_metadata(navigation_image),
+        )
+        self.telemetry_hub.publish(
+            "depth",
+            self._observation_metadata(manipulation_image),
+        )
+        return navigation_image, manipulation_image
+
+    def operator_snapshot(self):
+        """Return transport-neutral state for Gradio or a future remote UI."""
+        return {
+            "tasks": self.task_runtime.snapshot(),
+            "interactions": [
+                turn.to_dict() for turn in self.interaction_runtime.turns()
+            ],
+            "telemetry": self.telemetry_hub.snapshot(),
+            "capabilities": self.capability_registry.snapshot(),
+            "voice": self.voice_runtime.snapshot().to_dict(),
+        }
+
+    @staticmethod
+    def _observation_metadata(value):
+        if value is None:
+            return {"available": False}
+        size = getattr(value, "size", None)
+        shape = getattr(value, "shape", None)
+        return {
+            "available": True,
+            "size": list(size) if isinstance(size, tuple) else size,
+            "shape": list(shape) if shape is not None else None,
+        }

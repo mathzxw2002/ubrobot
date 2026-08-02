@@ -130,6 +130,7 @@ cython_debug/
 
 # temporary working space
 workspaces/
+logs/
 
 # ros build 
 ros_depends_ws/.catkin_workspace

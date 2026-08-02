@@ -5,8 +5,8 @@ the real Gradio UI can be exercised offline:
 
 - feedback streams through ``on_feedback`` in the same shapes the real
   client produces (planning echo, step dispatch, waiting, completion);
-- navigation-like prompts produce a multi-step "execution" that takes a
-  few seconds and can be cancelled mid-flight;
+- navigation-like prompts produce a fixed-count deterministic feedback
+  sequence that can be accelerated for tests and cancelled mid-flight;
 - ``cancel_active()`` aborts the simulated execution within ~0.1 s and the
   running ``execute()`` raises :class:`CortexRequestError`, mirroring the
   real "Plan aborted while waiting for async actions." outcome;
@@ -35,14 +35,24 @@ GRASP_PATTERN = re.compile(
 class MockCortexBackend:
     """Deterministic offline stand-in for the Cortex client."""
 
-    def __init__(self, *, nav_duration_sec: float = 4.0, reply_delay_sec: float = 0.3):
+    def __init__(
+        self,
+        *,
+        nav_duration_sec: float = 4.0,
+        reply_delay_sec: float = 0.3,
+        navigation_feedback_steps: int = 4,
+    ):
         if nav_duration_sec <= 0 or reply_delay_sec < 0:
             raise ValueError("mock timings must be positive")
+        if navigation_feedback_steps <= 0:
+            raise ValueError("navigation_feedback_steps must be positive")
         self._nav_duration_sec = float(nav_duration_sec)
         self._reply_delay_sec = float(reply_delay_sec)
+        self._navigation_feedback_steps = int(navigation_feedback_steps)
         self._lock = threading.Lock()
         self._active_cancel: threading.Event | None = None
         self.completed_actions = []
+        self.requests = []
 
     # ------------------------------------------------------------------ API
 
@@ -55,6 +65,7 @@ class MockCortexBackend:
                 raise CortexBusyError("another Cortex request is already active")
             cancel_event = threading.Event()
             self._active_cancel = cancel_event
+            self.requests.append(task.strip())
 
         try:
             on_feedback(f"Received task. Creating a plan for: {task}")
@@ -88,14 +99,17 @@ class MockCortexBackend:
             "[Step 1/1 (send_goal_to__ubrobot_navigation_navigate_to_object)]"
             " -> EXECUTE"
         )
-        deadline = time.monotonic() + self._nav_duration_sec
-        while time.monotonic() < deadline:
-            if cancel_event.wait(timeout=0.1):
+        step_delay = self._nav_duration_sec / self._navigation_feedback_steps
+        for index in range(1, self._navigation_feedback_steps + 1):
+            if cancel_event.wait(timeout=step_delay):
                 on_feedback("Plan aborted while waiting for async actions.")
                 raise CortexRequestError(
                     "Plan aborted while waiting for async actions."
                 )
-            on_feedback("Step 1/1: waiting for async actions to complete...")
+            on_feedback(
+                "Step 1/1: waiting for async actions to complete... "
+                f"({index}/{self._navigation_feedback_steps})"
+            )
         on_feedback("All 1 steps completed.")
         self.completed_actions.append("navigation")
         return "All 1 steps completed."
@@ -121,14 +135,17 @@ class MockCortexBackend:
             "[Step 1/2 (send_goal_to__ubrobot_navigation_navigate_to_object)]"
             " -> EXECUTE"
         )
-        deadline = time.monotonic() + self._nav_duration_sec
-        while time.monotonic() < deadline:
-            if cancel_event.wait(timeout=0.1):
+        step_delay = self._nav_duration_sec / self._navigation_feedback_steps
+        for index in range(1, self._navigation_feedback_steps + 1):
+            if cancel_event.wait(timeout=step_delay):
                 on_feedback("Plan aborted while waiting for async actions.")
                 raise CortexRequestError(
                     "Plan aborted while waiting for async actions."
                 )
-            on_feedback("Step 1/2: waiting for async actions to complete...")
+            on_feedback(
+                "Step 1/2: waiting for async actions to complete... "
+                f"({index}/{self._navigation_feedback_steps})"
+            )
         self.completed_actions.append("navigation")
         on_feedback(
             "[Step 2/2 (send_goal_to__ubrobot_manipulation_grasp_object)]"

@@ -160,7 +160,7 @@ executing==2.2.1
     # via stack-data
 farama-notifications==0.0.4
     # via gymnasium
-fastapi==0.112.4
+fastapi==0.124.2
     # via
     #   -r requirements.in
     #   gradio
@@ -204,11 +204,11 @@ gitdb==4.0.12
     # via gitpython
 gitpython==3.1.46
     # via wandb
-gradio==5.1.0
+gradio==5.50.0
     # via
     #   -r requirements.in
     #   modelscope-studio
-gradio-client==1.4.0
+gradio-client==1.14.0
     # via gradio
 gymnasium==1.2.2
     # via
@@ -588,13 +588,13 @@ pycparser==2.23
     # via cffi
 pycryptodome==3.23.0
     # via oss2
-pydantic==2.12.5
+pydantic==2.12.3
     # via
     #   fastapi
     #   gradio
     #   openai
     #   wandb
-pydantic-core==2.41.5
+pydantic-core==2.41.4
     # via pydantic
 pydub==0.25.1
     # via gradio
@@ -621,8 +621,6 @@ pyserial==3.5
     # via
     #   -r requirements.in
     #   lerobot
-pytest==9.0.2
-    # via -r requirements.in
 python-can==4.6.1
     # via piper-sdk
 python-dateutil==2.9.0.post0
@@ -762,7 +760,7 @@ soxr==1.0.0
     # via librosa
 stack-data==0.6.3
     # via ipython
-starlette==0.38.6
+starlette==0.47.2
     # via fastapi
 svg-path==7.0
     # via trimesh
@@ -881,7 +879,7 @@ urllib3==2.6.3
     # via
     #   requests
     #   sentry-sdk
-uvicorn==0.17.5
+uvicorn==0.35.0
     # via
     #   -r requirements.in
     #   gradio
@@ -895,7 +893,7 @@ wcwidth==0.2.14
     # via prompt-toolkit
 websocket-client==1.9.0
     # via dashscope
-websockets==12.0
+websockets==15.0.1
     # via
     #   gradio-client
     #   viser

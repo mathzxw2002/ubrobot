@@ -1,0 +1,12 @@
+[
+  {"name": "connected", "event": {"type": "session.updated"}},
+  {"name": "vad_started", "event": {"type": "input_audio_buffer.speech_started"}},
+  {"name": "partial", "event": {"type": "conversation.item.input_audio_transcription.delta", "item_id": "item-1", "text": "导航到", "stash": "前面"}},
+  {"name": "final", "event": {"type": "conversation.item.input_audio_transcription.completed", "item_id": "item-1", "transcript": "导航到前面的椅子"}},
+  {"name": "vad_stopped", "event": {"type": "input_audio_buffer.speech_stopped"}},
+  {"name": "tool_call", "event": {"type": "response.function_call_arguments.done", "call_id": "call-1", "name": "submit_interaction", "arguments": "{\"text\": \"导航到前面的椅子\"}"}},
+  {"name": "audio", "event": {"type": "response.audio.delta", "delta": "cGNt"}},
+  {"name": "speech_done", "event": {"type": "response.done"}},
+  {"name": "error", "event": {"type": "error", "error": {"message": "sanitized failure"}}},
+  {"name": "disconnect", "event": {"type": "connection.closed"}}
+]

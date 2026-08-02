@@ -1,0 +1,13 @@
+# Minimal, hardware-free Operator Console runtime for Windows development.
+# The full robot/ML stack remains in requirements.txt.
+fastapi==0.124.2
+gradio==5.50.0
+gradio-client==1.14.0
+httpx==0.28.1
+packaging==25.0
+psutil==7.2.1
+pydantic==2.12.3
+pydantic-core==2.41.4
+starlette==0.47.2
+uvicorn==0.35.0
+websockets==15.0.1

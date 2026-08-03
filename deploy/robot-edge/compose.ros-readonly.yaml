@@ -21,6 +21,10 @@ services:
       - ROS_DOMAIN_ID=${ROS_DOMAIN_ID:-0}
       - FASTRTPS_DEFAULT_PROFILES_FILE=/etc/fastdds/udp-only.xml
       - FASTDDS_DEFAULT_PROFILES_FILE=/etc/fastdds/udp-only.xml
+      # rclpy writes logs/state under these paths; the rootfs is read-only so
+      # point them at the tmpfs (same pattern as the lekiwi driver container).
+      - ROS_HOME=/tmp/ros-home
+      - ROS_LOG_DIR=/tmp/ros-logs
       - UBROBOT_EDGE_TOKENS_FILE=/app/config/tokens.json
       # M7 physical E-stop binding. Enabled only after the owner wires and
       # verifies the NC auxiliary contact (ADR-0002). While disabled the

@@ -88,7 +88,13 @@ class GraspPackageStructureTest(unittest.TestCase):
         ).read_text(encoding="utf-8")
         self.assertIn("CORTEX_ENABLE_GRASP", recipe)
         self.assertIn('env.get(GRASP_ENABLE_ENV, "false")', recipe)
-        self.assertIn("if grasp_exposure_enabled(os.environ):", recipe)
+        # Gate is double-conditioned: env flag AND the GraspObject action
+        # type must exist (pre-grasp ubrobot_interfaces builds import it
+        # optionally as None, keeping the tool hidden).
+        self.assertIn(
+            "if grasp_exposure_enabled(os.environ) and GraspObject is not None:",
+            recipe,
+        )
 
 
 class GraspServerSkeletonTest(unittest.TestCase):

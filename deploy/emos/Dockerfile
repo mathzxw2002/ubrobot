@@ -65,9 +65,12 @@ PY
 # Fix kompass vision tracking timestamps: Bbox2D.timestamp is a C++ float32.
 # At epoch-seconds (~1.79e9) the float32 ULP is ~128 s, so every detection
 # frame collapses to the same timestamp and the RGBD follower logs "Box
-# updated with invalid time step" and resets velocity to zero forever. Use
-# the monotonic clock (small numbers, ~1 ms float32 precision) — the tracker
-# only compares consecutive detections within one process.
+# updated with invalid time step" and resets velocity to zero forever. Use a
+# time RELATIVE to this module's load: small numbers keep the float32 ULP at
+# ~0.01 ms even after days of uptime, whereas absolute monotonic reaches
+# ~31 ms ULP at 4 days and frame intervals become marginal again. The tracker
+# only compares consecutive detections from the same process, so the
+# relative origin is consistent.
 RUN python3 - <<'PY'
 from pathlib import Path
 
@@ -75,12 +78,25 @@ p = Path('/opt/ros/jazzy/lib/python3.12/site-packages/kompass/_external_types.py
 s = p.read_text()
 if 'import time' not in s:
     s = s.replace('import numpy as np', 'import numpy as np\nimport time', 1)
-old = '            timestamp = self.msg.header.stamp.sec + 1e-9 * self.msg.header.stamp.nanosec'
-new = '            timestamp = time.monotonic()'
-if old not in s:
+if '_TIME_ORIGIN' not in s:
+    s = s.replace('import time\n', 'import time\n\n_TIME_ORIGIN = time.monotonic()\n', 1)
+# Both timestamp sites must use the SAME relative clock: _get_output (uses
+# self.msg) and _process_raw_data (uses msg). Mixing an epoch-derived value
+# with the relative clock breaks the tracker's time_step comparison.
+# Additionally, `_initial_time` must be captured BEFORE the box is built so
+# the first box gets timestamp 0 and subsequent boxes stay on the same
+# relative base; otherwise the initial tracked box carries an absolute value
+# and the first tracker update computes a negative time step.
+old_self = '            timestamp = self.msg.header.stamp.sec + 1e-9 * self.msg.header.stamp.nanosec'
+old_msg = '            timestamp = msg.header.stamp.sec + 1e-9 * msg.header.stamp.nanosec'
+new = ('            timestamp = time.monotonic() - _TIME_ORIGIN\n'
+       '            if self._initial_time == 0.0:\n'
+       '                self._initial_time = timestamp')
+if old_self not in s and old_msg not in s:
     raise SystemExit('kompass detection timestamp patch target not found')
-p.write_text(s.replace(old, new, 1))
-print('patched kompass detection timestamps to monotonic clock')
+s = s.replace(old_self, new, 1).replace(old_msg, new, 1)
+p.write_text(s, encoding='utf-8')
+print('patched kompass detection timestamps to process-relative clock (both sites)')
 PY
 
 # Build stable capability interfaces with the EMOS sensor-chain overlay.

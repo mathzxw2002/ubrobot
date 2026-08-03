@@ -16,7 +16,11 @@ services:
     network_mode: host
     environment:
       - UBROBOT_EDGE_MODE=hardware
-      - UBROBOT_EDGE_HARDWARE_AUTHORITY=false
+      # M8 command backend: set true (with UBROBOT_EDGE_ESTOP_EXEMPTED=true,
+      # owner decision, ADR-0002) to forward operator commands to Cortex.
+      # While false the Edge stays read-only and rejects commands.
+      - UBROBOT_EDGE_HARDWARE_AUTHORITY=${UBROBOT_EDGE_HARDWARE_AUTHORITY:-false}
+      - UBROBOT_EDGE_ESTOP_EXEMPTED=${UBROBOT_EDGE_ESTOP_EXEMPTED:-false}
       - RMW_IMPLEMENTATION=rmw_fastrtps_cpp
       - ROS_DOMAIN_ID=${ROS_DOMAIN_ID:-0}
       - FASTRTPS_DEFAULT_PROFILES_FILE=/etc/fastdds/udp-only.xml

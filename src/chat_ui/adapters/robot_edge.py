@@ -183,7 +183,9 @@ class RobotEdgeBackend:
         on_feedback: Callable[[str], None] | None,
     ) -> str:
         last_sequence = 0
-        deadline = time.monotonic() + 60.0
+        # Cortex orchestration is slow: ARK confirmations (5-8 s each) plus
+        # Kompass vision-follower initialization (~25 s) can exceed 60 s.
+        deadline = time.monotonic() + 180.0
         while time.monotonic() < deadline:
             if self._closed:
                 raise RuntimeError("Robot Edge backend closed during execution")

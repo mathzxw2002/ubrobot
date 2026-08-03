@@ -8,6 +8,7 @@ any ROS dependency.
 from __future__ import annotations
 
 from array import array
+import threading
 import time
 from typing import Any, Protocol
 
@@ -42,12 +43,17 @@ class RosNodeGraph:
         # ``node`` is a lazily-imported rclpy node instance.
         self._node = node
         self._topics: dict[str, set[str]] | None = None
+        # rclpy.spin_once on the global executor is not thread-safe; multiple
+        # concurrent callers (telemetry snapshots, command backend) race and
+        # raise "Executor is already spinning". Serialize all global-spin use.
+        self.spin_lock = threading.RLock()
 
     def _refresh(self) -> None:
-        topics: dict[str, set[str]] = {}
-        for name, types in self._node.get_topic_names_and_types():
-            topics[name] = set(types)
-        self._topics = topics
+        with self.spin_lock:
+            topics: dict[str, set[str]] = {}
+            for name, types in self._node.get_topic_names_and_types():
+                topics[name] = set(types)
+            self._topics = topics
 
     def has_topic(self, topic: str) -> bool:
         # Always refresh: the ROS graph changes as nodes come and go (e.g. a
@@ -78,9 +84,10 @@ class RosNodeGraph:
             qos_profile=10,  # sensor data, best-effort, read-only
         )
         try:
-            deadline = time.monotonic() + 1.0
-            while not received and time.monotonic() < deadline:
-                rclpy.spin_once(self._node, timeout_sec=0.1)
+            with self.spin_lock:
+                deadline = time.monotonic() + 1.0
+                while not received and time.monotonic() < deadline:
+                    rclpy.spin_once(self._node, timeout_sec=0.1)
             if not received:
                 return None
             return _json_safe(received[0])

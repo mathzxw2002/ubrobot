@@ -204,8 +204,14 @@ class RosCortexCommandBackend:
         self._events.put({"kind": "terminal", "status": status, "message": message})
 
     def _default_client_factory(self) -> Any:
-        """Build the real rclpy Cortex action client (hardware side only)."""
+        """Build the real rclpy Cortex action client (hardware side only).
+
+        The client spins on its OWN SingleThreadedExecutor in a dedicated
+        thread, so goal waiting never contends with the telemetry graph's
+        global-spin reads.
+        """
         import rclpy  # noqa: PLC0415 - hardware-only import
+        from rclpy.executors import SingleThreadedExecutor
         from rclpy.node import Node
 
         from automatika_embodied_agents.action import VisionLanguageAction
@@ -213,6 +219,10 @@ class RosCortexCommandBackend:
         if not rclpy.ok():
             rclpy.init(args=[])
         node = Node("robot_edge_command")
+        executor = SingleThreadedExecutor()
+        executor.add_node(node)
+        spin_thread = threading.Thread(target=executor.spin, daemon=True)
+        spin_thread.start()
 
         class _CortexClient:
             """Small rclpy bridge: send goal, stream feedback, report result."""
@@ -221,11 +231,22 @@ class RosCortexCommandBackend:
                 from rclpy.action import ActionClient
 
                 self._node = node
+                self._executor = executor
+                self._spin_thread = spin_thread
                 self._action_type = VisionLanguageAction
                 self._action_client = ActionClient(
                     node, VisionLanguageAction, CORTEX_ACTION_NAME
                 )
                 self.goal_handle = None
+
+            def _wait(self, future: Any, *, timeout_sec: float) -> bool:
+                """Wait for a future on the dedicated executor thread."""
+                import time
+
+                deadline = time.monotonic() + timeout_sec
+                while not future.done() and time.monotonic() < deadline:
+                    time.sleep(0.05)
+                return future.done()
 
             def send_goal(
                 self,
@@ -247,15 +268,16 @@ class RosCortexCommandBackend:
                 send_future = self._action_client.send_goal_async(
                     goal, feedback_callback=on_feedback
                 )
-                self._spin_until(send_future, timeout_sec=15.0)
+                if not self._wait(send_future, timeout_sec=15.0):
+                    terminal_callback(status="failed", message="Cortex goal send timed out")
+                    return
                 handle = send_future.result()
                 if handle is None or not handle.accepted:
                     terminal_callback(status="failed", message="Cortex goal rejected")
                     return
                 self.goal_handle = handle
                 result_future = handle.get_result_async()
-                self._spin_until(result_future, timeout_sec=300.0)
-                if not result_future.done():
+                if not self._wait(result_future, timeout_sec=300.0):
                     terminal_callback(status="failed", message="Cortex result timed out")
                     return
                 result = result_future.result()
@@ -266,16 +288,10 @@ class RosCortexCommandBackend:
                 else:
                     terminal_callback(status="failed", message=f"Cortex status {result.status}")
 
-            def _spin_until(self, future: Any, *, timeout_sec: float) -> None:
-                import rclpy  # noqa: PLC0415
-
-                rclpy.spin_until_future_complete(
-                    self._node, future, timeout_sec=timeout_sec
-                )
-
             def shutdown(self) -> None:
                 try:
                     self._action_client.destroy()
+                    self._executor.shutdown(timeout_sec=2.0)
                     self._node.destroy_node()
                 except Exception:
                     pass

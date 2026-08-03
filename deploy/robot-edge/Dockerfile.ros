@@ -7,8 +7,9 @@ WORKDIR /app
 
 # libgpiod2 (v2 shared library) is required by the `gpiod` Python bindings
 # used for the physical E-stop contact (M7). Ubuntu Noble ships libgpiod 2.x.
+# python3-pip is absent from the ros:jazzy-ros-base image.
 RUN apt-get update \
-    && apt-get install -y --no-install-recommends libgpiod2 \
+    && apt-get install -y --no-install-recommends libgpiod2 python3-pip \
     && rm -rf /var/lib/apt/lists/*
 
 # Runtime Python deps for the Edge service itself.

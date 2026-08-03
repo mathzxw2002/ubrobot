@@ -37,10 +37,11 @@ COPY --from=emos-source /opt/ros/jazzy/lib/python3.12/site-packages/automatika_e
     /opt/ros/jazzy/lib/python3.12/site-packages/automatika_embodied_agents
 COPY --from=emos-source /opt/ros/jazzy/lib/python3.12/site-packages/automatika_embodied_agents-0.7.3-py3.12.egg-info \
     /opt/ros/jazzy/lib/python3.12/site-packages/automatika_embodied_agents-0.7.3-py3.12.egg-info
-# rosidl_generator_py shared libraries the typesupport .so links against.
-COPY --from=emos-source /opt/ros/jazzy/lib/libautomatika_embodied_agents__rosidl_generator_py.so \
+# All rosidl shared libraries for the cortex action package (the typesupport
+# .so files link against the generator_c/typesupport_c family in /opt/ros/jazzy/lib).
+COPY --from=emos-source /opt/ros/jazzy/lib/libautomatika_embodied_agents__rosidl_*.so \
     /opt/ros/jazzy/lib/
-COPY --from=emos-source /opt/ros/jazzy/lib/libautomatika_ros_sugar__rosidl_generator_py.so \
+COPY --from=emos-source /opt/ros/jazzy/lib/libautomatika_ros_sugar__rosidl_*.so \
     /opt/ros/jazzy/lib/
 
 # Health check uses stdlib urllib (no curl dependency). Ubuntu Noble has no

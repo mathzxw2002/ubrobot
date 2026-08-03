@@ -26,7 +26,12 @@ from kompass.robot import (
     RobotType,
 )
 from ros_sugar.core.component import BaseComponent
-from ubrobot_interfaces.action import GraspObject, NavigateToObject
+from ubrobot_interfaces.action import NavigateToObject
+
+try:
+    from ubrobot_interfaces.action import GraspObject
+except ImportError:  # pre-grasp ubrobot_interfaces builds
+    GraspObject = None  # type: ignore[assignment,misc]
 
 
 NAVIGATION_ACTION_NAME = "/ubrobot/navigation/navigate_to_object"
@@ -167,7 +172,7 @@ def build_recipe(*, include_robot_stack=True):
         component_name="navigation_cortex",
     )
     capabilities = [NavigationCapabilityProxy()]
-    if grasp_exposure_enabled(os.environ):
+    if grasp_exposure_enabled(os.environ) and GraspObject is not None:
         capabilities.append(
             SemanticCapabilityProxy(
                 component_name="semantic_grasp_capability",

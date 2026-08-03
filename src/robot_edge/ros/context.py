@@ -50,16 +50,17 @@ class RosNodeGraph:
         self._topics = topics
 
     def has_topic(self, topic: str) -> bool:
-        if self._topics is None:
-            self._refresh()
+        # Always refresh: the ROS graph changes as nodes come and go (e.g. a
+        # sensor node that was still starting when the Edge booted). A stale
+        # cache would report a channel as unavailable forever.
+        self._refresh()
         assert self._topics is not None
         return topic in self._topics
 
     def read_topic(self, topic: str) -> dict[str, Any] | None:
         import rclpy  # noqa: PLC0415 - hardware-only import
 
-        if self._topics is None:
-            self._refresh()
+        self._refresh()
         assert self._topics is not None
         types = self._topics.get(topic)
         if not types:

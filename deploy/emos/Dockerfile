@@ -62,6 +62,27 @@ p.write_text(s.replace(old, new, 1))
 print('patched cortex string tool-arguments handling')
 PY
 
+# Fix kompass vision tracking timestamps: Bbox2D.timestamp is a C++ float32.
+# At epoch-seconds (~1.79e9) the float32 ULP is ~128 s, so every detection
+# frame collapses to the same timestamp and the RGBD follower logs "Box
+# updated with invalid time step" and resets velocity to zero forever. Use
+# the monotonic clock (small numbers, ~1 ms float32 precision) — the tracker
+# only compares consecutive detections within one process.
+RUN python3 - <<'PY'
+from pathlib import Path
+
+p = Path('/opt/ros/jazzy/lib/python3.12/site-packages/kompass/_external_types.py')
+s = p.read_text()
+if 'import time' not in s:
+    s = s.replace('import numpy as np', 'import numpy as np\nimport time', 1)
+old = '            timestamp = self.msg.header.stamp.sec + 1e-9 * self.msg.header.stamp.nanosec'
+new = '            timestamp = time.monotonic()'
+if old not in s:
+    raise SystemExit('kompass detection timestamp patch target not found')
+p.write_text(s.replace(old, new, 1))
+print('patched kompass detection timestamps to monotonic clock')
+PY
+
 # Build stable capability interfaces with the EMOS sensor-chain overlay.
 RUN apt-get update \
     && apt-get install -y --no-install-recommends \

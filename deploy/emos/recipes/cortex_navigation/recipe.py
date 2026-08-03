@@ -12,6 +12,7 @@ from agents.ros import Launcher, Topic
 from kompass.components import (
     Controller,
     ControllerConfig,
+    ControllerMode,
     DriveManager,
     LocalMapper,
     LocalMapperConfig,
@@ -249,7 +250,15 @@ def build_recipe(*, include_robot_stack=True):
                 msg_type="CameraInfo",
             ),
         )
-        controller.algorithm = ControllersID.VISION_DEPTH
+        # Set the vision mode via config only. Setting the `algorithm`
+        # property triggers `_activate_vision_mode()` immediately, which
+        # calls `get_logger()` on a not-yet-initialized component node when
+        # rclpy is already globally initialized (Kompass 0.8.1
+        # `is_node_initialized` uses the global `rclpy.ok()`), crashing
+        # during recipe build. `custom_on_activate` applies the mode after
+        # the component node is up.
+        controller.config.algorithm = ControllersID.VISION_DEPTH
+        controller.config._mode = ControllerMode.VISION_FOLLOWER
         controller.direct_sensor = False
 
         driver = DriveManager(component_name="my_driver")

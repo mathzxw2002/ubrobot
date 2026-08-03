@@ -121,6 +121,45 @@ class TestRobotEdgeBackendBehavior(unittest.TestCase):
         moving_idx = joined.index("moving")
         self.assertLess(planning_idx, moving_idx)
 
+    def test_409_detail_is_reported_truthfully(self) -> None:
+        """A 409 with a server detail must surface that reason, not a generic
+        "replay or stale" claim (e.g. hardware authority disabled)."""
+        from chat_ui.adapters.robot_edge import RobotEdgeBackend
+
+        class _Resp:
+            status_code = 409
+
+            def __init__(self, body: dict | None) -> None:
+                self._body = body
+
+            def json(self):
+                if self._body is None:
+                    raise ValueError("no json")
+                return self._body
+
+        with self.assertRaisesRegex(
+            RuntimeError, "hardware authority disabled"
+        ):
+            RobotEdgeBackend._parse_command_response(
+                _Resp({"detail": "hardware authority disabled: Robot Edge is in read-only mode (M6)"})
+            )
+
+        # No detail body -> the legacy generic message stays as fallback.
+        with self.assertRaisesRegex(RuntimeError, "replay or stale"):
+            RobotEdgeBackend._parse_command_response(_Resp(None))
+
+    def test_409_safety_latched_is_reported(self) -> None:
+        from chat_ui.adapters.robot_edge import RobotEdgeBackend
+
+        class _Resp:
+            status_code = 409
+
+            def json(self):
+                return {"detail": "Safety latched - cannot execute commands"}
+
+        with self.assertRaisesRegex(RuntimeError, "Safety latched"):
+            RobotEdgeBackend._parse_command_response(_Resp())
+
     def test_cancellation(self) -> None:
         """cancel_active must stop a running command; execute raises on cancel."""
         backend = self._backend()

@@ -139,6 +139,25 @@ class RobotEdgeBackend:
         return self._parse_command_response(response)
 
     @staticmethod
+    def _detail_from(response: httpx.Response) -> str:
+        """Extract the server-provided detail string, sanitized.
+
+        The Edge returns one detail per 409 reason: timestamp out of range,
+        nonce already used, safety latched, or hardware authority disabled.
+        Showing the real reason prevents misleading "replay or stale" claims.
+        """
+        try:
+            data = response.json()
+        except ValueError:
+            return ""
+        detail = data.get("detail") if isinstance(data, dict) else None
+        if not isinstance(detail, str):
+            return ""
+        # The detail is generated server-side and never contains tokens;
+        # bound its length anyway for log hygiene.
+        return detail[:200]
+
+    @staticmethod
     def _parse_command_response(response: httpx.Response) -> str:
         # Errors are sanitized: the bearer token never appears in messages.
         if response.status_code == 401:
@@ -146,6 +165,9 @@ class RobotEdgeBackend:
         if response.status_code == 403:
             raise RuntimeError("Robot Edge rejected the operator token scope")
         if response.status_code == 409:
+            detail = RobotEdgeBackend._detail_from(response)
+            if detail:
+                raise RuntimeError(f"Robot Edge rejected command: {detail}")
             raise RuntimeError("Robot Edge rejected the request (replay or stale)")
         if response.status_code >= 400:
             raise RuntimeError(f"Robot Edge rejected command (HTTP {response.status_code})")

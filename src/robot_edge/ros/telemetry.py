@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from datetime import datetime, timezone
+import math
 from typing import Any
 
 from ubrobot_contracts.telemetry import (
@@ -15,7 +16,10 @@ from ubrobot_contracts.telemetry import (
 from robot_edge.ros.context import RosGraph
 
 # Topic -> (channel, value extractor). All reads are strictly read-only.
+# /lekiwi_base_controller/odom is the measured live topic (2026-08-03); the
+# historical /odom/wheel design topic is kept for graph compatibility.
 _TOPIC_MAP: dict[str, tuple[TelemetryChannel, str]] = {
+    "/lekiwi_base_controller/odom": (TelemetryChannel.ODOMETRY, "wheel_odometry"),
     "/odom/wheel": (TelemetryChannel.ODOMETRY, "wheel_odometry"),
     "/odom": (TelemetryChannel.ODOMETRY, "odometry"),
     "/joint_states": (TelemetryChannel.JOINT_STATES, "joint_states"),
@@ -24,17 +28,32 @@ _TOPIC_MAP: dict[str, tuple[TelemetryChannel, str]] = {
 }
 
 
+def _quaternion_yaw(orientation: dict) -> float | None:
+    """Yaw (radians) from a ROS geometry_msgs/Quaternion dict, or None."""
+    try:
+        x, y, z, w = (
+            float(orientation["x"]),
+            float(orientation["y"]),
+            float(orientation["z"]),
+            float(orientation["w"]),
+        )
+    except (KeyError, TypeError, ValueError):
+        return None
+    return round(math.atan2(2.0 * (w * z + x * y), 1.0 - 2.0 * (y * y + z * z)), 4)
+
+
 def _value_for(topic: str, kind: str, raw: dict[str, Any]) -> dict[str, Any]:
     """Build a JSON-safe channel value from the read topic snapshot."""
     if kind == "wheel_odometry":
         pose = raw.get("pose") or {}
         twist = raw.get("twist") or {}
+        orientation = pose.get("orientation") if isinstance(pose, dict) else None
         return {
             "source": "robot-edge:ros",
             "topic": topic,
             "x": pose.get("position", {}).get("x") if isinstance(pose, dict) else None,
             "y": pose.get("position", {}).get("y") if isinstance(pose, dict) else None,
-            "yaw": None,
+            "yaw": _quaternion_yaw(orientation) if isinstance(orientation, dict) else None,
             "vx": twist.get("linear", {}).get("x") if isinstance(twist, dict) else None,
         }
     if kind == "odometry":

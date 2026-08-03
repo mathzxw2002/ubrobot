@@ -9,6 +9,7 @@ commands.
 from __future__ import annotations
 
 from datetime import datetime, timezone
+import math
 
 from ubrobot_contracts.telemetry import (
     TelemetryChannel,
@@ -21,10 +22,26 @@ from robot_edge.ros.context import RosGraph
 
 SUPPORTED_PROFILES = ("lekiwi",)
 
-# lekiwi: /odom/wheel (wheel odometry, ADR-0002), /joint_states (motor states).
+
+def _quaternion_yaw(orientation: dict) -> float | None:
+    """Yaw (radians) from a ROS geometry_msgs/Quaternion dict, or None."""
+    try:
+        x, y, z, w = (
+            float(orientation["x"]),
+            float(orientation["y"]),
+            float(orientation["z"]),
+            float(orientation["w"]),
+        )
+    except (KeyError, TypeError, ValueError):
+        return None
+    return round(math.atan2(2.0 * (w * z + x * y), 1.0 - 2.0 * (y * y + z * z)), 4)
+
+# lekiwi: /lekiwi_base_controller/odom (wheel odometry, measured live on the
+# Raspberry Pi 2026-08-03; the ros2_control controller publishes under its
+# own namespace, not the historical /odom/wheel design), /joint_states.
 _PROFILE_TOPICS: dict[str, dict[TelemetryChannel, tuple[str, str]]] = {
     "lekiwi": {
-        TelemetryChannel.ODOMETRY: ("/odom/wheel", "wheel odometry"),
+        TelemetryChannel.ODOMETRY: ("/lekiwi_base_controller/odom", "wheel odometry"),
         TelemetryChannel.JOINT_STATES: ("/joint_states", "motor joint states"),
     },
 }
@@ -109,6 +126,9 @@ class MobileBaseHealth:
             if isinstance(position, dict):
                 value["x"] = position.get("x")
                 value["y"] = position.get("y")
+            orientation = pose.get("orientation") if isinstance(pose, dict) else None
+            if isinstance(orientation, dict):
+                value["yaw"] = _quaternion_yaw(orientation)
             twist = raw.get("twist") or {}
             linear = twist.get("linear") if isinstance(twist, dict) else None
             if isinstance(linear, dict):

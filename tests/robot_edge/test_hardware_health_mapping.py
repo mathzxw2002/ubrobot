@@ -147,11 +147,14 @@ class TestMobileBaseHealth(unittest.TestCase):
     def test_lekiwi_odometry_and_joint_mapping(self) -> None:
         reader = MobileBaseHealth(
             FakeRosGraph(
-                topics={"/odom/wheel", "/joint_states"},
+                topics={"/lekiwi_base_controller/odom", "/joint_states"},
                 reads={
-                    "/odom/wheel": {
+                    "/lekiwi_base_controller/odom": {
                         "header": {"stamp": {"sec": int(datetime.now(timezone.utc).timestamp()), "nanosec": 0}},
-                        "pose": {"position": {"x": 0.1, "y": -0.2}},
+                        "pose": {
+                            "position": {"x": 0.1, "y": -0.2},
+                            "orientation": {"x": 0.0, "y": 0.0, "z": 0.7071, "w": 0.7071},
+                        },
                         "twist": {"linear": {"x": 0.0}},
                     },
                     "/joint_states": {
@@ -168,6 +171,8 @@ class TestMobileBaseHealth(unittest.TestCase):
         odom = snap[TelemetryChannel.ODOMETRY]
         self.assertEqual(odom.latest.state, TelemetryState.AVAILABLE)
         self.assertEqual(odom.latest.value["x"], 0.1)
+        # z=0.7071, w=0.7071 is a 90-degree rotation -> yaw ~= pi/2.
+        self.assertAlmostEqual(odom.latest.value["yaw"], 1.5708, places=3)
         joints = snap[TelemetryChannel.JOINT_STATES]
         self.assertEqual(joints.latest.value["motor_count"], 3)
         self.assertEqual(joints.latest.value["names"], ["back", "right", "left"])
@@ -181,9 +186,9 @@ class TestMobileBaseHealth(unittest.TestCase):
     def test_stale_odometry_is_stale(self) -> None:
         reader = MobileBaseHealth(
             FakeRosGraph(
-                topics={"/odom/wheel"},
+                topics={"/lekiwi_base_controller/odom"},
                 reads={
-                    "/odom/wheel": {
+                    "/lekiwi_base_controller/odom": {
                         "header": {"stamp": _old_stamp()},
                         "pose": {"position": {"x": 1.0, "y": 0.0}},
                     }

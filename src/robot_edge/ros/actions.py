@@ -23,10 +23,11 @@ EXPECTED_ACTIONS: dict[CapabilityName, str] = {
 }
 
 # Capabilities without an Action server backing (observation, follow, stop)
-# are derived from topic presence / local state.
+# are derived from topic presence / local state. FOLLOW checks the measured
+# lekiwi odometry topic first (2026-08-03), then generic /odom.
 _TOPIC_CAPABILITIES: dict[CapabilityName, tuple[str, ...]] = {
     CapabilityName.OBSERVATION: ("/camera/camera_info", "/camera/depth/camera_info"),
-    CapabilityName.FOLLOW: ("/odom/wheel", "/odom"),
+    CapabilityName.FOLLOW: ("/lekiwi_base_controller/odom", "/odom/wheel", "/odom"),
     CapabilityName.STOP: (),
 }
 

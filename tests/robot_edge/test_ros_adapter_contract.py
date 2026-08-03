@@ -104,9 +104,9 @@ class TestRosTelemetryMapping(unittest.TestCase):
 
     def test_odometry_mapping(self) -> None:
         backend = self._backend(
-            topics={"/odom/wheel", "/joint_states", "/camera/camera_info"},
+            topics={"/lekiwi_base_controller/odom", "/joint_states", "/camera/camera_info"},
             reads={
-                "/odom/wheel": {
+                "/lekiwi_base_controller/odom": {
                     "pose": {"position": {"x": 1.25, "y": -0.5}},
                     "twist": {"linear": {"x": 0.0}},
                 }
@@ -120,7 +120,7 @@ class TestRosTelemetryMapping(unittest.TestCase):
         json.dumps(odom.model_dump(mode="json"))
 
     def test_all_six_channels_present_with_explicit_state(self) -> None:
-        backend = self._backend(topics={"/odom/wheel", "/joint_states"})
+        backend = self._backend(topics={"/lekiwi_base_controller/odom", "/joint_states"})
         snapshot = backend.get_telemetry_snapshot()
         self.assertEqual(set(snapshot), set(TelemetryChannel))
         for channel in (
@@ -134,7 +134,7 @@ class TestRosTelemetryMapping(unittest.TestCase):
             )
 
     def test_topic_present_but_no_message_is_disconnected(self) -> None:
-        backend = self._backend(topics={"/odom/wheel"}, reads={"/odom/wheel": None})
+        backend = self._backend(topics={"/lekiwi_base_controller/odom"}, reads={"/lekiwi_base_controller/odom": None})
         snapshot = backend.get_telemetry_snapshot()
         self.assertEqual(
             snapshot[TelemetryChannel.ODOMETRY].latest.state,

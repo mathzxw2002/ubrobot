@@ -78,6 +78,24 @@ owner 确认：**当前没有实体急停按钮，不接线、不实现、不验
 **安全模型结论**：软件急停（latched，显式复位）是主要停止机制；人工拔
 电源线是最终切断层；两者都不依赖云端。M7 Task 13 导航验证按此模型执行。
 
+## 2026-08-03 实测：里程计话题名与设计预期不同
+
+抬起车轮预检（扭矩禁用、`hardware_mode:=real`）实测发现：
+
+- 驱动实际发布 **`/lekiwi_base_controller/odom`**（ros2_control 控制器
+  命名空间），**不是**本 ADR 早先设计的 `/odom/wheel`。
+- `/joint_states` 与设计一致；关节名为 `base_back_wheel_joint`、
+  `base_left_wheel_joint`、`base_right_wheel_joint`（注意 `dynamic_joint_states`
+  的顺序为 back/right/left，与 `/joint_states` 的 back/left/right 不同，
+  消费方必须按 name 配对而非按顺序）。
+- odom 消息包含 `pose.position`（x/y）、`pose.orientation`（四元数，
+  可转 yaw）、`twist.linear.x`（vx）。
+
+已据此修正 Robot Edge 只读适配器：`mobile_base_health.py` 与
+`ros/telemetry.py` 的 lekiwi 里程计话题改为
+`/lekiwi_base_controller/odom`（保留 `/odom/wheel`、`/odom` 为兼容），
+并提取 yaw。`ros/actions.py` 的 FOLLOW 能力检查同步更新。
+
 ## 参考
 
 - [设计文档](../plans/2026-07-28-lekiwi-driver-container-design.md)

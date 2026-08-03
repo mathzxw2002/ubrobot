@@ -102,25 +102,199 @@ def _timeline_markdown(snapshot):
     return "\n".join(rows)
 
 
+_CHANNEL_TITLES = {
+    "camera": "📷 相机 RGB",
+    "depth": "🕳️ 深度相机",
+    "odometry": "🧭 里程计",
+    "joint_states": "⚙️ 关节状态",
+    "navigation_lease": "🔑 导航租约",
+    "capability_health": "🧩 能力健康",
+}
+
+# Labels for the meaningful telemetry fields; envelope/boilerplate keys
+# (channel/state/available/source/timestamp) are intentionally skipped.
+_FIELD_LABELS = {
+    "width": "宽度",
+    "height": "高度",
+    "unit": "单位",
+    "encoding": "编码",
+    "frame_id": "坐标系",
+    "calibrated": "已标定",
+    "frame_matches_expected": "帧匹配",
+    "kind": "类型",
+    "distortion_model": "畸变模型",
+    "x": "x",
+    "y": "y",
+    "yaw": "yaw",
+    "vx": "线速度",
+    "profile": "底盘配置",
+    "motor_count": "电机数",
+    "names": "关节",
+    "positions": "位置",
+    "velocities": "速度",
+    "owner": "持有者",
+    "lease_id": "租约 ID",
+    "expires_at": "到期时间",
+    "topic": "话题",
+    "age_sec": "消息龄",
+    "detail": "详情",
+}
+
+
+def _fmt_value(value) -> str:
+    """Format one scalar for display (floats with two decimals)."""
+    if isinstance(value, bool):
+        return "是" if value else "否"
+    if isinstance(value, float):
+        return f"{value:.2f}"
+    return str(value)
+
+
+def _telemetry_value_fields(value) -> dict:
+    """Extract semantic fields, unwrapping the Robot Edge bridge envelope.
+
+    The edge telemetry client publishes
+    ``{"channel", "state", "available", "source", "value": {...}}``; the
+    fixture adapters publish flat DTO dicts. Both shapes are supported.
+    """
+    if not isinstance(value, dict):
+        return {}
+    nested = value.get("value")
+    if isinstance(nested, dict) and (
+        "state" in value or "available" in value or "channel" in value
+    ):
+        return dict(nested)
+    return dict(value)
+
+
+def _telemetry_state_label(sample) -> str:
+    if sample.get("disconnected"):
+        return "断连"
+    if sample.get("available"):
+        return "陈旧" if sample.get("stale") else "正常"
+    return "不可用"
+
+
+def _channel_summary(channel: str, fields: dict) -> str:
+    """One-line key-value summary for the overview table."""
+    if channel in ("camera", "depth"):
+        width, height = fields.get("width"), fields.get("height")
+        parts = []
+        if width is not None and height is not None:
+            parts.append(f"{width}×{height}")
+        if fields.get("encoding"):
+            parts.append(str(fields["encoding"]))
+        if channel == "depth" and fields.get("unit"):
+            parts.append(str(fields["unit"]))
+        calibrated = fields.get("calibrated")
+        if isinstance(calibrated, bool):
+            parts.append("已标定" if calibrated else "未标定")
+        return " · ".join(parts) or "-"
+    if channel == "odometry":
+        parts = [
+            f"{key}={_fmt_value(fields[key])}"
+            for key in ("x", "y", "yaw", "vx")
+            if key in fields and fields[key] is not None
+        ]
+        return ", ".join(parts) or "-"
+    if channel == "joint_states":
+        names = fields.get("names") or []
+        positions = fields.get("positions") or []
+        count = fields.get("motor_count")
+        if count is None:
+            count = len(names)
+        if positions:
+            brief = ", ".join(
+                f"{name}:{_fmt_value(position)}"
+                for name, position in zip(names[:4], positions[:4])
+            )
+            suffix = "…" if len(names) > 4 else ""
+            return f"{count} 电机 [{brief}{suffix}]"
+        return f"{count} 电机" if count else "-"
+    if channel == "navigation_lease":
+        owner = fields.get("owner")
+        if owner:
+            expires = fields.get("expires_at")
+            extra = f" 至 {str(expires)[:19]}" if expires else ""
+            return f"持有者={owner}{extra}"
+        return "无"
+    if channel == "capability_health":
+        caps = fields.get("capabilities")
+        if isinstance(caps, dict) and caps:
+            parts = [
+                f"{name}:{item.get('health', '?')}"
+                for name, item in caps.items()
+                if isinstance(item, dict)
+            ]
+            return " · ".join(parts[:5]) or "-"
+        return "-"
+    return "-"
+
+
+def _channel_detail_lines(fields: dict) -> list[str]:
+    """Detail lines for one channel's value dict (label: value)."""
+    lines = []
+    for key, label in _FIELD_LABELS.items():
+        if key not in fields or fields[key] is None:
+            continue
+        value = fields[key]
+        if isinstance(value, dict):
+            continue
+        if isinstance(value, (list, tuple)):
+            if not value:
+                continue
+            rendered = ", ".join(_fmt_value(item) for item in value[:8])
+            suffix = "…" if len(value) > 8 else ""
+            lines.append(f"- {label}: {rendered}{suffix}")
+        else:
+            lines.append(f"- {label}: {_fmt_value(value)}")
+    return lines
+
+
 def _telemetry_markdown(snapshot):
+    """Render robot/sensor telemetry as readable Markdown for the console.
+
+    Shows one overview table (state + age + key values) and one detail
+    block per channel with the actual sensor values (odometry, joint
+    positions, camera metadata, lease owner, capability health). Values
+    come only from the serialized telemetry hub; no SDK objects or
+    credentials are ever rendered.
+    """
     telemetry = snapshot["telemetry"]
-    rows = [
+    lines = [
         "### 机器人与 Capability 状态",
         "",
-        "| 通道 | 状态 | 更新 |",
-        "|---|---|---|",
+        "| 通道 | 状态 | 更新 | 关键值 |",
+        "|---|---|---|---|",
     ]
     for channel, sample in telemetry.items():
-        available = sample.get("available", True)
-        state = (
-            "不可用"
-            if not available
-            else ("陈旧" if sample.get("stale") else "正常")
-        )
+        title = _CHANNEL_TITLES.get(channel, channel)
+        state = _telemetry_state_label(sample)
         age = sample.get("age_sec")
         age_text = "—" if age is None else f"{age:.1f}s 前"
-        rows.append(f"| `{channel}` | {state} | {age_text} |")
-    return "\n".join(rows)
+        fields = _telemetry_value_fields(sample.get("value"))
+        summary = _channel_summary(channel, fields)
+        lines.append(f"| {title} | {state} | {age_text} | {summary} |")
+
+    lines.append("")
+    for channel, sample in telemetry.items():
+        title = _CHANNEL_TITLES.get(channel, channel)
+        state = _telemetry_state_label(sample)
+        age = sample.get("age_sec")
+        age_text = "—" if age is None else f"{age:.1f}s 前"
+        lines.append(f"**{title}** — `{state}`（{age_text}）")
+        fields = _telemetry_value_fields(sample.get("value"))
+        detail_lines = _channel_detail_lines(fields)
+        if not detail_lines:
+            detail = fields.get("detail")
+            if detail:
+                lines.append(f"- 详情: {detail}")
+            else:
+                lines.append("- （无详细数据）")
+        else:
+            lines.extend(detail_lines)
+        lines.append("")
+    return "\n".join(lines)
 
 
 def _voice_status_markdown(snapshot):

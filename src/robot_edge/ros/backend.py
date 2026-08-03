@@ -206,7 +206,6 @@ class RosCortexCommandBackend:
     def _default_client_factory(self) -> Any:
         """Build the real rclpy Cortex action client (hardware side only)."""
         import rclpy  # noqa: PLC0415 - hardware-only import
-        from rclpy.executors import SingleThreadedExecutor
         from rclpy.node import Node
 
         from automatika_embodied_agents.action import VisionLanguageAction
@@ -214,8 +213,6 @@ class RosCortexCommandBackend:
         if not rclpy.ok():
             rclpy.init(args=[])
         node = Node("robot_edge_command")
-        executor = SingleThreadedExecutor(context=node.get_context())
-        executor.add_node(node)
 
         class _CortexClient:
             """Small rclpy bridge: send goal, stream feedback, report result."""
@@ -224,13 +221,11 @@ class RosCortexCommandBackend:
                 from rclpy.action import ActionClient
 
                 self._node = node
-                self._executor = executor
                 self._action_type = VisionLanguageAction
                 self._action_client = ActionClient(
                     node, VisionLanguageAction, CORTEX_ACTION_NAME
                 )
                 self.goal_handle = None
-                self._spinning = False
 
             def send_goal(
                 self,
@@ -272,16 +267,15 @@ class RosCortexCommandBackend:
                     terminal_callback(status="failed", message=f"Cortex status {result.status}")
 
             def _spin_until(self, future: Any, *, timeout_sec: float) -> None:
-                import time
+                import rclpy  # noqa: PLC0415
 
-                deadline = time.monotonic() + timeout_sec
-                while not future.done() and time.monotonic() < deadline:
-                    self._executor.spin_once(timeout_sec=0.1)
+                rclpy.spin_until_future_complete(
+                    self._node, future, timeout_sec=timeout_sec
+                )
 
             def shutdown(self) -> None:
                 try:
                     self._action_client.destroy()
-                    self._executor.shutdown(timeout_sec=2.0)
                     self._node.destroy_node()
                 except Exception:
                     pass

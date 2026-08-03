@@ -12,11 +12,11 @@ from agents.ros import Launcher, Topic
 from kompass.components import (
     Controller,
     ControllerConfig,
-    ControllerMode,
     DriveManager,
     LocalMapper,
     LocalMapperConfig,
 )
+from kompass.components._modes import ControllerMode  # not exported at top level
 from kompass.control import ControllersID, MapConfig
 from kompass.robot import (
     AngularCtrlLimits,

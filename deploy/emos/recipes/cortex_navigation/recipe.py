@@ -239,7 +239,9 @@ def build_recipe(*, include_robot_stack=True):
         controller_config = ControllerConfig(
             loop_rate=10.0,
             ctrl_publish_type="Parallel",
-            control_time_step=0.3,
+            # Must match loop_rate (10 Hz -> 0.1 s); a 0.3 s step with a 10 Hz
+            # loop produced "invalid time step" and zeroed velocity commands.
+            control_time_step=0.1,
         )
         controller_config.frames.robot_base = "base_link"
         controller_config.frames.depth = "camera_depth_link"

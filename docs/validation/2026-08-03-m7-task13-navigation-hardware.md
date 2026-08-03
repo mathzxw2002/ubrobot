@@ -50,9 +50,14 @@ Guard lease timeout 0.25 s -> command stops within ~0.33 s incl. inertia.
 1. DDS matching timing: publishing lease/raw immediately after node creation
    loses the first messages (subscription discovery not complete). Fix: wait
    for matching (1-2 s) and repeat-publish heartbeats.
-2. Guard lease requires continuous heartbeat (lease_timeout 0.25 s default;
-   the launch-time parameter warning shows guard params are not applied, so
-   the default applies).
+2. Guard lease requires continuous heartbeat (lease_timeout_sec=0.25 s).
+3. Guard parameters verified loaded: lease_timeout_sec=0.25,
+   raw_command_timeout_sec=0.25, guard_period_sec=0.05 (ros2 param get).
+   The launch-time "Parameter 'xxx' is not supported" warnings are harmless
+   noise: ros2 launch passes every DeclareLaunchArgument to all nodes as ROS
+   parameters, and the RealSense nested launch (no explicit parameters)
+   warns about the unknown keys. Nodes with explicit `parameters` (the
+   guard) are unaffected.
 
 ## Acceptance
 

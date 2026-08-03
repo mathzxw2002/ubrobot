@@ -5,25 +5,31 @@ FROM ros:jazzy-ros-base-noble
 
 WORKDIR /app
 
-# libgpiod2 (v2 shared library) is required by the `gpiod` Python bindings
+# libgpiod2 + headers are required by the optional `gpiod` Python bindings
 # used for the physical E-stop contact (M7). Ubuntu Noble ships libgpiod 2.x.
-# python3-pip is absent from the ros:jazzy-ros-base image.
+# python3-pip is absent from the ros:jazzy-ros-base image; Noble also enforces
+# PEP 668, so runtime deps go into a dedicated virtualenv.
 RUN apt-get update \
-    && apt-get install -y --no-install-recommends libgpiod2 python3-pip \
-    && rm -rf /var/lib/apt/lists/*
+    && apt-get install -y --no-install-recommends libgpiod2 libgpiod-dev python3-pip python3-venv \
+    && rm -rf /var/lib/apt/lists/* \
+    && python3 -m venv /opt/edge-venv
 
 # Runtime Python deps for the Edge service itself.
 COPY requirements-robot-edge.txt .
-RUN pip install --no-cache-dir -r requirements-robot-edge.txt
+COPY requirements-robot-edge-estop.txt .
+RUN /opt/edge-venv/bin/pip install --no-cache-dir \
+        -r requirements-robot-edge.txt \
+        -r requirements-robot-edge-estop.txt
 
 # Copy source code (contracts + edge service + ROS adapters).
 COPY src/ubrobot_contracts /app/ubrobot_contracts/
 COPY src/robot_edge /app/robot_edge/
 
-# Health check uses stdlib urllib (no curl dependency).
+# Health check uses stdlib urllib (no curl dependency). Ubuntu Noble has no
+# bare `python` binary, so the healthcheck calls python3 explicitly.
 HEALTHCHECK --interval=30s --timeout=5s \
-    CMD python -c "import urllib.request,sys;sys.exit(0 if urllib.request.urlopen('http://127.0.0.1:8780/v1/health/live', timeout=2).status==200 else 1)" || exit 1
+    CMD python3 -c "import urllib.request,sys;sys.exit(0 if urllib.request.urlopen('http://127.0.0.1:8780/v1/health/live', timeout=2).status==200 else 1)" || exit 1
 
 EXPOSE 8780
 
-CMD ["python", "-m", "robot_edge.app"]
+CMD ["/opt/edge-venv/bin/python", "-m", "robot_edge.app"]

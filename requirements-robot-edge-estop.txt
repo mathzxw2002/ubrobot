@@ -1,0 +1,5 @@
+# Robot Edge optional physical E-stop dependencies (M7).
+# libgpiod v2 Python bindings; robot-side ROS images only.
+# Requires libgpiod2 + libgpiod-dev from apt on Ubuntu Noble.
+# Workstation venvs must NOT install this (no libgpiod on Windows).
+gpiod>=2.0

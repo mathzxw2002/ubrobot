@@ -25,6 +25,9 @@ services:
       # point them at the tmpfs (same pattern as the lekiwi driver container).
       - ROS_HOME=/tmp/ros-home
       - ROS_LOG_DIR=/tmp/ros-logs
+      # Listen on all interfaces so the workstation Operator Console can
+      # reach the Edge (bearer-token auth protects every endpoint).
+      - UBROBOT_EDGE_HOST=0.0.0.0
       - UBROBOT_EDGE_TOKENS_FILE=/app/config/tokens.json
       # M7 physical E-stop binding. Enabled only after the owner wires and
       # verifies the NC auxiliary contact (ADR-0002). While disabled the

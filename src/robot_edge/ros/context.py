@@ -114,6 +114,21 @@ def _import_message_type(type_name: str) -> Any:
     return getattr(module, parts[1])
 
 
+def _message_field_names(message: Any) -> list[str]:
+    """Public field names of a ROS 2 generated Python message.
+
+    rclpy-generated classes (e.g. ``nav_msgs.msg.Odometry``) declare slots
+    with private names (``_pose``, ``_twist``, ...) and expose public
+    read-only properties without an instance ``__dict__``. Strip the leading
+    underscore so ``_json_safe`` emits the public field names; fall back to
+    the instance dict for plain objects.
+    """
+    slots = getattr(message, "__slots__", ()) or ()
+    if slots:
+        return [str(name).lstrip("_") for name in slots if str(name)]
+    return list(getattr(message, "__dict__", {}).keys())
+
+
 def _json_safe(message: Any, *, _depth: int = 0) -> dict[str, Any]:
     """Extract a JSON-safe subset of a ROS message.
 
@@ -135,7 +150,7 @@ def _json_safe(message: Any, *, _depth: int = 0) -> dict[str, Any]:
                 result[str(key)] = value
         return result
     data: dict[str, Any] = {}
-    for name in getattr(message, "__slots__", []):
+    for name in _message_field_names(message):
         try:
             value = getattr(message, name)
         except Exception:
@@ -148,6 +163,8 @@ def _json_safe(message: Any, *, _depth: int = 0) -> dict[str, Any]:
             data[name] = _json_safe(value, _depth=_depth + 1)
         elif isinstance(value, (bytes, bytearray)):
             data[name] = len(value)  # size only, never the raw frame
+        elif hasattr(value, "__slots__") or hasattr(value, "__dict__"):
+            data[name] = _json_safe(value, _depth=_depth + 1)
     return data
 
 

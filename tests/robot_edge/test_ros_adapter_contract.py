@@ -41,7 +41,11 @@ class FakeRosGraph:
 
 
 from robot_edge.ros.backend import RosReadonlyBackend  # noqa: E402
-from robot_edge.ros.context import create_ros_context  # noqa: E402
+from robot_edge.ros.context import (
+    _json_safe,
+    _message_field_names,
+    create_ros_context,
+)  # noqa: E402
 
 
 class TestRosImportBoundary(unittest.TestCase):
@@ -231,3 +235,94 @@ class TestReadonlyBackendRejectsCommands(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+def _make_msg_class(fields: tuple[str, ...]):
+    """Build a class mimicking an rclpy-generated message.
+
+    Real generated messages declare slots with private names (``_frame_id``)
+    and expose public properties, with no instance ``__dict__``.
+    """
+
+    slots = tuple(f"_{name}" for name in fields)
+    attrs: dict[str, Any] = {"__slots__": slots}
+
+    def make_property(name: str):
+        def getter(self, _name=name):
+            return getattr(self, f"_{_name}")
+        return property(getter)
+
+    for name in fields:
+        attrs[name] = make_property(name)
+
+    def _init(self, **kw) -> None:
+        for name in fields:
+            object.__setattr__(self, f"_{name}", kw.get(name))
+
+    attrs["__init__"] = _init
+    return type("_Ros2StyleMessage", (), attrs)
+
+
+class TestJsonSafeRosMessage(unittest.TestCase):
+    """_json_safe must extract fields from rclpy-style generated messages."""
+
+    def test_private_slots_map_to_public_names(self) -> None:
+        Odometry = _make_msg_class(("pose", "twist", "header"))
+        msg = Odometry(
+            pose=_make_msg_class(("position",))(
+                position=_make_msg_class(("x", "y", "z"))(x=1.25, y=-0.5, z=0.0)
+            ),
+            twist=_make_msg_class(("linear",))(
+                linear=_make_msg_class(("x",))(x=0.05)
+            ),
+            header=_make_msg_class(("stamp", "frame_id"))(
+                stamp=_make_msg_class(("sec", "nanosec"))(sec=10, nanosec=5),
+                frame_id="base",
+            ),
+        )
+        self.assertEqual(_message_field_names(msg), ["pose", "twist", "header"])
+        safe = _json_safe(msg)
+        self.assertEqual(safe["pose"]["position"]["x"], 1.25)
+        self.assertEqual(safe["twist"]["linear"]["x"], 0.05)
+        self.assertEqual(safe["header"]["stamp"]["sec"], 10)
+        self.assertEqual(safe["header"]["frame_id"], "base")
+
+    def test_scalar_arrays_are_kept(self) -> None:
+        JointStates = _make_msg_class(("name", "position", "velocity"))
+        msg = JointStates(
+            name=["back", "left", "right"],
+            position=[0.0, 0.1, -0.1],
+            velocity=[0.0, 0.0, 0.0],
+        )
+        safe = _json_safe(msg)
+        self.assertEqual(safe["name"], ["back", "left", "right"])
+        self.assertEqual(safe["position"], [0.0, 0.1, -0.1])
+        self.assertEqual(safe["velocity"], [0.0, 0.0, 0.0])
+
+    def test_array_of_nested_messages(self) -> None:
+        WithCov = _make_msg_class(("covariance",))
+        CovEntry = _make_msg_class(("a", "b"))
+        msg = WithCov(covariance=[CovEntry(a=1.0), CovEntry(b=2.0)])
+        safe = _json_safe(msg)
+        self.assertEqual(safe["covariance"][0]["a"], 1.0)
+        self.assertEqual(safe["covariance"][1]["b"], 2.0)
+
+    def test_bytes_are_reduced_to_size(self) -> None:
+        DataMsg = _make_msg_class(("data", "label"))
+        msg = DataMsg(data=b"\x00\x01\x02\x03", label="ok")
+        safe = _json_safe(msg)
+        self.assertEqual(safe["data"], 4)
+        self.assertEqual(safe["label"], "ok")
+
+    def test_depth_bound(self) -> None:
+        # Six nested levels; _json_safe recurses up to depth 4, so the
+        # innermost nodes collapse to {} and only 5 child keys survive.
+        Node = _make_msg_class(("value", "child"))
+        deep = Node(value=0)
+        for _ in range(6):
+            deep = Node(child=deep)
+        safe = _json_safe(deep)
+        self.assertEqual(
+            safe,
+            {"child": {"child": {"child": {"child": {"child": {}}}}}},
+        )

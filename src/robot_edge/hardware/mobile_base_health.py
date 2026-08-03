@@ -121,7 +121,11 @@ class MobileBaseHealth:
             "detail": detail,
         }
         if channel == TelemetryChannel.ODOMETRY:
+            # Unwrap PoseWithCovariance/TwistWithCovariance double nesting
+            # (pose.pose.position, twist.twist.linear from rclpy Odometry).
             pose = raw.get("pose") or {}
+            if isinstance(pose, dict) and isinstance(pose.get("pose"), dict):
+                pose = pose["pose"]
             position = pose.get("position") if isinstance(pose, dict) else None
             if isinstance(position, dict):
                 value["x"] = position.get("x")
@@ -130,6 +134,8 @@ class MobileBaseHealth:
             if isinstance(orientation, dict):
                 value["yaw"] = _quaternion_yaw(orientation)
             twist = raw.get("twist") or {}
+            if isinstance(twist, dict) and isinstance(twist.get("twist"), dict):
+                twist = twist["twist"]
             linear = twist.get("linear") if isinstance(twist, dict) else None
             if isinstance(linear, dict):
                 value["vx"] = linear.get("x")

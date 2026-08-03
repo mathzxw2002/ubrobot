@@ -106,13 +106,20 @@ class TestRosTelemetryMapping(unittest.TestCase):
         graph = FakeRosGraph(topics=topics, reads=reads)
         return RosReadonlyBackend(graph)
 
-    def test_odometry_mapping(self) -> None:
+    def test_odometry_mapping_unwraps_covariance(self) -> None:
+        # The live rclpy Odometry shape is pose.pose.position /
+        # twist.twist.linear (PoseWithCovariance/TwistWithCovariance).
         backend = self._backend(
             topics={"/lekiwi_base_controller/odom", "/joint_states", "/camera/camera/color/camera_info"},
             reads={
                 "/lekiwi_base_controller/odom": {
-                    "pose": {"position": {"x": 1.25, "y": -0.5}},
-                    "twist": {"linear": {"x": 0.0}},
+                    "pose": {
+                        "pose": {
+                            "position": {"x": 1.25, "y": -0.5, "z": 0.0},
+                            "orientation": {"x": 0.0, "y": 0.0, "z": 0.7071, "w": 0.7071},
+                        }
+                    },
+                    "twist": {"twist": {"linear": {"x": 0.05, "y": 0.0, "z": 0.0}}},
                 }
             },
         )
@@ -121,6 +128,8 @@ class TestRosTelemetryMapping(unittest.TestCase):
         self.assertEqual(odom.latest.state, TelemetryState.AVAILABLE)
         self.assertEqual(odom.latest.value["x"], 1.25)
         self.assertEqual(odom.latest.value["y"], -0.5)
+        self.assertAlmostEqual(odom.latest.value["yaw"], 1.5708, places=3)
+        self.assertEqual(odom.latest.value["vx"], 0.05)
         json.dumps(odom.model_dump(mode="json"))
 
     def test_all_six_channels_present_with_explicit_state(self) -> None:
@@ -267,13 +276,24 @@ class TestJsonSafeRosMessage(unittest.TestCase):
     """_json_safe must extract fields from rclpy-style generated messages."""
 
     def test_private_slots_map_to_public_names(self) -> None:
+        # rclpy Odometry shape: pose/twist are PoseWithCovariance/
+        # TwistWithCovariance with an inner pose/twist field.
+        PoseWithCovariance = _make_msg_class(("pose", "covariance"))
+        TwistWithCovariance = _make_msg_class(("twist", "covariance"))
         Odometry = _make_msg_class(("pose", "twist", "header"))
         msg = Odometry(
-            pose=_make_msg_class(("position",))(
-                position=_make_msg_class(("x", "y", "z"))(x=1.25, y=-0.5, z=0.0)
+            pose=PoseWithCovariance(
+                pose=_make_msg_class(("position", "orientation"))(
+                    position=_make_msg_class(("x", "y", "z"))(x=1.25, y=-0.5, z=0.0),
+                    orientation=_make_msg_class(("x", "y", "z", "w"))(
+                        x=0.0, y=0.0, z=0.7071, w=0.7071
+                    ),
+                )
             ),
-            twist=_make_msg_class(("linear",))(
-                linear=_make_msg_class(("x",))(x=0.05)
+            twist=TwistWithCovariance(
+                twist=_make_msg_class(("linear", "angular"))(
+                    linear=_make_msg_class(("x", "y", "z"))(x=0.05, y=0.0, z=0.0)
+                )
             ),
             header=_make_msg_class(("stamp", "frame_id"))(
                 stamp=_make_msg_class(("sec", "nanosec"))(sec=10, nanosec=5),
@@ -282,17 +302,19 @@ class TestJsonSafeRosMessage(unittest.TestCase):
         )
         self.assertEqual(_message_field_names(msg), ["pose", "twist", "header"])
         safe = _json_safe(msg)
-        self.assertEqual(safe["pose"]["position"]["x"], 1.25)
-        self.assertEqual(safe["twist"]["linear"]["x"], 0.05)
+        self.assertEqual(safe["pose"]["pose"]["position"]["x"], 1.25)
+        self.assertEqual(safe["twist"]["twist"]["linear"]["x"], 0.05)
         self.assertEqual(safe["header"]["stamp"]["sec"], 10)
         self.assertEqual(safe["header"]["frame_id"], "base")
 
     def test_scalar_arrays_are_kept(self) -> None:
+        from array import array
+
         JointStates = _make_msg_class(("name", "position", "velocity"))
         msg = JointStates(
             name=["back", "left", "right"],
-            position=[0.0, 0.1, -0.1],
-            velocity=[0.0, 0.0, 0.0],
+            position=array("d", [0.0, 0.1, -0.1]),
+            velocity=array("d", [0.0, 0.0, 0.0]),
         )
         safe = _json_safe(msg)
         self.assertEqual(safe["name"], ["back", "left", "right"])

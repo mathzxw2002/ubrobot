@@ -7,6 +7,7 @@ any ROS dependency.
 
 from __future__ import annotations
 
+from array import array
 import time
 from typing import Any, Protocol
 
@@ -157,7 +158,7 @@ def _json_safe(message: Any, *, _depth: int = 0) -> dict[str, Any]:
             continue
         if isinstance(value, (str, int, float, bool)):
             data[name] = value
-        elif isinstance(value, list):
+        elif isinstance(value, (list, array)):
             data[name] = _json_safe_list(value, _depth=_depth + 1)
         elif isinstance(value, dict):
             data[name] = _json_safe(value, _depth=_depth + 1)
@@ -168,17 +169,23 @@ def _json_safe(message: Any, *, _depth: int = 0) -> dict[str, Any]:
     return data
 
 
-def _json_safe_list(values: list[Any], *, _depth: int) -> list[Any]:
-    """Convert a list of ROS values to JSON-safe scalars/containers."""
+def _json_safe_list(values: Any, *, _depth: int) -> list[Any]:
+    """Convert a ROS array to JSON-safe scalars/containers.
+
+    rclpy float64[]/int[] fields are ``array.array`` instances, not Python
+    lists; normalize them first so the scalars survive serialization.
+    """
     if _depth > 4:
         return []
+    if isinstance(values, array):
+        values = values.tolist()
     result: list[Any] = []
     for value in values:
         if isinstance(value, (str, int, float, bool)):
             result.append(value)
         elif isinstance(value, (bytes, bytearray)):
             result.append(len(value))
-        elif isinstance(value, list):
+        elif isinstance(value, (list, array)):
             result.append(_json_safe_list(value, _depth=_depth + 1))
         elif isinstance(value, dict):
             result.append(_json_safe(value, _depth=_depth + 1))

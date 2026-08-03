@@ -152,10 +152,12 @@ class TestMobileBaseHealth(unittest.TestCase):
                     "/lekiwi_base_controller/odom": {
                         "header": {"stamp": {"sec": int(datetime.now(timezone.utc).timestamp()), "nanosec": 0}},
                         "pose": {
-                            "position": {"x": 0.1, "y": -0.2},
-                            "orientation": {"x": 0.0, "y": 0.0, "z": 0.7071, "w": 0.7071},
+                            "pose": {
+                                "position": {"x": 0.1, "y": -0.2},
+                                "orientation": {"x": 0.0, "y": 0.0, "z": 0.7071, "w": 0.7071},
+                            }
                         },
-                        "twist": {"linear": {"x": 0.0}},
+                        "twist": {"twist": {"linear": {"x": 0.0}}},
                     },
                     "/joint_states": {
                         "header": {"stamp": {"sec": int(datetime.now(timezone.utc).timestamp()), "nanosec": 0}},

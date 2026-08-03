@@ -45,11 +45,27 @@ def _quaternion_yaw(orientation: dict) -> float | None:
     return round(math.atan2(2.0 * (w * z + x * y), 1.0 - 2.0 * (y * y + z * z)), 4)
 
 
+def _unwrap_covariance(value: Any) -> dict:
+    """Unwrap PoseWithCovariance/TwistWithCovariance double nesting.
+
+    rclpy Odometry serializes ``pose.pose.position`` and
+    ``twist.twist.linear``; the extractors below want the inner pose/twist.
+    """
+    if isinstance(value, dict):
+        inner = value.get("pose")
+        if isinstance(inner, dict):
+            return inner
+        inner = value.get("twist")
+        if isinstance(inner, dict):
+            return inner
+    return value or {}
+
+
 def _value_for(topic: str, kind: str, raw: dict[str, Any]) -> dict[str, Any]:
     """Build a JSON-safe channel value from the read topic snapshot."""
     if kind == "wheel_odometry":
-        pose = raw.get("pose") or {}
-        twist = raw.get("twist") or {}
+        pose = _unwrap_covariance(raw.get("pose"))
+        twist = _unwrap_covariance(raw.get("twist"))
         orientation = pose.get("orientation") if isinstance(pose, dict) else None
         return {
             "source": "robot-edge:ros",
@@ -60,7 +76,7 @@ def _value_for(topic: str, kind: str, raw: dict[str, Any]) -> dict[str, Any]:
             "vx": twist.get("linear", {}).get("x") if isinstance(twist, dict) else None,
         }
     if kind == "odometry":
-        pose = raw.get("pose") or {}
+        pose = _unwrap_covariance(raw.get("pose"))
         return {
             "source": "robot-edge:ros",
             "topic": topic,

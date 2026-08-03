@@ -61,6 +61,22 @@
 5. Component subprocesses need AMENT_PREFIX_PATH when entrypoint overridden.
 6. float32 timestamp collapse (a194b35) — the blocking issue.
 
+
+## Production image upgrade (jazzy-m7-20260803)
+
+Both emos containers were upgraded to the rebuilt production image
+(no recipe mounts, no container-layer patches):
+
+- bringup + recipe run entirely from the image.
+- Verified patches inside the image: kompass monotonic timestamps,
+  recipe config-mode vision setup, cortex tool-args, grasp optional.
+- New finding fixed during upgrade: the recipe container must mount the
+  shared Fast DDS udp-only profile; without it DDS discovery inside the
+  recipe container did not deliver /scan (CriticalZoneChecker never
+  initialized). With the mount: "CriticalZoneChecker is READY!".
+- Full chain re-validated on the production image: 166 non-zero varying
+  commands at /cmd_vel and 166 synchronized at the driver adapter.
+
 ## Acceptance
 
 - [x] Real Kompass (not the fixture) serves /track_vision_target.

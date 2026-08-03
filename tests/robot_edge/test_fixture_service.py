@@ -299,3 +299,82 @@ class TestServiceExists(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class TestFixtureSimulatedMotion(unittest.TestCase):
+    """Fixture motion telemetry: command drives odometry, then returns to zero."""
+
+    @unittest.skipUnless(HAS_SERVICE, "robot_edge not available")
+    def test_navigation_command_advances_odometry(self) -> None:
+        backend = FixtureBackend()
+        snapshot0 = backend.get_telemetry_snapshot()
+        self.assertEqual(snapshot0[TelemetryChannel.ODOMETRY].latest.value["x"], 0.0)
+        self.assertEqual(snapshot0[TelemetryChannel.ODOMETRY].latest.value["moving"], False)
+        self.assertEqual(snapshot0[TelemetryChannel.JOINT_STATES].latest.value["names"], [
+            "base_back_wheel_joint", "base_left_wheel_joint", "base_right_wheel_joint",
+        ])
+
+        for state, _, _ in backend.get_command_sequence("导航到前面的椅子"):
+            pass
+        odom = backend.get_telemetry_snapshot()[TelemetryChannel.ODOMETRY].latest.value
+        self.assertGreater(odom["x"], 0.0)
+        self.assertEqual(odom["moving"], False)  # ended on the final step
+        self.assertEqual(odom["vx"], 0.0)
+
+    @unittest.skipUnless(HAS_SERVICE, "robot_edge not available")
+    def test_wheels_turn_while_moving_and_keep_angle_when_stopped(self) -> None:
+        backend = FixtureBackend()
+        gen = backend.get_command_sequence("导航到前面的椅子")
+        states = [next(gen) for _ in range(5)]  # accepted/planning/running/running/succeeded
+        running_values = []
+        for state, _, _ in states:
+            pass
+        # During the run the fixture advances x by two 0.15 m steps.
+        self.assertEqual(backend._sim_pose["x"], 0.3)
+        joints = backend.get_telemetry_snapshot()[TelemetryChannel.JOINT_STATES].latest.value
+        self.assertEqual(joints["positions"], [0.1, 0.1, 0.1])  # 2 x WHEEL_STEP_RAD
+        # Stopped keeps the angle (no teleport to zero) but no velocity.
+        self.assertEqual(joints["velocities"], [0.0, 0.0, 0.0])
+
+    @unittest.skipUnless(HAS_SERVICE, "robot_edge not available")
+    def test_non_navigation_command_does_not_move(self) -> None:
+        backend = FixtureBackend()
+        for state, _, _ in backend.get_command_sequence("你好"):
+            pass
+        odom = backend.get_telemetry_snapshot()[TelemetryChannel.ODOMETRY].latest.value
+        self.assertEqual(odom["x"], 0.0)
+        self.assertEqual(odom["moving"], False)
+
+    @unittest.skipUnless(HAS_SERVICE, "robot_edge not available")
+    def test_cancelled_generator_self_heals_to_zero(self) -> None:
+        import time as _time
+
+        clock = {"now": 1000.0}
+
+        def fake_clock() -> float:
+            return clock["now"]
+
+        backend = FixtureBackend(motion_timeout_sec=2.0, clock=fake_clock)
+        gen = backend.get_command_sequence("导航到前面的椅子")
+        next(gen)  # accepted
+        next(gen)  # planning
+        next(gen)  # running (motion began)
+        self.assertTrue(backend._sim_moving)
+
+        # The generator is dropped (cancel/E-stop) without the final step.
+        del gen
+        clock["now"] += 5.0  # beyond motion_timeout
+        odom = backend.get_telemetry_snapshot()[TelemetryChannel.ODOMETRY].latest.value
+        self.assertEqual(odom["moving"], False)
+        self.assertEqual(odom["vx"], 0.0)
+
+    @unittest.skipUnless(HAS_SERVICE, "robot_edge not available")
+    def test_fixture_snapshot_is_json_safe(self) -> None:
+        import json as _json
+
+        backend = FixtureBackend()
+        snap = backend.get_telemetry_snapshot()
+        for channel, item in snap.items():
+            dumped = _json.dumps(item.model_dump(mode="json"))
+            self.assertNotIn("Bearer", dumped)
+            self.assertNotIn("token", dumped)

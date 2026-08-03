@@ -77,6 +77,15 @@ Existing ROS contracts and servers:
 | M7 | Local/physical safety validation and one guarded mobile-base motion | Limited, supervised | Stop latency and low-risk navigation pass |
 | M8 | Piper low-speed motion, grasp, then combined task | Limited, supervised | Separate signed validation reports pass |
 
+**Status (2026-08-03):** M5-M7 **complete** — see the validation reports
+`docs/validation/2026-08-03-robot-edge-fixture.md` (M5),
+`2026-08-02-hardware-readonly.md` (M6),
+`2026-08-03-lekiwi-preflight-readonly.md`, `2026-08-03-cortex-ark-planner.md`,
+`2026-08-03-kompass-real-vision.md`, `2026-08-03-m7-task13-navigation-hardware.md`
+(M7). Physical E-stop was **waived by the owner** (2026-08-03 ADR-0002:
+power-cable pull is the final cutoff). M8 (Piper) remains blocked: no CAN /
+Piper connected to the robot host.
+
 **Mandatory checkpoint:** Stop and request owner review after each milestone. Never continue automatically into the next hardware authority level.
 
 ---

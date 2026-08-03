@@ -177,3 +177,34 @@ docker-compose -f compose.fixture.yaml down
 - Rotate tokens after deployment
 - Never expose port 8780 to public networks
 - Use HTTPS in production with TLS
+
+## Production stack (2026-08-03, M7 complete)
+
+Production images on the Raspberry Pi (host network, ROS domain 0, UDP-only
+Fast DDS):
+
+- `ubrobot/lekiwi-base-driver:0.2.0-rc1-m7-20260803` — torque lifecycle via
+  `compose.hardware[-torque-test].yaml` (BEST_EFFORT cmd_vel adapter).
+- `ubrobot/emos:jazzy-m7-20260803` — full navigation stack (bringup +
+  recipe with Cortex/ARK planner, RoboML detection, Kompass vision stack).
+  Built with the kompass float32 timestamp patch, recipe config-mode vision
+  setup, cortex tool-args patch, and optional GraspObject import.
+- Recipe container must mount the shared Fast DDS profile
+  (`deploy/fastdds/udp-only.xml`) or DDS discovery inside it fails
+  (CriticalZoneChecker never initializes).
+
+Launch the full chain:
+
+1. bringup: `cortex_navigation_bringup.launch.py start_sensors:=true`
+2. recipe: `/opt/ubrobot/recipes/cortex_navigation/recipe.py` (full mode)
+   with `CORTEX_MODEL_*` (ARK via planner relay :18081) and
+   `ROBOML_HOST=192.168.18.230 ROBOML_PORT=6379` (rtdetr detection).
+3. Navigation guard parameters are verified loaded
+   (`lease_timeout_sec=0.25`, `raw_command_timeout_sec=0.25`,
+   `guard_period_sec=0.05`); the launch-time "parameter not supported"
+   warnings come from the RealSense nested launch and are harmless noise.
+
+Hardware motion (M7 Task 13) validated: bounded motion, lease-expiry
+fail-closed stop, normal cancel, and NavigateToObject with real Kompass
+vision tracking (chair, delta ~0.4 m). Torque remains disabled after
+validation.

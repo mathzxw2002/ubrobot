@@ -18,8 +18,10 @@ from ubrobot_contracts.telemetry import (
 
 from robot_edge.ros.context import RosGraph
 
-_COLOR_INFO_TOPIC = "/camera/camera_info"
-_DEPTH_INFO_TOPIC = "/camera/depth/camera_info"
+# Measured live topics on the Raspberry Pi (2026-08-03): the bringup starts
+# the RealSense node under a double /camera/camera namespace.
+_COLOR_INFO_TOPIC = "/camera/camera/color/camera_info"
+_DEPTH_INFO_TOPIC = "/camera/camera/depth/camera_info"
 # Common Intel RealSense optical frame IDs (checked, not assumed).
 _EXPECTED_COLOR_FRAME = "camera_color_optical_frame"
 _EXPECTED_DEPTH_FRAME = "camera_depth_optical_frame"

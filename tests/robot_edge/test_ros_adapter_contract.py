@@ -104,7 +104,7 @@ class TestRosTelemetryMapping(unittest.TestCase):
 
     def test_odometry_mapping(self) -> None:
         backend = self._backend(
-            topics={"/lekiwi_base_controller/odom", "/joint_states", "/camera/camera_info"},
+            topics={"/lekiwi_base_controller/odom", "/joint_states", "/camera/camera/color/camera_info"},
             reads={
                 "/lekiwi_base_controller/odom": {
                     "pose": {"position": {"x": 1.25, "y": -0.5}},

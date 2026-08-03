@@ -80,16 +80,16 @@ class TestRealsenseHealth(unittest.TestCase):
 
     def test_valid_metadata_is_available_and_checked(self) -> None:
         reader = self._reader(
-            topics={"/camera/camera_info", "/camera/depth/camera_info"},
+            topics={"/camera/camera/color/camera_info", "/camera/camera/depth/camera_info"},
             reads={
-                "/camera/camera_info": _stamped(
+                "/camera/camera/color/camera_info": _stamped(
                     width=1280,
                     height=720,
                     encoding="rgb8",
                     distortion_model="plumb_bob",
                     k=[380.0, 0.0, 640.0, 0.0, 380.0, 360.0, 0.0, 0.0, 1.0],
                 ),
-                "/camera/depth/camera_info": _stamped(
+                "/camera/camera/depth/camera_info": _stamped(
                     width=640,
                     height=480,
                     encoding="16UC1",
@@ -116,9 +116,9 @@ class TestRealsenseHealth(unittest.TestCase):
 
     def test_stale_stamp_is_stale_not_available(self) -> None:
         reader = self._reader(
-            topics={"/camera/camera_info"},
+            topics={"/camera/camera/color/camera_info"},
             reads={
-                "/camera/camera_info": {
+                "/camera/camera/color/camera_info": {
                     "header": {"frame_id": "camera_color_optical_frame", "stamp": _old_stamp()},
                     "width": 640,
                     "height": 480,
@@ -132,9 +132,9 @@ class TestRealsenseHealth(unittest.TestCase):
 
     def test_uncalibrated_camera_is_not_claimed_calibrated(self) -> None:
         reader = self._reader(
-            topics={"/camera/camera_info"},
+            topics={"/camera/camera/color/camera_info"},
             reads={
-                "/camera/camera_info": _stamped(
+                "/camera/camera/color/camera_info": _stamped(
                     width=640, height=480, encoding="rgb8", k=None
                 )
             },

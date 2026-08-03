@@ -23,6 +23,9 @@ _TOPIC_MAP: dict[str, tuple[TelemetryChannel, str]] = {
     "/odom/wheel": (TelemetryChannel.ODOMETRY, "wheel_odometry"),
     "/odom": (TelemetryChannel.ODOMETRY, "odometry"),
     "/joint_states": (TelemetryChannel.JOINT_STATES, "joint_states"),
+    # Measured live topics (2026-08-03); legacy paths kept for compatibility.
+    "/camera/camera/color/camera_info": (TelemetryChannel.CAMERA, "camera_info"),
+    "/camera/camera/depth/camera_info": (TelemetryChannel.DEPTH, "depth_info"),
     "/camera/camera_info": (TelemetryChannel.CAMERA, "camera_info"),
     "/camera/depth/camera_info": (TelemetryChannel.DEPTH, "depth_info"),
 }

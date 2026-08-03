@@ -59,6 +59,24 @@ Guard lease timeout 0.25 s -> command stops within ~0.33 s incl. inertia.
    warns about the unknown keys. Nodes with explicit `parameters` (the
    guard) are unaffected.
 
+
+## Re-validation after tracker timestamp fixes (2026-08-03 evening)
+
+The full E-series was re-run after fixing the Kompass tracker timestamps
+(process-relative clock + unified initial-time base, commit 1146174) and
+the recipe container rebuild (fresh container, Fast DDS profile mounted,
+CriticalZoneChecker ready):
+
+| Test | Result |
+|---|---|
+| E1 zero command | positions within +-4 mrad, velocities 0 |
+| E2 bounded motion 0.03 m/s x 3 s | delta x = +78.9 mm, delta y = -0.6 mm |
+| E3 lease expiry fail-closed | 60.8 mm motion, +12.0 mm drift (~0.4 s) |
+| E4 normal cancel | 62.6 mm motion, +4.0 mm drift (~0.13 s) |
+| E5 NavigateToObject chair | SUCCEEDED, delta x = +36.5 mm, delta y = +14.1 mm |
+
+All stop paths worked; torque restored to disabled after the session.
+
 ## Acceptance
 
 - [x] Torque enabled under hard gate (restart:no, operator at cutoff)

@@ -1,6 +1,8 @@
-# Robot Edge service container with ROS support (M6 read-only).
+# Robot Edge service container with ROS support (M6 read-only, M8 command).
 # Based on the official ROS 2 Jazzy base image so rclpy is available for
-# read-only graph introspection. No hardware SDKs are installed.
+# read-only graph introspection and Cortex action goals. No hardware SDKs
+# are installed.
+FROM ubrobot/emos:jazzy-m7-20260803 AS emos-source
 FROM ros:jazzy-ros-base-noble
 
 WORKDIR /app
@@ -26,6 +28,15 @@ RUN /opt/edge-venv/bin/pip install --no-cache-dir \
 # Copy source code (contracts + edge service + ROS adapters).
 COPY src/ubrobot_contracts /app/ubrobot_contracts/
 COPY src/robot_edge /app/robot_edge/
+
+# Cortex action type for the M8 command backend (VisionLanguageAction +
+# its rosidl typesupport .so). Only this package is needed; the agent
+# component framework is not. The venv inherits system site-packages, so
+# /opt/ros/jazzy/... is visible to the service.
+COPY --from=emos-source /opt/ros/jazzy/lib/python3.12/site-packages/automatika_embodied_agents \
+    /opt/ros/jazzy/lib/python3.12/site-packages/automatika_embodied_agents
+COPY --from=emos-source /opt/ros/jazzy/lib/python3.12/site-packages/automatika_embodied_agents-0.7.3-py3.12.egg-info \
+    /opt/ros/jazzy/lib/python3.12/site-packages/automatika_embodied_agents-0.7.3-py3.12.egg-info
 
 # Health check uses stdlib urllib (no curl dependency). Ubuntu Noble has no
 # bare `python` binary, so the healthcheck calls python3 explicitly.

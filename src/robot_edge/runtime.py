@@ -141,6 +141,14 @@ class RobotEdgeRuntime:
         with self._command_lock:
             if self._active_command_id != command_id:
                 return False
+            # Hardware backends must cancel the downstream goal (Cortex
+            # action) so no residual motion continues.
+            cancel_active = getattr(self._backend, "cancel_active", None)
+            if callable(cancel_active):
+                try:
+                    cancel_active()
+                except Exception:
+                    pass
             self._events.append(
                 command_id=command_id,
                 state=CommandState.CANCELLED,
@@ -161,6 +169,15 @@ class RobotEdgeRuntime:
             reason=f"emergency stop from {operator_id}",
             operator_id=operator_id,
         )
+
+        # Cancel any downstream goal first so hardware motion stops even if
+        # the command generator is not currently being polled.
+        cancel_active = getattr(self._backend, "cancel_active", None)
+        if callable(cancel_active):
+            try:
+                cancel_active()
+            except Exception:
+                pass
 
         # Cancel active command if any (under the command lock so it cannot
         # race with a concurrent poll/submit).

@@ -133,18 +133,21 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
     execution_mode = getattr(app.state, "execution_mode", "fixture")
 
     # M7 hardware-authority gate: never claim hardware authority while the
-    # physical E-stop is unbound. Checked before the backend is created so a
-    # misconfigured authority request fails closed at startup.
+    # physical E-stop is unbound, unless the owner explicitly waived the
+    # physical E-stop (ADR-0002: power cable is the final cutoff). Checked
+    # before the backend is created so a misconfigured authority request
+    # fails closed at startup.
     estop_enabled = _estop_enabled()
     if (
         execution_mode == "hardware"
-        and os.environ.get("UBROBOT_EDGE_HARDWARE_AUTHORITY", "").strip().lower()
-        in ("1", "true", "yes")
+        and _hardware_authority_enabled()
         and not estop_enabled
+        and not _estop_exempted()
     ):
         raise RuntimeError(
             "hardware authority requires a bound physical E-stop "
-            "(set UBROBOT_EDGE_ESTOP_ENABLED=true with chip/line, M7)"
+            "(set UBROBOT_EDGE_ESTOP_ENABLED=true with chip/line, or set "
+            "UBROBOT_EDGE_ESTOP_EXEMPTED=true only with owner approval)"
         )
 
     # Tests may inject a step delay directly; the environment variable is the
@@ -182,19 +185,50 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
     app.state.replay_protection = None
 
 
+def _hardware_authority_enabled() -> bool:
+    """True when the deployment explicitly grants hardware authority (M8)."""
+    return os.environ.get("UBROBOT_EDGE_HARDWARE_AUTHORITY", "").strip().lower() in (
+        "1",
+        "true",
+        "yes",
+    )
+
+
+def _estop_exempted() -> bool:
+    """Owner-explicit waiver of the physical E-stop requirement (ADR-0002).
+
+    The owner decided (2026-08-03) there is no physical E-stop button; the
+    final cutoff is the operator pulling the power cable. This flag must be
+    set explicitly together with hardware authority.
+    """
+    return os.environ.get("UBROBOT_EDGE_ESTOP_EXEMPTED", "").strip().lower() in (
+        "1",
+        "true",
+        "yes",
+    )
+
+
 def _create_backend(execution_mode: str, *, fixture_step_delay_sec: float):
     """Create the runtime backend for the execution mode.
 
     - ``fixture`` (default): deterministic fixture backend, no hardware.
-    - ``hardware``: read-only ROS graph backend (M6). Imports rclpy lazily
-      inside the factory; fixture/mock modes never touch the ROS stack.
+    - ``hardware`` + authority off: read-only ROS graph backend (M6).
+    - ``hardware`` + authority on: Cortex command backend (M8) that forwards
+      operator commands to the Cortex action. rclpy is imported lazily
+      inside the factories; fixture/mock modes never touch the ROS stack.
       ``fixture_step_delay_sec`` widens the fixture active window for
       process-level cancel/E-stop tests (<=100 ms per step).
     """
     if execution_mode == "hardware":
-        from robot_edge.ros.backend import create_readonly_ros_backend
+        from robot_edge.ros.backend import (
+            create_cortex_command_backend,
+            create_readonly_ros_backend,
+        )
 
-        backend = create_readonly_ros_backend(execution_mode="hardware")
+        if _hardware_authority_enabled():
+            backend = create_cortex_command_backend(execution_mode="hardware")
+        else:
+            backend = create_readonly_ros_backend(execution_mode="hardware")
         if backend is None:
             raise RuntimeError("hardware mode requested but ROS context unavailable")
         return backend

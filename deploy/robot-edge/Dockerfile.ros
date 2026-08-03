@@ -8,11 +8,13 @@ WORKDIR /app
 # libgpiod2 + headers are required by the optional `gpiod` Python bindings
 # used for the physical E-stop contact (M7). Ubuntu Noble ships libgpiod 2.x.
 # python3-pip is absent from the ros:jazzy-ros-base image; Noble also enforces
-# PEP 668, so runtime deps go into a dedicated virtualenv.
+# PEP 668, so runtime deps go into a dedicated virtualenv. The venv inherits
+# system site-packages so rclpy and its system deps (PyYAML, rosidl, ...) are
+# importable; pip-installed packages still take precedence inside the venv.
 RUN apt-get update \
     && apt-get install -y --no-install-recommends libgpiod2 libgpiod-dev python3-pip python3-venv \
     && rm -rf /var/lib/apt/lists/* \
-    && python3 -m venv /opt/edge-venv
+    && python3 -m venv --system-site-packages /opt/edge-venv
 
 # Runtime Python deps for the Edge service itself.
 COPY requirements-robot-edge.txt .

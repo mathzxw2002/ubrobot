@@ -129,3 +129,21 @@ it does not, by itself, prove the model HTTP request was interrupted.
 
 The validated Raspberry Pi run and artifact locations are recorded in
 `docs/validation/2026-07-30-chat-cortex-smoke.md`.
+
+
+## Vision multimodal Q&A (describe_scene tool)
+
+The recipe exposes a PLANNING-phase tool `vision_inspection.describe_scene`
+that captures the latest RealSense color frame and asks a multimodal LLM
+(Qwen-VL via DASHSCOPE) to describe the visible scene, enabling arbitrary
+visual questions (e.g. "你能看到什么").
+
+Configure via environment on the recipe container:
+
+- `DASHSCOPE_API_KEY` — required; DASHSCOPE (Alibaba Model Studio) key
+- `VISION_MODEL` — default `qwen-vl-max`
+- `VISION_ENDPOINT` — default DASHSCOPE OpenAI-compatible endpoint
+- `VISION_QUERY_PROMPT` — default Chinese scene-description prompt
+
+The key must be injected at container start (e.g. from a 0600 file); it is
+never baked into the image or written to the repository.

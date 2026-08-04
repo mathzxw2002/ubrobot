@@ -1,10 +1,15 @@
 """EMOS recipe with Cortex orchestrating one guarded navigation capability."""
 
+import json
+import threading
+import base64
+import urllib.request
 import argparse
 import math
 import os
 
 from agents.clients import GenericHTTPClient, RoboMLRESPClient
+from agents.ros import ActionPhase, component_action
 from agents.components import Cortex, Vision
 from agents.config import CortexConfig, VisionConfig
 from agents.models import GenericLLM, VisionModel
@@ -125,7 +130,7 @@ class NavigationCortex(Cortex):
         self._managed_components = {
             component.node_name: component
             for component in components or []
-            if isinstance(component, SemanticCapabilityProxy)
+            if isinstance(component, (SemanticCapabilityProxy, VisionInspectionProxy))
         }
 
     def _register_component_entrypoints_as_tools(self, comp_name, comp):
@@ -137,6 +142,110 @@ class NavigationCortex(Cortex):
             function = tool.get("function", {})
             if function.get("name") == proxy.tool_name:
                 function["description"] = proxy.tool_description
+
+
+
+
+class VisionInspectionProxy(BaseComponent):
+    """PLANNING-phase tool: describe what the robot currently sees."""
+
+    def __init__(
+        self,
+        *,
+        component_name: str = 'vision_inspection',
+        image_topic: str = '/camera/camera/color/image_raw',
+    ) -> None:
+        super().__init__(component_name=component_name)
+        self._image_topic = image_topic
+        self._latest_jpeg = None
+        self._lock = threading.Lock()
+        self._qwen_key = os.environ.get('DASHSCOPE_API_KEY', '').strip()
+        self._qwen_model = os.environ.get('VISION_MODEL', 'qwen-vl-max').strip()
+        self._qwen_endpoint = os.environ.get('VISION_ENDPOINT', 'https://dashscope.aliyuncs.com/compatible-mode/v1/chat/completions').strip()
+        self._prompt = os.environ.get('VISION_QUERY_PROMPT', '描述你在这个图像中看到的场景和物体，用中文回答').strip()
+        self._image_sub = None
+
+    @property
+    def tool_name(self) -> str:
+        return "describe_scene"
+
+    @property
+    def tool_description(self) -> str:
+        return "Describe what the robot currently sees via a vision model."
+
+    def get_ros_entrypoints(self):
+        return {'services': {}, 'actions': {}}
+
+    def _execution_step(self):
+        # No periodic execution; the tool is invoked on demand.
+        return None
+
+    def custom_on_activate(self):
+        super().custom_on_activate()
+        if self._image_sub is None:
+            from sensor_msgs.msg import Image
+            self._image_sub = self.create_subscription(Image, self._image_topic, self._on_image, 10)
+            self.get_logger().info('VisionInspectionProxy subscribed to ' + self._image_topic)
+
+    def _on_image(self, msg):
+        try:
+            import cv2
+            import numpy as np
+            arr = np.frombuffer(bytes(msg.data), dtype=np.uint8).reshape((msg.height, msg.width, 3))
+            ok, jpg = cv2.imencode('.jpg', cv2.cvtColor(arr, cv2.COLOR_RGB2BGR), [cv2.IMWRITE_JPEG_QUALITY, 70])
+            if ok:
+                with self._lock:
+                    self._latest_jpeg = jpg.tobytes()
+        except Exception:
+            pass
+
+    @component_action(
+        description=json.dumps({
+            'function': {
+                'name': 'describe_scene',
+                'description': 'Inspect the robot camera view: captures the latest camera frame and returns a natural-language description of the visible scene and objects via a vision model. IMPORTANT: when you call this tool, your final answer to the user MUST be based on the returned scene description and describe what the robot sees.',
+                'parameters': {
+                    'type': 'object',
+                    'properties': {
+                        'query': {'type': 'string', 'description': 'Optional specific question about the scene.'}
+                    },
+                    'required': [],
+                },
+            }
+        }),
+        phase=ActionPhase.PLANNING,
+    )
+    def describe_scene(self, query: str = '描述场景') -> str:
+        with self._lock:
+            jpeg = self._latest_jpeg
+        if not jpeg:
+            return '相机当前没有可用的图像帧（请稍后重试）。'
+        if not self._qwen_key:
+            return '视觉模型 API key 未配置（DASHSCOPE_API_KEY）。'
+        try:
+            img_b64 = base64.b64encode(jpeg).decode()
+            body = {
+                'model': self._qwen_model,
+                'messages': [{
+                    'role': 'user',
+                    'content': [
+                        {'type': 'text', 'text': self._prompt + '。问题：' + query},
+                        {'type': 'image_url', 'image_url': {'url': 'data:image/jpeg;base64,' + img_b64}},
+                    ],
+                }],
+                'max_tokens': 300,
+            }
+            req = urllib.request.Request(
+                self._qwen_endpoint,
+                data=json.dumps(body).encode(),
+                headers={'Content-Type': 'application/json', 'Authorization': 'Bearer ' + self._qwen_key},
+                method='POST',
+            )
+            with urllib.request.urlopen(req, timeout=30) as resp:
+                data = json.load(resp)
+            return data['choices'][0]['message']['content']
+        except Exception as exc:
+            return '视觉描述调用失败：' + str(exc)
 
 
 def build_recipe(*, include_robot_stack=True):
@@ -171,7 +280,7 @@ def build_recipe(*, include_robot_stack=True):
         ),
         component_name="navigation_cortex",
     )
-    capabilities = [NavigationCapabilityProxy()]
+    capabilities = [NavigationCapabilityProxy(), VisionInspectionProxy()]
     if grasp_exposure_enabled(os.environ) and GraspObject is not None:
         capabilities.append(
             SemanticCapabilityProxy(

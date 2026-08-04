@@ -7,7 +7,7 @@ from typing import Any, AsyncIterator, Callable
 
 from fastapi import Depends, FastAPI, HTTPException, Request, status
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
-from fastapi.responses import JSONResponse
+from fastapi.responses import JSONResponse, Response
 
 from ubrobot_contracts import PROTOCOL_VERSION
 from ubrobot_contracts.capabilities import CapabilityName
@@ -169,8 +169,34 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
     if estop_enabled:
         _bind_local_stop(app, app.state.runtime)
 
+    # M8: subscribe the robot edge's own ROS node to the color camera so the
+    # operator console can stream "what the robot sees" over HTTP (JPEG only).
+    app.state.camera_frame = None
+    if execution_mode == "hardware":
+        try:
+            from robot_edge.ros.frames import RosFrameCache  # noqa: PLC0415
+
+            graph_node = getattr(app.state.runtime, "_backend", None)
+            node = getattr(getattr(graph_node, "_graph", None), "_node", None)
+            if node is not None:
+                cache = RosFrameCache(node)
+                cache.start()
+                app.state.camera_frame = cache
+        except Exception as exc:
+            import logging
+            logging.getLogger('ubrobot.robot_edge').warning(
+                'camera frame cache unavailable: %s', exc
+            )
+            app.state.camera_frame = None  # camera view unavailable; endpoint 404s
+
     yield
 
+    frame_cache = getattr(app.state, "camera_frame", None)
+    if frame_cache is not None:
+        try:
+            frame_cache.stop()
+        except Exception:
+            pass
     poller = getattr(app.state, "estop_poller", None)
     if poller is not None:
         poller.stop()
@@ -403,6 +429,26 @@ def create_app(
         return {
             "events": [event.model_dump(mode="json") for event in events],
         }
+
+    @app.get(
+        "/v1/camera/frame",
+        dependencies=[Depends(require_scope(Scope.OBSERVE.value))],
+    )
+    async def get_camera_frame(request: Request) -> Response:
+        """Latest color camera frame as JPEG (operator console camera view).
+
+        Returns 404 when no frame is available (camera offline or not
+        started). Only the compressed JPEG crosses the boundary — never raw
+        frames or device objects.
+        """
+        frame_cache = getattr(request.app.state, "camera_frame", None)
+        jpeg = frame_cache.latest_jpeg() if frame_cache is not None else None
+        if not jpeg:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="no camera frame available",
+            )
+        return Response(content=jpeg, media_type="image/jpeg")
 
     # Command endpoints
     @app.post("/v1/commands", dependencies=[Depends(require_scope(Scope.TASK_SUBMIT.value))])

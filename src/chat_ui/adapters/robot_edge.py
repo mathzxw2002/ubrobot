@@ -247,6 +247,29 @@ class RobotEdgeBackend:
                     raise RuntimeError(message or "Command cancelled")
         raise RuntimeError("Robot Edge command timed out")
 
+    def get_robot_observation(self):
+        """Fetch the latest camera frame from Robot Edge as a PIL image.
+
+        Returns ``(navigation_image, None)`` — the console renders the
+        robot's color camera in the "导航相机" tab; the manipulation/depth
+        view has no dedicated source yet.
+        """
+        try:
+            response = self._client.get("/v1/camera/frame")
+        except httpx.RequestError:
+            return None, None
+        if response.status_code != 200:
+            return None, None
+        try:
+            from PIL import Image as PILImage  # noqa: PLC0415
+
+            import io
+
+            image = PILImage.open(io.BytesIO(response.content))
+            return image, None
+        except Exception:
+            return None, None
+
     def cancel_active(self) -> bool:
         """Cancel the active command. Returns True if the Edge acknowledged."""
         with self._lock:

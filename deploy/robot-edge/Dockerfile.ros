@@ -23,7 +23,8 @@ COPY requirements-robot-edge.txt .
 COPY requirements-robot-edge-estop.txt .
 RUN /opt/edge-venv/bin/pip install --no-cache-dir \
         -r requirements-robot-edge.txt \
-        -r requirements-robot-edge-estop.txt
+        -r requirements-robot-edge-estop.txt \
+        opencv-python-headless
 
 # Copy source code (contracts + edge service + ROS adapters).
 COPY src/ubrobot_contracts /app/ubrobot_contracts/

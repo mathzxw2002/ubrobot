@@ -176,12 +176,9 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
         try:
             from robot_edge.ros.frames import RosFrameCache  # noqa: PLC0415
 
-            graph_node = getattr(app.state.runtime, "_backend", None)
-            node = getattr(getattr(graph_node, "_graph", None), "_node", None)
-            if node is not None:
-                cache = RosFrameCache(node)
-                cache.start()
-                app.state.camera_frame = cache
+            cache = RosFrameCache()
+            cache.start()
+            app.state.camera_frame = cache
         except Exception as exc:
             import logging
             logging.getLogger('ubrobot.robot_edge').warning(

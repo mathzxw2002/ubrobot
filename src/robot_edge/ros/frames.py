@@ -26,25 +26,43 @@ _MAX_ENCODE_INTERVAL = 0.5  # seconds between JPEG re-encodes
 
 
 class RosFrameCache:
-    """Caches the latest color frame as a JPEG (robot-side read-only)."""
+    """Caches the latest color frame as a JPEG (robot-side read-only).
 
-    def __init__(self, node: Any, *, topic: str = COLOR_IMAGE_TOPIC) -> None:
-        self._node = node
+    Uses its own rclpy node and a dedicated executor thread so callbacks are
+    processed independently of the telemetry graph spins.
+    """
+
+    def __init__(self, *, topic: str = COLOR_IMAGE_TOPIC) -> None:
+        import rclpy  # noqa: PLC0415 - ROS-only
+        from rclpy.executors import SingleThreadedExecutor  # noqa: PLC0415
+        from rclpy.node import Node  # noqa: PLC0415
+
+        if not rclpy.ok():
+            rclpy.init(args=[])
+        self._node = Node("robot_edge_frames")
+        self._executor = SingleThreadedExecutor()
+        self._executor.add_node(self._node)
+        self._spin_thread = threading.Thread(
+            target=self._executor.spin, daemon=True, name="robot-edge-frames"
+        )
         self._topic = topic
         self._jpeg: Optional[bytes] = None
         self._last_stamp = 0.0
         self._last_encode = 0.0
         self._lock = threading.Lock()
         self._sub = None
+        self._started = False
 
     def start(self) -> None:
-        if self._sub is not None:
+        if self._started:
             return
         from sensor_msgs.msg import Image  # noqa: PLC0415 - ROS-only
 
         self._sub = self._node.create_subscription(
             Image, self._topic, self._on_image, 10
         )
+        self._spin_thread.start()
+        self._started = True
 
     def _on_image(self, msg: Any) -> None:
         now = time.monotonic()
@@ -103,3 +121,10 @@ class RosFrameCache:
             except Exception:
                 pass
             self._sub = None
+        if self._started:
+            try:
+                self._executor.shutdown(timeout_sec=2.0)
+            except Exception:
+                pass
+            self._spin_thread.join(timeout=3.0)
+            self._started = False

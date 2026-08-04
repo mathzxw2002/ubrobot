@@ -489,9 +489,9 @@ def refresh_camera_once():
     only re-fetches the latest JPEG from Robot Edge so the operator view
     follows the robot without re-rendering the whole console.
     """
-    _, vis_annotated_img = chat_pipeline.get_robot_observation()
+    nav_image, _manipulation_image = chat_pipeline.get_robot_observation()
     snapshot = chat_pipeline.operator_snapshot()
-    return _camera_panel_update(vis_annotated_img, snapshot)
+    return _camera_panel_update(nav_image, snapshot)
 
 
 def operator_update_once(history=None):
@@ -501,12 +501,11 @@ def operator_update_once(history=None):
     (submitted through the non-blocking Gradio path) replace their
     "正在执行..." placeholder with the final reply here.
     """
-    robot_arm_rgb_image, vis_annotated_img = chat_pipeline.get_robot_observation()
-    image_size = getattr(robot_arm_rgb_image, "size", 1)
-    is_manipulate_valid = robot_arm_rgb_image is not None and image_size != 0
+    nav_image, manipulation_image = chat_pipeline.get_robot_observation()
+    is_manipulate_valid = manipulation_image is not None and getattr(manipulation_image, "size", 1) != 0
     snapshot = chat_pipeline.operator_snapshot()
     nav_image_update, nav_placeholder_update, camera_status_update = (
-        _camera_panel_update(vis_annotated_img, snapshot)
+        _camera_panel_update(nav_image, snapshot)
     )
     history_updated = None
     completed = chat_pipeline.take_completed()
@@ -527,7 +526,7 @@ def operator_update_once(history=None):
         nav_image_update,
         nav_placeholder_update,
         camera_status_update,
-        gr.update(value=robot_arm_rgb_image, visible=is_manipulate_valid),
+        gr.update(value=manipulation_image, visible=is_manipulate_valid),
         _task_status_markdown(snapshot),
         _timeline_markdown(snapshot),
         _telemetry_markdown(snapshot),

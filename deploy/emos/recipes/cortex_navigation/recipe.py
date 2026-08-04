@@ -277,6 +277,30 @@ def build_recipe(*, include_robot_stack=True):
             ),
             temperature=float(os.environ.get("CORTEX_TEMPERATURE", "0.1")),
             max_new_tokens=int(os.environ.get("CORTEX_MAX_NEW_TOKENS", "600")),
+            # Override the default planning prompt to prevent the model from
+            # outputting text-only plans.  The default prompt's "If the task
+            # requires no actions, respond with text only" confuses smaller
+            # models (gpt-4o-mini) into describing a plan in words instead
+            # of actually making tool calls.
+            _system_prompt=(
+                "You are a task planning agent on a robot. "
+                "Given a task, first call inspect_component to research the "
+                "available components and discover their capabilities. "
+                "Once you have enough information, you MUST break down the "
+                "task into subtasks and call the appropriate actions. "
+                "IMPORTANT: Always return ALL actions needed as tool calls "
+                "in a single response. Each tool call is one step. Order "
+                "them in execution sequence. Fill in arguments you already "
+                "know. For arguments that depend on the output of a "
+                "previous step, use a placeholder like '<output from step "
+                "1>'. The arguments will be automatically resolved at "
+                "execution time. "
+                "CRITICAL: You must MAKE TOOL CALLS for every action in "
+                "your plan.  NEVER respond with plain text describing what "
+                "you would do — always use tool calls to actually execute "
+                "the steps.  If the user's request can be fulfilled by "
+                "calling available tools, call them."
+            ),
         ),
         component_name="navigation_cortex",
     )

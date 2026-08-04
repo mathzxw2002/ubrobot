@@ -9,6 +9,7 @@ compressed JPEG leaves the service.
 
 from __future__ import annotations
 
+import logging
 import threading
 import time
 from datetime import datetime, timezone
@@ -20,6 +21,8 @@ from ubrobot_contracts.telemetry import (
     TelemetryState,
     TimestampedSample,
 )
+
+_logger = logging.getLogger("ubrobot.robot_edge.frames")
 
 COLOR_IMAGE_TOPIC = "/camera/camera/color/image_raw"
 _MAX_ENCODE_INTERVAL = 0.5  # seconds between JPEG re-encodes
@@ -56,13 +59,18 @@ class RosFrameCache:
     def start(self) -> None:
         if self._started:
             return
+        from rclpy.qos import qos_profile_sensor_data  # noqa: PLC0415
         from sensor_msgs.msg import Image  # noqa: PLC0415 - ROS-only
 
         self._sub = self._node.create_subscription(
-            Image, self._topic, self._on_image, 10
+            Image, self._topic, self._on_image, qos_profile_sensor_data,
         )
         self._spin_thread.start()
         self._started = True
+        _logger.info(
+            "subscribed to %s with sensor_data QoS (spin thread started)",
+            self._topic,
+        )
 
     def _on_image(self, msg: Any) -> None:
         now = time.monotonic()
@@ -84,7 +92,16 @@ class RosFrameCache:
             if ok:
                 with self._lock:
                     self._jpeg = jpg.tobytes()
+                first_frame = self._last_stamp == 0.0
                 self._last_stamp = now
+                if first_frame:
+                    _logger.info(
+                        "first frame cached topic=%s size=%dx%d jpeg_bytes=%d",
+                        self._topic,
+                        msg.width,
+                        msg.height,
+                        len(self._jpeg),
+                    )
         except Exception:
             pass  # best-effort caching; no frame -> endpoint 404s
 

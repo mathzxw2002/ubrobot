@@ -374,7 +374,14 @@ def submit_operator_turn(value, history):
             chat_pipeline.record_completed(text, result.reply)
             logger.info("background interaction completed category=%s", category)
         except Exception as exc:  # noqa: BLE001 - surface as chat reply
-            logger.exception("background interaction failed category=%s", category)
+            # Business failures (e.g. Cortex ABORTED, hardware authority
+            # disabled) are expected outcomes, not programming errors:
+            # report the reason without a traceback.
+            logger.info(
+                "background interaction failed category=%s reason=%s",
+                category,
+                exc,
+            )
             chat_pipeline.record_completed(text, f"执行失败：{exc}")
 
     threading.Thread(target=run, daemon=True, name="operator-submit").start()

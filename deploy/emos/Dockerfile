@@ -95,8 +95,22 @@ new = ('            timestamp = time.monotonic() - _TIME_ORIGIN\n'
 if old_self not in s and old_msg not in s:
     raise SystemExit('kompass detection timestamp patch target not found')
 s = s.replace(old_self, new, 1).replace(old_msg, new, 1)
+# Duplicate-frame guard: the RealSense/fix_detection_header chain can deliver
+# the same frame twice (identical timestamp); the C++ tracker then computes
+# time_step <= 0 and logs "Box updated with invalid time step" every pair,
+# zeroing velocity. Skip frames whose timestamp did not advance.
+dedup_old = '''            timestamp = time.monotonic() - _TIME_ORIGIN
+            if self._initial_time == 0.0:
+                self._initial_time = timestamp
+'''
+dedup_new = dedup_old + '''            if abs(timestamp - getattr(self, '_last_ts', -1.0)) < 1e-6:
+                return  # duplicate frame delivery
+            self._last_ts = timestamp
+'''
+if dedup_old in s:
+    s = s.replace(dedup_old, dedup_new, 1)
 p.write_text(s, encoding='utf-8')
-print('patched kompass detection timestamps to process-relative clock (both sites)')
+print('patched kompass detection timestamps (relative clock + dedup)')
 PY
 
 # Build stable capability interfaces with the EMOS sensor-chain overlay.

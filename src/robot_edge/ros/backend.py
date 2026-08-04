@@ -129,18 +129,16 @@ class RosCortexCommandBackend:
             elif kind == "terminal":
                 status = item.get("status", "failed")
                 message = str(item.get("message", "") or "")
+                payload: dict[str, Any] = {"source": "cortex"}
+                raw_status = item.get("raw_status")
+                if raw_status is not None:
+                    payload["raw_ros_status"] = raw_status
                 if status == "succeeded":
-                    yield CommandState.SUCCEEDED, message or "Task complete!", {
-                        "source": "cortex",
-                    }
+                    yield CommandState.SUCCEEDED, message or "Task complete!", payload
                 elif status == "cancelled":
-                    yield CommandState.CANCELLED, message or "Command cancelled", {
-                        "source": "cortex",
-                    }
+                    yield CommandState.CANCELLED, message or "Command cancelled", payload
                 else:
-                    yield CommandState.FAILED, message or "Command failed", {
-                        "source": "cortex",
-                    }
+                    yield CommandState.FAILED, message or "Command failed", payload
                 return
 
     def cancel_active(self) -> bool:
@@ -200,8 +198,11 @@ class RosCortexCommandBackend:
     def _on_feedback(self, message: str) -> None:
         self._events.put({"kind": "feedback", "message": message})
 
-    def _on_terminal(self, *, status: str, message: str) -> None:
-        self._events.put({"kind": "terminal", "status": status, "message": message})
+    def _on_terminal(self, *, status: str, message: str, raw_status: Optional[int] = None) -> None:
+        self._events.put(
+            {"kind": "terminal", "status": status, "message": message,
+             "raw_status": raw_status}
+        )
 
     def _default_client_factory(self) -> Any:
         """Build the real rclpy Cortex action client (hardware side only).
@@ -281,12 +282,31 @@ class RosCortexCommandBackend:
                     terminal_callback(status="failed", message="Cortex result timed out")
                     return
                 result = result_future.result()
-                if result.status == 6:  # SUCCEEDED
-                    terminal_callback(status="succeeded", message="Task complete!")
-                elif result.status == 4:  # CANCELED
-                    terminal_callback(status="cancelled", message="Command cancelled")
+                # rclpy action GoalStatus codes:
+                #   4 = STATUS_SUCCEEDED, 5 = STATUS_CANCELED, 6 = STATUS_ABORTED
+                # (These were previously mis-mapped, turning real ABORTED
+                # results into fake successes.)
+                if result.status == 4:
+                    terminal_callback(
+                        status="succeeded",
+                        message="Task complete!",
+                        raw_status=result.status,
+                    )
+                elif result.status == 5:
+                    terminal_callback(
+                        status="cancelled",
+                        message="Command cancelled",
+                        raw_status=result.status,
+                    )
                 else:
-                    terminal_callback(status="failed", message=f"Cortex status {result.status}")
+                    terminal_callback(
+                        status="failed",
+                        message=(
+                            f"Cortex action ended with status {result.status} "
+                            "(ABORTED)"
+                        ),
+                        raw_status=result.status,
+                    )
 
             def shutdown(self) -> None:
                 try:

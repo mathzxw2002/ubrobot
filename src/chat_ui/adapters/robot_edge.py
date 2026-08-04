@@ -177,6 +177,24 @@ class RobotEdgeBackend:
             raise RuntimeError("Robot Edge accepted response missing command_id")
         return str(command_id)
 
+    # Terminal/polling markers that should never be shown as the chat reply;
+    # the real reply is the last substantive Cortex feedback (e.g.
+    # "[No actions needed]. 你好！...").
+    _NON_REPLY_MARKERS = (
+        "Task complete!",
+        "Post-execution:",
+        "Plan aborted",
+        "Command accepted",
+        "Command cancelled",
+        "Command failed",
+    )
+
+    @classmethod
+    def _substantive_reply(cls, message: str) -> bool:
+        return bool(message) and not any(
+            marker in message for marker in cls._NON_REPLY_MARKERS
+        )
+
     def _poll_events(
         self,
         command_id: str,
@@ -186,6 +204,7 @@ class RobotEdgeBackend:
         # Cortex orchestration is slow: ARK confirmations (5-8 s each) plus
         # Kompass vision-follower initialization (~25 s) can exceed 60 s.
         deadline = time.monotonic() + 180.0
+        last_substantive = ""
         while time.monotonic() < deadline:
             if self._closed:
                 raise RuntimeError("Robot Edge backend closed during execution")
@@ -218,8 +237,10 @@ class RobotEdgeBackend:
                 message = str(event.get("message", "") or "")
                 if message and on_feedback is not None:
                     on_feedback(message)
+                if self._substantive_reply(message):
+                    last_substantive = message
                 if state == "succeeded":
-                    return message or "Command completed"
+                    return last_substantive or message or "Command completed"
                 if state == "failed":
                     raise RuntimeError(message or "Command failed")
                 if state == "cancelled":

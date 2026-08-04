@@ -107,5 +107,58 @@ class TestChannelSummarySizeFallback(unittest.TestCase):
         )
 
 
+@unittest.skipUnless(HAS_VIEW, "chat_ui.app not importable")
+class TestCachedMarkdown(unittest.TestCase):
+    def test_returns_value_on_first_call(self) -> None:
+        from chat_ui.app import _cached_markdown, _last_markdown
+
+        _last_markdown.clear()
+        result = _cached_markdown("test_key", "hello")
+        self.assertEqual(result["value"], "hello")
+
+    def test_returns_empty_update_on_unchanged(self) -> None:
+        from chat_ui.app import _cached_markdown, _last_markdown
+
+        _last_markdown.clear()
+        _cached_markdown("k", "same")
+        result = _cached_markdown("k", "same")
+        self.assertNotIn("value", result)
+
+    def test_returns_value_on_changed(self) -> None:
+        from chat_ui.app import _cached_markdown, _last_markdown
+
+        _last_markdown.clear()
+        _cached_markdown("k", "old")
+        result = _cached_markdown("k", "new")
+        self.assertEqual(result["value"], "new")
+
+
+@unittest.skipUnless(HAS_VIEW, "chat_ui.app not importable")
+class TestRefreshChatOnce(unittest.TestCase):
+    def test_returns_empty_update_when_no_completions(self) -> None:
+        from unittest.mock import patch
+        from chat_ui.app import refresh_chat_once
+
+        with patch("chat_ui.app.chat_pipeline") as mock_pipeline:
+            mock_pipeline.take_completed.return_value = None
+            result = refresh_chat_once()
+            self.assertNotIn("value", result)
+
+    def test_replaces_placeholder_with_reply(self) -> None:
+        from unittest.mock import patch
+        from chat_ui.app import refresh_chat_once
+
+        history = [
+            {"role": "user", "content": "导航"},
+            {"role": "assistant", "content": "任务已提交，正在执行..."},
+        ]
+        with patch("chat_ui.app.chat_pipeline") as mock_pipeline:
+            mock_pipeline.take_completed.return_value = [("导航", "已完成导航")]
+            result = refresh_chat_once(history=history)
+            self.assertEqual(
+                result["value"][-1]["content"], "已完成导航"
+            )
+
+
 if __name__ == "__main__":
     unittest.main()

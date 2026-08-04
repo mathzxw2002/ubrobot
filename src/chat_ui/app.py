@@ -494,12 +494,61 @@ def refresh_camera_once():
     return _camera_panel_update(nav_image, snapshot)
 
 
-def operator_update_once(history=None):
-    """One bounded refresh; Gradio Timer schedules the next refresh.
+# ── cached markdown outputs (avoid DOM flicker when content is unchanged) ──
+_last_markdown: dict[str, str] = {}
 
-    ``history`` is the current chat; completed background interactions
-    (submitted through the non-blocking Gradio path) replace their
-    "正在执行..." placeholder with the final reply here.
+
+def _cached_markdown(key: str, content: str) -> gr.update:
+    """Return gr.update(value=...) only when *content* differs from last tick."""
+    if _last_markdown.get(key) == content:
+        return gr.update()
+    _last_markdown[key] = content
+    return gr.update(value=content)
+
+
+def refresh_chat_once(history=None):
+    """Fast chat-only refresh (~1 s): replace interaction placeholders.
+
+    Only touches the Chatbot component; the 5 s console timer handles
+    task/timeline/telemetry/voice separately.  Returns gr.update() (not
+    None) so Gradio never clears the chat history.
+    """
+    completed = chat_pipeline.take_completed()
+    if not completed:
+        return gr.update()
+    current_history = list(history or [])
+    for _, reply in completed:
+        if (
+            current_history
+            and current_history[-1].get("role") == "assistant"
+            and current_history[-1].get("content") == "任务已提交，正在执行..."
+        ):
+            current_history[-1] = {"role": "assistant", "content": reply}
+        else:
+            current_history.append({"role": "assistant", "content": reply})
+    return gr.update(value=current_history)
+
+
+def refresh_console_once():
+    """5 s console refresh: task status, timeline, telemetry, voice.
+
+    Does NOT touch the chat history (that has its own 1 s timer).
+    Uses content caching so Markdown panels only re-render on change.
+    """
+    snapshot = chat_pipeline.operator_snapshot()
+    return (
+        _cached_markdown("task", _task_status_markdown(snapshot)),
+        _cached_markdown("timeline", _timeline_markdown(snapshot)),
+        _cached_markdown("telemetry", _telemetry_markdown(snapshot)),
+        _cached_markdown("voice", _voice_status_markdown(snapshot)),
+    )
+
+
+def operator_update_once(history=None):
+    """Legacy combined refresh — kept for backward compatibility.
+
+    New code should use refresh_camera_once + refresh_chat_once +
+    refresh_console_once instead.
     """
     nav_image, manipulation_image = chat_pipeline.get_robot_observation()
     is_manipulate_valid = manipulation_image is not None and getattr(manipulation_image, "size", 1) != 0
@@ -507,12 +556,11 @@ def operator_update_once(history=None):
     nav_image_update, nav_placeholder_update, camera_status_update = (
         _camera_panel_update(nav_image, snapshot)
     )
-    history_updated = None
+    history_updated = gr.update()
     completed = chat_pipeline.take_completed()
     if completed:
         current_history = list(history or [])
         for _, reply in completed:
-            # Replace the trailing placeholder with the final reply.
             if (
                 current_history
                 and current_history[-1].get("role") == "assistant"
@@ -670,6 +718,7 @@ def create_gradio():
             elem_id="operator-emergency-stop",
         )
         camera_timer = gr.Timer(2.0, active=True)
+        chat_timer = gr.Timer(1.0, active=True)
         refresh_timer = gr.Timer(5.0, active=True)
 
         user_input.submit(
@@ -737,19 +786,22 @@ def create_gradio():
             api_name="camera_refresh",
             show_api=False,
         )
-        refresh_timer.tick(
-            operator_update_once,
+        chat_timer.tick(
+            refresh_chat_once,
             inputs=[user_chatbot],
+            outputs=[user_chatbot],
+            concurrency_limit=1,
+            api_name="chat_refresh",
+            show_api=False,
+        )
+        refresh_timer.tick(
+            refresh_console_once,
+            inputs=[],
             outputs=[
-                nav_img_output,
-                nav_camera_placeholder,
-                camera_status,
-                manipulate_img_output,
                 task_status,
                 task_timeline,
                 telemetry_status,
                 voice_status,
-                user_chatbot,
             ],
             concurrency_limit=1,
             api_name="operator_refresh",

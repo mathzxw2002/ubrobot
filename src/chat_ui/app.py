@@ -180,6 +180,12 @@ def _channel_summary(channel: str, fields: dict) -> str:
     """One-line key-value summary for the overview table."""
     if channel in ("camera", "depth"):
         width, height = fields.get("width"), fields.get("height")
+        # The console's own camera refresh publishes ``size`` as a [w, h]
+        # list; use it when the edge's width/height are not present.
+        if width is None and isinstance(fields.get("size"), (list, tuple)):
+            size = fields["size"]
+            if len(size) >= 2:
+                width, height = size[0], size[1]
         parts = []
         if width is not None and height is not None:
             parts.append(f"{width}×{height}")
@@ -431,6 +437,63 @@ def emergency_stop_operator():
     return _voice_status_markdown({"voice": snapshot}), notice
 
 
+def _camera_view_markdown(image, snapshot) -> str:
+    """Status line for the operator camera panel (robot-eye view, M8).
+
+    Combines the frame presence (from ``/v1/camera/frame``) with the
+    camera telemetry channel state (from ``/v1/telemetry/snapshot``):
+    live frame -> 正常, connected but no frame yet -> 等待画面,
+    edge unreachable / no channel data -> 不可用.
+    """
+    camera = (snapshot.get("telemetry") or {}).get("camera") or {}
+    if image is not None:
+        size = getattr(image, "size", None)
+        if isinstance(size, (tuple, list)) and len(size) >= 2:
+            resolution = f"{int(size[0])}×{int(size[1])}"
+        else:
+            resolution = "未知分辨率"
+        lines = [
+            f"**📷 相机实时画面** — 状态：**正常**（{resolution}，每 2 秒刷新）"
+        ]
+    elif camera.get("disconnected") or not camera.get("available"):
+        lines = [
+            "**📷 相机状态：不可用** — Robot Edge 无画面数据（离线或未启动）。"
+        ]
+    else:
+        lines = [
+            "**📷 相机状态：等待画面** — 相机已连接，尚未收到图像帧。"
+        ]
+    age = camera.get("age_sec")
+    if age is not None:
+        lines.append(f"- 遥测更新：{age:.1f}s 前")
+    return "\n".join(lines)
+
+
+def _camera_panel_update(image, snapshot):
+    """The three Gradio outputs of the live camera panel (one refresh tick)."""
+    has_image = image is not None
+    return (
+        gr.update(value=image, visible=has_image),
+        gr.update(
+            value="暂无画面：相机离线或尚未收到帧。",
+            visible=not has_image,
+        ),
+        _camera_view_markdown(image, snapshot),
+    )
+
+
+def refresh_camera_once():
+    """Fast camera-only refresh (~2 s) for the live robot-eye view.
+
+    The main 5 s timer keeps chat/timeline/telemetry updates; this timer
+    only re-fetches the latest JPEG from Robot Edge so the operator view
+    follows the robot without re-rendering the whole console.
+    """
+    _, vis_annotated_img = chat_pipeline.get_robot_observation()
+    snapshot = chat_pipeline.operator_snapshot()
+    return _camera_panel_update(vis_annotated_img, snapshot)
+
+
 def operator_update_once(history=None):
     """One bounded refresh; Gradio Timer schedules the next refresh.
 
@@ -442,6 +505,9 @@ def operator_update_once(history=None):
     image_size = getattr(robot_arm_rgb_image, "size", 1)
     is_manipulate_valid = robot_arm_rgb_image is not None and image_size != 0
     snapshot = chat_pipeline.operator_snapshot()
+    nav_image_update, nav_placeholder_update, camera_status_update = (
+        _camera_panel_update(vis_annotated_img, snapshot)
+    )
     history_updated = None
     completed = chat_pipeline.take_completed()
     if completed:
@@ -458,7 +524,9 @@ def operator_update_once(history=None):
                 current_history.append({"role": "assistant", "content": reply})
         history_updated = gr.update(value=current_history)
     return (
-        gr.update(value=vis_annotated_img, visible=vis_annotated_img is not None),
+        nav_image_update,
+        nav_placeholder_update,
+        camera_status_update,
         gr.update(value=robot_arm_rgb_image, visible=is_manipulate_valid),
         _task_status_markdown(snapshot),
         _timeline_markdown(snapshot),
@@ -561,9 +629,20 @@ def create_gradio():
                     elem_id="operator-task-status",
                 )
                 gr.Markdown("### 传感器预览")
+                camera_status = gr.Markdown(
+                    _camera_view_markdown(
+                        None, chat_pipeline.operator_snapshot()
+                    ),
+                    elem_id="operator-camera-status",
+                )
                 with gr.Tabs():
                     with gr.Tab("导航相机"):
                         nav_img_output = gr.Image(type="pil", height=280, visible=False)
+                        nav_camera_placeholder = gr.Markdown(
+                            "暂无画面：相机离线或尚未收到帧。",
+                            visible=True,
+                            elem_id="operator-nav-camera-placeholder",
+                        )
                     with gr.Tab("机械臂 / 深度"):
                         manipulate_img_output = gr.Image(
                             type="pil", height=280, visible=False
@@ -591,6 +670,7 @@ def create_gradio():
             variant="stop",
             elem_id="operator-emergency-stop",
         )
+        camera_timer = gr.Timer(2.0, active=True)
         refresh_timer = gr.Timer(5.0, active=True)
 
         user_input.submit(
@@ -646,11 +726,25 @@ def create_gradio():
             api_name="emergency_stop_operator",
             js="() => { window.ubrobotVoiceStop(); }",
         )
+        camera_timer.tick(
+            refresh_camera_once,
+            inputs=[],
+            outputs=[
+                nav_img_output,
+                nav_camera_placeholder,
+                camera_status,
+            ],
+            concurrency_limit=1,
+            api_name="camera_refresh",
+            show_api=False,
+        )
         refresh_timer.tick(
             operator_update_once,
             inputs=[user_chatbot],
             outputs=[
                 nav_img_output,
+                nav_camera_placeholder,
+                camera_status,
                 manipulate_img_output,
                 task_status,
                 task_timeline,

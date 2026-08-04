@@ -585,8 +585,16 @@ class ChatPipeline:
             return {"available": False}
         size = getattr(value, "size", None)
         shape = getattr(value, "shape", None)
+        width = height = None
+        if isinstance(size, (tuple, list)) and len(size) >= 2:
+            width, height = int(size[0]), int(size[1])
         return {
             "available": True,
             "size": list(size) if isinstance(size, tuple) else size,
             "shape": list(shape) if shape is not None else None,
+            # The console's own refresh overwrites the Robot Edge camera_info
+            # payload; keep width/height so the telemetry row keeps showing
+            # the resolution instead of "-".
+            "width": width,
+            "height": height,
         }

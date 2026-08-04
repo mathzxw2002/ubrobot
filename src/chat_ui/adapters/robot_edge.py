@@ -61,6 +61,16 @@ class RobotEdgeBackend:
             # operator's control traffic through a host HTTP proxy.
             trust_env=False,
         )
+        # Event polling runs for up to 180 s per execution; a single stalled
+        # poll should not kill the task.  Use a shorter connect timeout but
+        # allow reads to block longer during Cortex tool calls (Qwen-VL +
+        # vision-follower init).
+        self._events_client = httpx.Client(
+            base_url=self._edge_url,
+            timeout=httpx.Timeout(connect=5.0, read=60.0, write=5.0, pool=5.0),
+            headers={"Authorization": f"Bearer {self._token}"},
+            trust_env=False,
+        )
         self._lock = threading.Lock()
         self._active_command_id: str | None = None
         self._closed = False
@@ -205,16 +215,25 @@ class RobotEdgeBackend:
         # Kompass vision-follower initialization (~25 s) can exceed 60 s.
         deadline = time.monotonic() + 180.0
         last_substantive = ""
+        _MAX_POLL_RETRIES = 3
+        consecutive_errors = 0
         while time.monotonic() < deadline:
             if self._closed:
                 raise RuntimeError("Robot Edge backend closed during execution")
             try:
-                response = self._client.get(
+                response = self._events_client.get(
                     "/v1/events", params={"after": last_sequence}
                 )
+                consecutive_errors = 0
             except httpx.RequestError:
-                # Edge disconnect during execution fails the task clearly.
-                raise RuntimeError("Lost connection to Robot Edge during execution")
+                consecutive_errors += 1
+                if consecutive_errors > _MAX_POLL_RETRIES:
+                    raise RuntimeError(
+                        "Lost connection to Robot Edge during execution"
+                    )
+                # Transient network glitch; back off briefly and retry.
+                time.sleep(0.5 * consecutive_errors)
+                continue
             if response.status_code == 401:
                 raise RuntimeError("Robot Edge authentication failed during execution")
             if response.status_code >= 400:
@@ -313,12 +332,16 @@ class RobotEdgeBackend:
         return True
 
     def close(self) -> None:
-        """Close the HTTP client. Idempotent and safe to call during execute."""
+        """Close the HTTP clients. Idempotent and safe to call during execute."""
         with self._lock:
             if self._closed:
                 return
             self._closed = True
         try:
             self._client.close()
+        except Exception:
+            pass
+        try:
+            self._events_client.close()
         except Exception:
             pass

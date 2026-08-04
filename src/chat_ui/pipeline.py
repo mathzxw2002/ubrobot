@@ -93,6 +93,8 @@ class ChatPipeline:
         self.chat_history = []
         self.stop = threading.Event()
         self._feedback_lock = threading.Lock()
+        self._completed_replies: list[tuple[str, str]] = []
+        self._completed_lock = threading.Lock()
         self.latest_cortex_feedback = ""
 
         if backend is not None:
@@ -305,6 +307,18 @@ class ChatPipeline:
         with self._feedback_lock:
             self.latest_cortex_feedback = text
         self.cortex_feedback_queue.put(text)
+
+    def record_completed(self, text: str, reply: str) -> None:
+        """Record a background interaction result for the UI timer to drain."""
+        with self._completed_lock:
+            self._completed_replies.append((text, reply))
+
+    def take_completed(self) -> list[tuple[str, str]]:
+        """Return and clear completed background replies (thread-safe)."""
+        with self._completed_lock:
+            items = list(self._completed_replies)
+            self._completed_replies.clear()
+            return items
 
     def request_interaction(self, text, *, source="text", correlation_id=None):
         """Run the transport-neutral interaction path and return its result."""

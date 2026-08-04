@@ -3,6 +3,7 @@ import os
 from pathlib import Path
 import queue
 import shutil
+import threading
 import asyncio
 from contextlib import asynccontextmanager
 import json
@@ -342,7 +343,13 @@ def _file_path(value):
 
 
 def submit_operator_turn(value, history):
-    """Handle one native Gradio text/microphone submission."""
+    """Handle one native Gradio text/microphone submission.
+
+    Non-blocking: the interaction runs in a background thread so the Gradio
+    UI keeps rendering the task timeline and telemetry while Cortex/Kompass
+    execute (which can take ~60 s). The final reply is appended to the chat
+    by the timer callback when the background thread finishes.
+    """
     text, files = _input_text_and_files(value)
     source = "voice" if files else "text"
     if files:
@@ -359,24 +366,23 @@ def submit_operator_turn(value, history):
     category = chat_pipeline.interaction_runtime.classify(text).value
     logger.info("interaction received source=%s category=%s", source, category)
     current_history.append({"role": "user", "content": text})
-    try:
-        result = execute_operator_interaction(text, source=source)
-        response = result.reply
-        current_history.append({"role": "assistant", "content": response})
-        active = chat_pipeline.task_runtime.active_task()
-        logger.info(
-            "interaction completed category=%s active_task=%s",
-            category,
-            active.task_id if active is not None else "none",
-        )
-        notice = f"最近交互：`{source}` / `{category}`"
-    except Exception as exc:
-        logger.exception("interaction failed category=%s", category)
-        current_history.append(
-            {"role": "assistant", "content": f"执行失败：{exc}"}
-        )
-        notice = f"最近交互失败：`{type(exc).__name__}`"
-    return gr.update(value=None, interactive=True), current_history, notice
+    current_history.append({"role": "assistant", "content": "任务已提交，正在执行..."})
+
+    def run() -> None:
+        try:
+            result = execute_operator_interaction(text, source=source)
+            chat_pipeline.record_completed(text, result.reply)
+            logger.info("background interaction completed category=%s", category)
+        except Exception as exc:  # noqa: BLE001 - surface as chat reply
+            logger.exception("background interaction failed category=%s", category)
+            chat_pipeline.record_completed(text, f"执行失败：{exc}")
+
+    threading.Thread(target=run, daemon=True, name="operator-submit").start()
+    return (
+        gr.update(value=None, interactive=True),
+        current_history,
+        f"最近交互：`{source}` / `{category}`（执行中）",
+    )
 
 
 def stop_operator_task():
@@ -418,12 +424,32 @@ def emergency_stop_operator():
     return _voice_status_markdown({"voice": snapshot}), notice
 
 
-def operator_update_once():
-    """One bounded refresh; Gradio Timer schedules the next refresh."""
+def operator_update_once(history=None):
+    """One bounded refresh; Gradio Timer schedules the next refresh.
+
+    ``history`` is the current chat; completed background interactions
+    (submitted through the non-blocking Gradio path) replace their
+    "正在执行..." placeholder with the final reply here.
+    """
     robot_arm_rgb_image, vis_annotated_img = chat_pipeline.get_robot_observation()
     image_size = getattr(robot_arm_rgb_image, "size", 1)
     is_manipulate_valid = robot_arm_rgb_image is not None and image_size != 0
     snapshot = chat_pipeline.operator_snapshot()
+    history_updated = None
+    completed = chat_pipeline.take_completed()
+    if completed:
+        current_history = list(history or [])
+        for _, reply in completed:
+            # Replace the trailing placeholder with the final reply.
+            if (
+                current_history
+                and current_history[-1].get("role") == "assistant"
+                and current_history[-1].get("content") == "任务已提交，正在执行..."
+            ):
+                current_history[-1] = {"role": "assistant", "content": reply}
+            else:
+                current_history.append({"role": "assistant", "content": reply})
+        history_updated = gr.update(value=current_history)
     return (
         gr.update(value=vis_annotated_img, visible=vis_annotated_img is not None),
         gr.update(value=robot_arm_rgb_image, visible=is_manipulate_valid),
@@ -431,6 +457,7 @@ def operator_update_once():
         _timeline_markdown(snapshot),
         _telemetry_markdown(snapshot),
         _voice_status_markdown(snapshot),
+        history_updated,
     )
 
 
@@ -614,7 +641,7 @@ def create_gradio():
         )
         refresh_timer.tick(
             operator_update_once,
-            inputs=[],
+            inputs=[user_chatbot],
             outputs=[
                 nav_img_output,
                 manipulate_img_output,
@@ -622,6 +649,7 @@ def create_gradio():
                 task_timeline,
                 telemetry_status,
                 voice_status,
+                user_chatbot,
             ],
             concurrency_limit=1,
             api_name="operator_refresh",

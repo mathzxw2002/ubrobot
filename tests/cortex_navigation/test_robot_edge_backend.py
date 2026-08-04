@@ -112,7 +112,9 @@ class TestRobotEdgeBackendBehavior(unittest.TestCase):
             result = backend.execute("导航到前面的椅子", on_feedback=feedback.append)
         finally:
             backend.close()
-        self.assertIn("complete", result.lower())
+        # Reply is the last substantive Cortex feedback (the terminal
+        # "Task complete!" marker is not the reply).
+        self.assertIn("almost", result.lower())
         # Ordered fixture sequence: accepted -> planning -> running -> succeeded.
         joined = " | ".join(feedback).lower()
         self.assertIn("planning", joined)
@@ -235,7 +237,8 @@ class TestRobotEdgeBackendBehavior(unittest.TestCase):
             second = backend.execute("抓取前面的杯子", on_feedback=lambda m: None)
         finally:
             backend.close()
-        self.assertIn("complete", (first + second).lower())
+        self.assertTrue(first and second)
+        self.assertIn("almost", (first + second).lower())
 
     def test_close_is_idempotent_and_blocks_execute(self) -> None:
         """close releases the client; further execute fails clearly."""

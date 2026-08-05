@@ -413,11 +413,13 @@ def build_recipe(*, include_robot_stack=True):
         controller_config = ControllerConfig(
             loop_rate=2.0,
             ctrl_publish_type="Parallel",
-            # RT-DETR on ARM produces detections at ~1-2 Hz.  Kompass
-            # rejects updates when the actual inter-detection dt exceeds
-            # ~2× control_time_step.  0.5 s gives a 1.0 s window before
-            # "Box updated with invalid time step" zeros velocity.
-            control_time_step=0.5,
+            # Kompass rejects detection updates (zeros velocity with "Box
+            # updated with invalid time step") when the inter-detection dt
+            # exceeds ~2x control_time_step.  The Pi 5 camera runs at ~4 Hz
+            # with heavy jitter (0.03-0.8 s gaps); 0.5 s gave a 1.0 s window
+            # that was too tight.  1.0 s gives a 2.0 s window that accommodates
+            # the jitter + VLM round-trip latency.
+            control_time_step=1.0,
         )
         controller_config.frames.robot_base = "base_link"
         controller_config.frames.depth = "camera_depth_link"

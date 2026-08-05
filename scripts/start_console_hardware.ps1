@@ -27,7 +27,7 @@ param(
     [int]$EdgePort = 8780,
 
     [string]$PiAlias = "rasp_pi",
-    [string]$PiTokenPath = "/home/china/ubrobot-builds/m7-20260803/deploy/robot-edge/config/tokens.json"
+    [string]$PiTokenPath = "/home/china/ubrobot-builds/20260805-9207018/deploy/robot-edge/config/tokens.json"
 )
 
 $ErrorActionPreference = "Stop"
@@ -56,10 +56,15 @@ $env:UBROBOT_CHAT_BACKEND  = "robot-edge"
 $env:UBROBOT_EDGE_URL      = "http://${EdgeHost}:${EdgePort}"
 $env:UBROBOT_EDGE_TOKEN_FILE = $LocalToken
 $env:UBROBOT_CHAT_MEDIA    = "off"
-$env:UBROBOT_CHAT_TLS      = "on"
+$env:UBROBOT_EDGE_HARDWARE_AUTHORITY = "true"
+$env:UBROBOT_EDGE_ESTOP_EXEMPTED = "true"
+# TLS off: Edge link is already over unencrypted local-network HTTP;
+# self-signed cert would break PowerShell health checks. Use plain HTTP
+# for the local browser→console link during development.
+$env:UBROBOT_CHAT_TLS      = "off"
 
 Write-Host "Backend : robot-edge @ $env:UBROBOT_EDGE_URL" -ForegroundColor Cyan
 Write-Host "Token   : $LocalToken" -ForegroundColor Cyan
-Write-Host "Browser : https://localhost:$Port" -ForegroundColor Green
+Write-Host "Browser : http://localhost:$Port" -ForegroundColor Green
 
 & "$RepoRoot\scripts\operator_console.ps1" -Command start -Port $Port

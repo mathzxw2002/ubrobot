@@ -211,9 +211,11 @@ class RobotEdgeBackend:
         on_feedback: Callable[[str], None] | None,
     ) -> str:
         last_sequence = 0
-        # Cortex orchestration is slow: ARK confirmations (5-8 s each) plus
-        # Kompass vision-follower initialization (~25 s) can exceed 60 s.
-        deadline = time.monotonic() + 180.0
+        # Cortex orchestration is slow: reasoning-model planning can take
+        # 30-60 s, navigation timeout_sec is >= 60 s, and post-execution
+        # async waits add more. Stay above the Edge's own 300 s result wait
+        # so the Edge's terminal event always arrives first.
+        deadline = time.monotonic() + 320.0
         last_substantive = ""
         _MAX_POLL_RETRIES = 3
         consecutive_errors = 0

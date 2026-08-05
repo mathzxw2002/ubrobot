@@ -378,7 +378,12 @@ def build_recipe(*, include_robot_stack=True):
         vision = Vision(
             inputs=[rgbd_topic],
             outputs=[detections_raw_topic],
-            trigger=rgbd_topic,
+            # Time-triggered at 2 Hz instead of every RGBD frame. The Pi 5
+            # cannot sustain per-frame RT-DETR inference (detection_component
+            # was ~70% CPU); 2 Hz matches the Kompass control_time_step (0.5 s)
+            # and keeps the inter-detection dt well within the ~1 s window
+            # before "Box updated with invalid time step" zeros velocity.
+            trigger=0.5,
             config=VisionConfig(threshold=0.5, enable_visualization=False),
             model_client=detection_client,
             component_name="detection_component",

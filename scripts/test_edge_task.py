@@ -18,6 +18,13 @@ import uuid
 from datetime import datetime, timezone
 from pathlib import Path
 
+# Windows console defaults to GBK; force UTF-8 so emoji/Chinese don't crash.
+try:
+    sys.stdout.reconfigure(encoding="utf-8", errors="replace")
+    sys.stderr.reconfigure(encoding="utf-8", errors="replace")
+except Exception:
+    pass
+
 import urllib.request
 import urllib.error
 

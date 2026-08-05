@@ -118,6 +118,9 @@ class RosCortexCommandBackend:
     ) -> Iterator[tuple[CommandState, str, dict[str, Any]]]:
         if self._closed:
             raise RuntimeError("Robot Edge command backend is closed")
+        # Fresh queue per command so stale events (e.g. a "cancelled" from
+        # the previous command) cannot leak into the new command's stream.
+        self._events = queue.Queue()
         yield CommandState.ACCEPTED, "Command accepted", {"source": "cortex"}
         self._start_goal(command_text)
         while True:
@@ -181,17 +184,24 @@ class RosCortexCommandBackend:
         thread.start()
 
     def _run_goal(self, command_text: str) -> None:
+        # Capture the per-command queue so late callbacks from a previous
+        # command cannot pollute the current command's event stream.
+        events = self._events
         try:
             client = self._client_factory()
             with self._lock:
                 self._active_client = client
             client.send_goal(
                 command_text,
-                feedback_callback=self._on_feedback,
-                terminal_callback=self._on_terminal,
+                feedback_callback=lambda msg: events.put(
+                    {"kind": "feedback", "message": msg}
+                ),
+                terminal_callback=lambda **kw: events.put(
+                    {"kind": "terminal", **kw}
+                ),
             )
         except Exception as exc:  # noqa: BLE001 - report any goal failure
-            self._events.put(
+            events.put(
                 {"kind": "terminal", "status": "failed", "message": str(exc)}
             )
 

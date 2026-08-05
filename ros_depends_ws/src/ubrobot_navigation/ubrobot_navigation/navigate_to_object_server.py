@@ -61,11 +61,27 @@ class LeasePublisher:
 
 
 class RosOuterGoalAdapter:
-    def __init__(self, goal_handle):
+    """Bridges the pure coordinator to a rclpy goal handle + cortex status.
+
+    ``is_cortex_active`` returns False once the Cortex action goal that
+    dispatched this navigate_to_object goal has reached a terminal state
+    (ABORTED/SUCCEEDED/CANCELED).  This lets the coordinator cancel the
+    downstream Kompass goal immediately when the Cortex gives up, instead
+    of waiting for the search_timeout to expire — preventing the robot
+    from continuing to move after the task is reported as failed.
+    """
+
+    def __init__(self, goal_handle, cortex_active_fn=None):
         self._goal_handle = goal_handle
+        self._cortex_active_fn = cortex_active_fn
 
     def is_cancel_requested(self) -> bool:
         return bool(self._goal_handle.is_cancel_requested)
+
+    def is_cortex_active(self) -> bool:
+        if self._cortex_active_fn is None:
+            return True  # no cortex status subscription → assume active
+        return self._cortex_active_fn()
 
     def publish_feedback(self, feedback: NavigationFeedback) -> None:
         message = NavigateToObject.Feedback()
@@ -197,6 +213,9 @@ class NavigateToObjectServer(Node):
         self.declare_parameter("downstream_server_timeout_sec", 5.0)
         self.declare_parameter("downstream_cancel_timeout_sec", 2.0)
         self.declare_parameter("lifecycle_poll_period_sec", 0.05)
+        self.declare_parameter(
+            "cortex_action_name", "/cortex_input_command"
+        )
 
         self._callback_group = ReentrantCallbackGroup()
         lease_qos = QoSProfile(
@@ -210,6 +229,23 @@ class NavigateToObjectServer(Node):
         self.create_timer(
             LEASE_HEARTBEAT_PERIOD_SEC,
             self._lease.heartbeat,
+            callback_group=self._callback_group,
+        )
+
+        # Subscribe to the Cortex action status so the coordinator can
+        # detect when the Cortex goal that dispatched this navigation has
+        # ended (ABORTED/SUCCEEDED/CANCELED) and immediately cancel the
+        # downstream Kompass goal instead of waiting for search_timeout.
+        self._cortex_status_lock = threading.Lock()
+        self._cortex_has_active_goal = True  # optimistic until first status
+        self._cortex_status_seen = False
+        cortex_action = self.get_parameter("cortex_action_name").value
+        from action_msgs.msg import GoalStatusArray
+        self.create_subscription(
+            GoalStatusArray,
+            f"{cortex_action}/_action/status",
+            self._on_cortex_status,
+            10,
             callback_group=self._callback_group,
         )
 
@@ -241,6 +277,23 @@ class NavigateToObjectServer(Node):
 
     def revoke_lease(self) -> None:
         self._lease.revoke()
+
+    def _on_cortex_status(self, msg) -> None:
+        """Track whether the Cortex has any goal still executing."""
+        active = any(
+            s.status in (1, 2)  # STATUS_ACCEPTED, STATUS_EXECUTING
+            for s in msg.status_list
+        )
+        with self._cortex_status_lock:
+            self._cortex_has_active_goal = active
+            self._cortex_status_seen = True
+
+    def _cortex_active(self) -> bool:
+        """Return False once the Cortex goal has ended (after first status)."""
+        with self._cortex_status_lock:
+            if not self._cortex_status_seen:
+                return True  # haven't seen status yet -> assume active
+            return self._cortex_has_active_goal
 
     def _on_goal(self, request):
         try:
@@ -281,7 +334,10 @@ class NavigateToObjectServer(Node):
         )
         outcome = self._coordinator.execute(
             reservation=reservation,
-            outer=RosOuterGoalAdapter(goal_handle),
+            outer=RosOuterGoalAdapter(
+                goal_handle,
+                cortex_active_fn=self._cortex_active,
+            ),
             downstream=downstream,
             lease=self._lease,
         )

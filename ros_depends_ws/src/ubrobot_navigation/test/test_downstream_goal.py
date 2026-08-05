@@ -36,12 +36,16 @@ class FakeLease:
 
 
 class FakeOuterGoal:
-    def __init__(self, *, cancel_requested=False):
+    def __init__(self, *, cancel_requested=False, cortex_active=True):
         self.cancel_requested = cancel_requested
+        self._cortex_active = cortex_active
         self.feedback = []
 
     def is_cancel_requested(self):
         return self.cancel_requested
+
+    def is_cortex_active(self):
+        return self._cortex_active
 
     def publish_feedback(self, feedback):
         self.feedback.append(feedback)

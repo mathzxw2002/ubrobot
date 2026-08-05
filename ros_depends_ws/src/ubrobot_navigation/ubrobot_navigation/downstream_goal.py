@@ -55,6 +55,8 @@ class GoalBusyError(RuntimeError):
 class OuterGoalAdapter(Protocol):
     def is_cancel_requested(self) -> bool: ...
 
+    def is_cortex_active(self) -> bool: ...
+
     def publish_feedback(self, feedback: NavigationFeedback) -> None: ...
 
 
@@ -182,6 +184,17 @@ class NavigationLifecycleCoordinator:
                     )
                     return NavigationOutcome(NavigationStatus.CANCELLED, message)
 
+                if not outer.is_cortex_active():
+                    acknowledged = downstream.cancel(
+                        self._cancellation_timeout_sec
+                    )
+                    message = (
+                        "outer goal abandoned (cortex ended)"
+                        if acknowledged
+                        else "outer goal abandoned; downstream acknowledgement timed out"
+                    )
+                    return NavigationOutcome(NavigationStatus.FAILED, message)
+
                 if self._clock() - started_at >= reservation.goal.timeout_sec:
                     acknowledged = downstream.cancel(
                         self._cancellation_timeout_sec
@@ -214,6 +227,11 @@ class NavigationLifecycleCoordinator:
                 f"navigation execution failed: {exc}",
             )
         finally:
+            if downstream_started:
+                try:
+                    downstream.cancel(self._cancellation_timeout_sec)
+                except Exception:
+                    pass
             if lease_acquired:
                 lease.revoke()
             self._release(reservation.token)

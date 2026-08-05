@@ -118,6 +118,21 @@ class NavigationCapabilityProxy(SemanticCapabilityProxy):
 class NavigationCortex(Cortex):
     """Keep full-stack monitoring while limiting LLM discovery to the proxy."""
 
+    _MIN_NAV_TIMEOUT_SEC = 30.0
+    _DEFAULT_NAV_TIMEOUT_SEC = 60.0
+
+    def _execute_system_tool(self, tool_name: str, args: dict) -> str:
+        """Clamp navigation timeout_sec before passing to the framework.
+
+        gpt-4o-mini ignores tool-description guidance and routinely picks
+        timeout_sec=1, which kills the navigation action immediately.
+        """
+        if tool_name == NAVIGATION_TOOL_NAME and isinstance(args, dict):
+            timeout = float(args.get("timeout_sec", self._DEFAULT_NAV_TIMEOUT_SEC))
+            if timeout < self._MIN_NAV_TIMEOUT_SEC:
+                args["timeout_sec"] = self._DEFAULT_NAV_TIMEOUT_SEC
+        return super()._execute_system_tool(tool_name, args)
+
     def _init_internal_monitor(self, *, components=None, **kwargs):
         # The Launcher still passes every component name for health monitoring
         # and activation. Excluding main service/action clients here prevents

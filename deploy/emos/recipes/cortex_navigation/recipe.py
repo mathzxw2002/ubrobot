@@ -388,15 +388,13 @@ def build_recipe(*, include_robot_stack=True):
             ),
         )
         controller_config = ControllerConfig(
-            loop_rate=5.0,
+            loop_rate=2.0,
             ctrl_publish_type="Parallel",
-            # Match the actual detection rate from RT-DETR on ARM (~3-5 Hz).
-            # When control_time_step is much smaller than the real
-            # inter-detection interval, Kompass reports "Box updated with
-            # invalid time step" and zeros velocity as a safety measure.
-            # 0.2 s matches a 5 Hz pipeline; the controller tolerates
-            # actual dt up to ~2× this value before rejecting.
-            control_time_step=0.2,
+            # RT-DETR on ARM produces detections at ~1-2 Hz.  Kompass
+            # rejects updates when the actual inter-detection dt exceeds
+            # ~2× control_time_step.  0.5 s gives a 1.0 s window before
+            # "Box updated with invalid time step" zeros velocity.
+            control_time_step=0.5,
         )
         controller_config.frames.robot_base = "base_link"
         controller_config.frames.depth = "camera_depth_link"

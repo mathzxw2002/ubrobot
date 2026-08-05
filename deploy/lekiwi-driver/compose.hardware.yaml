@@ -1,5 +1,8 @@
 # HARD GATE: use this override only with the wheels lifted until motor IDs,
 # wheel directions, feedback signs, watchdog, and stop behavior are verified.
+# enable_motor_torque:=true activates the STS3215 torque (without it the bus
+# stays in torque-disabled preflight mode and the robot will not move).
+# Keep the physical E-stop within reach.
 services:
   lekiwi-base-driver:
     devices:
@@ -11,3 +14,4 @@ services:
       - lekiwi_driver.launch.py
       - hardware_mode:=real
       - enable_real_hardware:=true
+      - enable_motor_torque:=true

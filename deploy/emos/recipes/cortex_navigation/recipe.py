@@ -419,7 +419,7 @@ def build_recipe(*, include_robot_stack=True):
             # with heavy jitter (0.03-0.8 s gaps); 0.5 s gave a 1.0 s window
             # that was too tight.  1.0 s gives a 2.0 s window that accommodates
             # the jitter + VLM round-trip latency.
-            control_time_step=1.0,
+            control_time_step=2.0,
         )
         controller_config.frames.robot_base = "base_link"
         controller_config.frames.depth = "camera_depth_link"

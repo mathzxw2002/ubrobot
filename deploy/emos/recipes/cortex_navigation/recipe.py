@@ -43,7 +43,10 @@ NAVIGATION_ACTION_NAME = "/ubrobot/navigation/navigate_to_object"
 NAVIGATION_TOOL_NAME = "send_goal_to__ubrobot_navigation_navigate_to_object"
 NAVIGATION_TOOL_DESCRIPTION = (
     "Navigate toward one visually detectable object label. The operation can be "
-    "cancelled and may fail when sensors, detection, or localization are unavailable."
+    "cancelled and may fail when sensors, detection, or localization are unavailable. "
+    "IMPORTANT: set timeout_sec to at least 60 for any real navigation task — the "
+    "robot needs time for detection, planning, and movement.  Never use timeout_sec "
+    "shorter than 30."
 )
 
 GRASP_ACTION_NAME = "/ubrobot/manipulation/grasp_object"

@@ -122,15 +122,33 @@ class NavigationCortex(Cortex):
     _DEFAULT_NAV_TIMEOUT_SEC = 60.0
 
     def _execute_system_tool(self, tool_name: str, args: dict) -> str:
-        """Clamp navigation timeout_sec before passing to the framework.
+        """Clamp navigation timeout + reject invalid update_parameter calls.
 
-        gpt-4o-mini ignores tool-description guidance and routinely picks
-        timeout_sec=1, which kills the navigation action immediately.
+        gpt-4o-mini tries update_parameter on semantic_navigation_capability
+        with fake parameter names (e.g. stop_distance), which crashes the
+        ROS service handler.  Reject those cleanly so the planner falls
+        through to the next step instead.
         """
         if tool_name == NAVIGATION_TOOL_NAME and isinstance(args, dict):
             timeout = float(args.get("timeout_sec", self._DEFAULT_NAV_TIMEOUT_SEC))
             if timeout < self._MIN_NAV_TIMEOUT_SEC:
                 args["timeout_sec"] = self._DEFAULT_NAV_TIMEOUT_SEC
+
+        if tool_name == "update_parameter" and isinstance(args, dict):
+            component = str(args.get("component", ""))
+            # The metadata proxies have no mutable parameters; the real
+            # controller/driver are intentionally hidden from the planner.
+            if component in ("semantic_navigation_capability",
+                             "semantic_grasp_capability",
+                             "vision_inspection"):
+                return (
+                    f"Error: update_parameter is not supported on "
+                    f"'{component}'.  This component only exposes its "
+                    f"documented action.  Please call "
+                    f"send_goal_to__ubrobot_navigation_navigate_to_object "
+                    f"directly instead of trying to configure parameters."
+                )
+
         return super()._execute_system_tool(tool_name, args)
 
     def _init_internal_monitor(self, *, components=None, **kwargs):

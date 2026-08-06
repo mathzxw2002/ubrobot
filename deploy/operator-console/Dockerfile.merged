@@ -1,0 +1,24 @@
+# Merged operator-console + robot-edge container.
+#
+# Base: robot-edge image (has rclpy + edge code + edge-venv).
+# Adds: gradio/fastapi/httpx for the console UI (installed into system Python,
+# separate from edge-venv). A supervisor script runs both processes.
+FROM ubrobot/robot-edge:20260806-fix
+
+WORKDIR /app
+
+COPY requirements-operator-console.txt .
+RUN sed -i '/^psutil/d; /^pydantic-core/d; /^packaging/d' requirements-operator-console.txt && \
+    python3 -m pip install --no-cache-dir --break-system-packages \
+      -i https://mirrors.tuna.tsinghua.edu.cn/pypi/web/simple \
+      -r requirements-operator-console.txt
+
+COPY src/chat_ui /app/chat_ui
+COPY src/ubrobot_contracts /app/ubrobot_contracts
+COPY assets/icon /app/assets/icon
+
+COPY deploy/operator-console/start-console-edge.sh /usr/local/bin/start-console-edge.sh
+RUN chmod +x /usr/local/bin/start-console-edge.sh
+
+ENV PYTHONPATH=/app
+CMD ["/usr/local/bin/start-console-edge.sh"]

@@ -7,8 +7,14 @@ import math
 MAX_TARGET_LENGTH = 128
 MIN_TIMEOUT_SEC = 1.0
 MAX_TIMEOUT_SEC = 300.0
+# LeKiwi default limits (conservative; the wheeled base is slow).
 MAX_LINEAR_SPEED = 0.05
 MAX_ANGULAR_SPEED = 0.20
+# go2_piper base velocity limits (Task 3): the quadruped is a new /cmd_vel
+# consumer with its own conservative caps, wired through the same
+# sanitize_twist gate as LeKiwi.
+GO2_PIPER_MAX_LINEAR_SPEED = 0.20
+GO2_PIPER_MAX_ANGULAR_SPEED = 0.50
 COMMAND_FRESHNESS_SEC = 0.25
 ZERO_TWIST = (0.0, 0.0, 0.0)
 
@@ -69,8 +75,15 @@ def sanitize_twist(
     angular_z: float,
     lease_fresh: bool,
     command_fresh: bool,
+    max_linear_speed: float = MAX_LINEAR_SPEED,
+    max_angular_speed: float = MAX_ANGULAR_SPEED,
 ) -> tuple[float, float, float]:
-    """Gate and clamp planar velocity, failing closed on invalid input."""
+    """Gate and clamp planar velocity, failing closed on invalid input.
+
+    ``max_linear_speed`` / ``max_angular_speed`` default to the LeKiwi caps;
+    platform adapters may pass tighter or (for the Go2 base) the configured
+    ``go2_piper`` caps. Callers must pass them explicitly per platform.
+    """
     if not lease_fresh or not command_fresh:
         return ZERO_TWIST
 
@@ -83,9 +96,9 @@ def sanitize_twist(
         return ZERO_TWIST
 
     return (
-        _clamp(float(linear_x), MAX_LINEAR_SPEED),
-        _clamp(float(linear_y), MAX_LINEAR_SPEED),
-        _clamp(float(angular_z), MAX_ANGULAR_SPEED),
+        _clamp(float(linear_x), max_linear_speed),
+        _clamp(float(linear_y), max_linear_speed),
+        _clamp(float(angular_z), max_angular_speed),
     )
 
 

@@ -70,6 +70,47 @@ def grasp_exposure_enabled(env) -> bool:
     )
 
 
+def _build_robot_config(env) -> RobotConfig:
+    """Kompass robot model/limits parameterized by ``UBROBOT_PLATFORM``.
+
+    Both LeKiwi and Go2 are omnidirectional (``RobotType.OMNI``) so the
+    semantic navigation chain (TrackVisionTargetAdapter -> DriveManager ->
+    raw_cmd_vel -> guard) is base-agnostic. The Go2 base is a new /cmd_vel
+    consumer with conservative limits (Task 3): linear <= 0.2 m/s and
+    angular <= 0.5 rad/s for the first bring-up, versus the LeKiwi defaults.
+    Unknown platforms fail closed to the conservative LeKiwi set so a
+    misconfiguration never silently widens limits.
+    """
+    platform = (env.get("UBROBOT_PLATFORM") or "lekiwi").strip().lower()
+    if platform == "go2_piper":
+        linear_limit = 0.2
+        angular_limit = 0.5
+    else:
+        linear_limit = 0.25
+        angular_limit = 0.8
+    return RobotConfig(
+        model_type=RobotType.OMNI,
+        geometry_type=RobotGeometry.Type.CYLINDER,
+        geometry_params=[0.18, 0.35],
+        ctrl_vx_limits=LinearCtrlLimits(
+            max_vel=linear_limit,
+            max_acc=0.5,
+            max_decel=0.8,
+        ),
+        ctrl_vy_limits=LinearCtrlLimits(
+            max_vel=linear_limit,
+            max_acc=0.5,
+            max_decel=0.8,
+        ),
+        ctrl_omega_limits=AngularCtrlLimits(
+            max_vel=angular_limit,
+            max_acc=1.0,
+            max_decel=1.5,
+            max_steer=math.pi / 3,
+        ),
+    )
+
+
 class SemanticCapabilityProxy(BaseComponent):
     """Metadata-only component exposing one external controlled Action."""
 
@@ -389,27 +430,7 @@ def build_recipe(*, include_robot_stack=True):
             component_name="detection_component",
         )
 
-        robot = RobotConfig(
-            model_type=RobotType.OMNI,
-            geometry_type=RobotGeometry.Type.CYLINDER,
-            geometry_params=[0.18, 0.35],
-            ctrl_vx_limits=LinearCtrlLimits(
-                max_vel=0.25,
-                max_acc=0.5,
-                max_decel=0.8,
-            ),
-            ctrl_vy_limits=LinearCtrlLimits(
-                max_vel=0.25,
-                max_acc=0.5,
-                max_decel=0.8,
-            ),
-            ctrl_omega_limits=AngularCtrlLimits(
-                max_vel=0.8,
-                max_acc=1.0,
-                max_decel=1.5,
-                max_steer=math.pi / 3,
-            ),
-        )
+        robot = _build_robot_config(os.environ)
         controller_config = ControllerConfig(
             loop_rate=2.0,
             ctrl_publish_type="Parallel",

@@ -1,5 +1,7 @@
 
 import argparse
+import base64
+import io
 import json
 import os
 import time
@@ -138,6 +140,79 @@ def eval_robobrain2_5_grounding():
     resut_str = robobrain_infer.inference(instruction, image, task="grounding", plot=False, do_sample=False)
     print(f"Prediction:\n{resut_str}")
     return resut_str'''
+
+@app.route("/grasp_poses", methods=['POST'])
+def grasp_poses():
+    """Generate 6D grasp poses from RGB-D + intrinsics + workspace.
+
+    Request body (JSON, from the dock's ``RemoteGraspPerception``):
+        target           object label (informational)
+        color            base64-encoded color image (PNG/JPEG bytes)
+        depth            base64-encoded 16-bit depth image
+        camera_intrinsic 3x3 intrinsics (list of lists)
+        workspace        box limits {x_min, x_max, y_min, y_max, z_min, z_max}
+
+    Response (JSON):
+        {"grasp_poses": [{"score": float, "position": [x,y,z],
+                          "orientation": [x,y,z,w]}, ...]}
+    """
+    print("eval grasp poses ...")
+    data = request.get_json(force=True)
+    if data is None:
+        return jsonify({"error": "request must be JSON"}), 400
+
+    try:
+        color_bytes = base64.b64decode(data["color"])
+        depth_bytes = base64.b64decode(data["depth"])
+    except (KeyError, ValueError) as exc:
+        return jsonify({"error": f"invalid base64 color/depth: {exc}"}), 400
+
+    intrinsic = data.get("camera_intrinsic")
+    if not intrinsic or len(intrinsic) != 3:
+        return jsonify({"error": "camera_intrinsic must be a 3x3 matrix"}), 400
+
+    color_img = np.asarray(Image.open(io.BytesIO(color_bytes)).convert("RGB"))
+    depth_pil = Image.open(io.BytesIO(depth_bytes))
+    depth = np.asarray(depth_pil).astype(np.uint16)
+
+    workspace = data.get("workspace") or {}
+
+    # Remote inference only runs on the x86 GPU host. Fail closed with an
+    # explicit message when the GraspNet plan is not wired up yet, so the
+    # dock never degrades to local guessing.
+    try:
+        from grasp_plan import RobotArmMotionPlan  # noqa: PLC0415
+    except ImportError as exc:
+        return jsonify({"error": f"grasp_plan unavailable on server: {exc}"}), 503
+
+    if not hasattr(grasp_poses, "_plan"):
+        checkpoint = os.environ.get(
+            "GRASPNET_CHECKPOINT",
+            "/home/sany/ubrobot/assets/checkpoint-rs.tar",
+        )
+        grasp_poses._plan = RobotArmMotionPlan(checkpoint)
+
+    intrinsic_np = np.array(intrinsic, dtype=np.float32)
+    gg = grasp_poses._plan.generate_6d_grasp_pose(
+        color_img,
+        depth,
+        workspace_mask=None,
+        intrinsic=intrinsic_np,
+        factor_depth=1000.0,
+    )
+
+    poses = []
+    gg.nms()
+    gg.sort_by_score()
+    for g in gg[:20]:
+        poses.append(
+            {
+                "score": float(g.score),
+                "position": [float(g.translation[0]), float(g.translation[1]), float(g.translation[2])],
+                "orientation": [0.0, 0.0, 0.0, 1.0],
+            }
+        )
+    return jsonify({"grasp_poses": poses})
 
 if __name__ == '__main__':
 

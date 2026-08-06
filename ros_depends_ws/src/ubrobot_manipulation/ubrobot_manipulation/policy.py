@@ -88,6 +88,11 @@ class PlatformProfile:
     workspace: WorkspaceBox
     requires_stationary_base: bool
     max_approach_speed_mps: float
+    # Remote perception service base URL (x86 GPU server; empty = local/None).
+    remote_perception_service_url: str = ""
+    # Conservative base velocity caps used by the shared navigation policy.
+    max_base_linear_mps: float = 0.05
+    max_base_angular_radps: float = 0.20
 
 
 PLATFORM_PROFILES = {
@@ -100,13 +105,18 @@ PLATFORM_PROFILES = {
         max_approach_speed_mps=0.10,
     ),
     # Unitree Go2 carrying a Piper arm: arm base frame on the quadruped
-    # back; the base MUST hold still during any grasp.
+    # back; the base MUST hold still during any grasp. Perception is a
+    # remote (x86 GPU) GraspNet service; base caps are the conservative
+    # go2_piper limits (Task 3: linear <= 0.2 m/s, angular <= 0.5 rad/s).
     "go2_piper": PlatformProfile(
         name="go2_piper",
         executor_kind="piper_graspnet",
         workspace=WorkspaceBox(0.10, 0.55, -0.30, 0.30, 0.05, 0.55),
         requires_stationary_base=True,
         max_approach_speed_mps=0.05,
+        remote_perception_service_url="http://perception-server.local:5802",
+        max_base_linear_mps=0.2,
+        max_base_angular_radps=0.5,
     ),
 }
 

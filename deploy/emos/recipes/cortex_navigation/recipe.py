@@ -54,7 +54,10 @@ GRASP_TOOL_NAME = "send_goal_to__ubrobot_manipulation_grasp_object"
 GRASP_TOOL_DESCRIPTION = (
     "Grasp one visually detectable object label with the robot arm. The "
     "operation can be cancelled, never moves the mobile base, and may fail "
-    "when perception, the arm, or the target workspace is unavailable."
+    "when perception, the arm, or the target workspace is unavailable. "
+    "CRITICAL: only use this for a FIXED, fully stationary base — never "
+    "grasp while the base is moving or immediately after navigating; the "
+    "base must have settled. Do NOT chain navigation and grasp automatically."
 )
 
 # The grasp capability server ships separately; keep the tool hidden until

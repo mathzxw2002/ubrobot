@@ -104,23 +104,20 @@ class RosMotionAuthorityAdapter:
 
 
 def build_executor(node: Node, profile):
-    """Bind only the explicit offline fixture; real hardware stays deferred.
+    """Bind the explicit offline fixture, or the go2_piper hardware binding.
 
-    Real Piper/Go2 bindings intentionally remain unavailable. This prevents
-    an accidental hardware connection while still allowing a complete local
-    EMOS Action harness.
+    Delegates the platform/env decision to the pure
+    ``resolve_executor_binding`` helper so the gate is testable without ROS.
+    Only the explicit ``UBROBOT_GRASP_EXECUTOR`` env selects a binding; an
+    accidental hardware connection must never happen.
     """
-    if os.environ.get("UBROBOT_GRASP_EXECUTOR", "").strip().lower() == "fixture":
-        from .executors.fixture import DeterministicGraspExecutor
+    from .executors import resolve_executor_binding
 
-        return DeterministicGraspExecutor(
-            profile=profile,
-            phase_delay_sec=node.get_parameter("fixture_phase_delay_sec").value,
-        )
-    raise NotImplementedError(
-        f"no grasp executor binding implemented for profile "
-        f"'{profile.name}' (executor kind '{profile.executor_kind}'); "
-        "see docs/plans/2026-07-31-cortex-grasp-capability.md deferred steps"
+    executor_kind = os.environ.get("UBROBOT_GRASP_EXECUTOR", "").strip().lower()
+    return resolve_executor_binding(
+        profile,
+        executor_kind,
+        fixture_phase_delay_sec=node.get_parameter("fixture_phase_delay_sec").value,
     )
 
 

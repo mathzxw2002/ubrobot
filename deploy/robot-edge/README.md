@@ -208,3 +208,42 @@ Hardware motion (M7 Task 13) validated: bounded motion, lease-expiry
 fail-closed stop, normal cancel, and NavigateToObject with real Kompass
 vision tracking (chair, delta ~0.4 m). Torque remains disabled after
 validation.
+
+## Go2+Piper hardware acceptance (Task 6)
+
+The Go2+Piper combined acceptance uses a dedicated deployment gate that
+fails closed at startup when any gate is missing. It is the ONLY sanctioned
+path to run the Edge with real Go2+Piper hardware authority.
+
+Gates (all required; see `compose.go2-piper.hardware.yaml`):
+
+- `UBROBOT_PLATFORM=go2_piper`, `UBROBOT_GRASP_PLATFORM=go2_piper`
+- `UBROBOT_EDGE_MODE=hardware` + `UBROBOT_EDGE_HARDWARE_AUTHORITY=true`
+- `UBROBOT_EDGE_ESTOP_ENABLED=true` with `CHIP`/`LINE` (bound local stop)
+- `REMOTE_PERCEPTION_SERVICE_URL` (x86 GPU server)
+- `RMW_IMPLEMENTATION=rmw_cyclonedds_cpp` (Go2 DDS is CycloneDDS, Task 1)
+- Reviewed checklist `deploy/robot-edge/checklist/go2-piper-hardware-checklist.md`
+
+Bring-up:
+
+```bash
+docker compose -f deploy/robot-edge/compose.fixture.yaml \
+               -f deploy/robot-edge/compose.go2-piper.hardware.yaml up
+```
+
+Acceptance driver (gate + mutual-exclusion safety, no unsupervised motion):
+
+```bash
+python tests/hardware/test_go2_piper_cortex_acceptance.py            # workstation
+python tests/hardware/test_go2_piper_cortex_acceptance.py --hardware # operator-driven
+```
+
+Stage plan: read-only health -> zero-output/stop -> (low-speed Go2
+navigation DEFERRED) -> stationary Piper pre-grasp -> light grasp. Piper
+arm stages can run first on the stationary dog; Go2 navigation on the real
+dog requires an explicit operator release.
+
+Mutual-exclusion bottom line (codified in the acceptance harness): Grasp
+while a navigation lease is active is REJECTED; a navigation lease appearing
+mid-grasp cancels the grasp fail-closed; remote-perception unreachable never
+produces motion.

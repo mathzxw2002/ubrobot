@@ -1,0 +1,78 @@
+# Task 6: Go2+Piper hardware acceptance deployment gate.
+#
+# This profile is the ONLY sanctioned way to run the Robot Edge with real
+# Go2+Piper hardware authority. It fails closed at startup when any gate is
+# missing: wrong platform, fixture mode, no hardware authority, no bound
+# local stop, no reviewed checklist, or no config hash. It does NOT use
+# `privileged` as a bypass.
+#
+# Required environment (from the reviewed checklist / .env):
+#   UBROBOT_PLATFORM=go2_piper
+#   UBROBOT_GRASP_PLATFORM=go2_piper
+#   UBROBOT_EDGE_MODE=hardware
+#   UBROBOT_EDGE_HARDWARE_AUTHORITY=true
+#   UBROBOT_EDGE_ESTOP_ENABLED=true  (+ CHIP/LINE for the bound local stop)
+#   REMOTE_PERCEPTION_SERVICE_URL=<x86 GPU server reachable from the dock>
+#   RMW_IMPLEMENTATION=rmw_cyclonedds_cpp   (Task 1: Go2 DDS is CycloneDDS)
+#   ROS_DOMAIN_ID=<same as the go2-bridge + emos dock containers>
+#
+# Bring up together with the base fixture compose:
+#   docker compose -f deploy/robot-edge/compose.fixture.yaml \
+#                  -f deploy/robot-edge/compose.go2-piper.hardware.yaml up
+services:
+  robot-edge:
+    build:
+      context: ../..
+      dockerfile: deploy/robot-edge/Dockerfile.ros
+    image: ubrobot/robot-edge:go2-piper-hardware
+    container_name: ubrobot-robot-edge-go2-piper
+    network_mode: host
+    environment:
+      # --- platform identity (hard gate) ---
+      - UBROBOT_PLATFORM=go2_piper
+      - UBROBOT_GRASP_PLATFORM=go2_piper
+      # --- mode / authority (hard gate; compose env vars are authoritative) ---
+      - UBROBOT_EDGE_MODE=hardware
+      - UBROBOT_EDGE_HARDWARE_AUTHORITY=${UBROBOT_EDGE_HARDWARE_AUTHORITY:?hardware authority must be explicitly enabled}
+      - UBROBOT_EDGE_ESTOP_EXEMPTED=false
+      # --- RMW + ROS domain: Go2 DDS is CycloneDDS (Task 1 finding 3) ---
+      - RMW_IMPLEMENTATION=rmw_cyclonedds_cpp
+      - ROS_DOMAIN_ID=${ROS_DOMAIN_ID:-0}
+      - CYCLONEDDS_URI=/etc/cyclonedds/cyclonedds.xml
+      - ROS_HOME=/tmp/ros-home
+      - ROS_LOG_DIR=/tmp/ros-logs
+      - UBROBOT_EDGE_HOST=0.0.0.0
+      - UBROBOT_EDGE_TOKENS_FILE=/app/config/tokens.json
+      # --- remote perception (x86 GPU server; hard gate, required) ---
+      - REMOTE_PERCEPTION_SERVICE_URL=${REMOTE_PERCEPTION_SERVICE_URL:?remote perception service URL is required}
+      # --- physical local stop (Task 6: bound E-stop is mandatory) ---
+      - UBROBOT_EDGE_ESTOP_ENABLED=${UBROBOT_EDGE_ESTOP_ENABLED:?local stop must be explicitly enabled}
+      - UBROBOT_EDGE_ESTOP_CHIP=${UBROBOT_EDGE_ESTOP_CHIP}
+      - UBROBOT_EDGE_ESTOP_LINE=${UBROBOT_EDGE_ESTOP_LINE}
+      - UBROBOT_EDGE_ESTOP_LINE_NAME=${UBROBOT_EDGE_ESTOP_LINE_NAME:-ubrobot-go2-estop}
+      - UBROBOT_EDGE_ESTOP_DEBOUNCE_SEC=${UBROBOT_EDGE_ESTOP_DEBOUNCE_SEC:-0.02}
+      # --- safety checklist (reviewed, version-controlled path) ---
+      - UBROBOT_EDGE_SAFETY_CHECKLIST=/app/checklist/go2-piper-hardware-checklist.md
+    volumes:
+      - ../go2-driver/cyclonedds.xml:/etc/cyclonedds/cyclonedds.xml:ro
+      - ./config:/app/config:ro
+      - ./checklist:/app/checklist:ro
+    devices:
+      - /dev/gpiochip0:/dev/gpiochip0
+      - /dev/gpiochip1:/dev/gpiochip1
+      - /dev/gpiochip2:/dev/gpiochip2
+      - /dev/gpiochip3:/dev/gpiochip3
+      - /dev/gpiochip4:/dev/gpiochip4
+    read_only: true
+    tmpfs:
+      - /tmp:rw,nosuid,nodev,size=64m
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+    healthcheck:
+      test: ["CMD", "python3", "-c", "import urllib.request,sys;sys.exit(0 if urllib.request.urlopen('http://127.0.0.1:8780/v1/health/live', timeout=2).status==200 else 1)"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 10s

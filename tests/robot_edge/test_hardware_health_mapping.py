@@ -204,7 +204,7 @@ class TestMobileBaseHealth(unittest.TestCase):
 
     def test_unsupported_profile_is_rejected(self) -> None:
         with self.assertRaises(ValueError):
-            MobileBaseHealth(FakeRosGraph(), profile="go2")
+            MobileBaseHealth(FakeRosGraph(), profile="some_other_robot")
 
 
 class _FakePiperProbe:

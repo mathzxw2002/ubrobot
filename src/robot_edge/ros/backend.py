@@ -34,21 +34,47 @@ _FEEDBACK_STATE_HINTS: tuple[tuple[tuple[str, ...], CommandState], ...] = (
 
 
 class RosReadonlyBackend:
-    """Robot Edge backend backed by a read-only ROS graph."""
+    """Robot Edge backend backed by a read-only ROS graph.
+
+    When ``platform`` is ``go2_piper`` (via ``UBROBOT_PLATFORM``), the
+    NAVIGATION/GRASP capabilities reflect the Go2+Piper read-only health
+    probes instead of action-server presence alone, so the Operator Console
+    can truthfully show whether the Go2+Piper dock is serviceable. All
+    hardware authority stays False (M6 read-only).
+    """
 
     execution_mode = "hardware"
     hardware_authority = False
 
-    def __init__(self, graph: RosGraph) -> None:
+    def __init__(
+        self,
+        graph: RosGraph,
+        *,
+        platform: str | None = None,
+        go2_probe: Any | None = None,
+        piper_probe: Any | None = None,
+        local_stop_bound: bool | None = None,
+    ) -> None:
         self._graph = graph
         self._telemetry = RosTelemetryReader(graph)
         self._actions = RosActionInventory(graph)
+        self._platform = platform
+        self._go2_probe = go2_probe
+        self._piper_probe = piper_probe
+        self._local_stop_bound = local_stop_bound
+        self._platform_health = self._build_platform_health()
 
     def get_capabilities(self) -> dict[CapabilityName, CapabilitySnapshot]:
-        return self._actions.capabilities()
+        capabilities = self._actions.capabilities()
+        if self._platform_health is not None:
+            capabilities.update(self._platform_health.capabilities())
+        return capabilities
 
     def get_telemetry_snapshot(self) -> dict[TelemetryChannel, TelemetrySnapshot]:
-        return self._telemetry.snapshot()
+        snapshot = self._telemetry.snapshot()
+        if self._platform_health is not None:
+            snapshot.update(self._platform_health.telemetry())
+        return snapshot
 
     def get_command_sequence(
         self, command_text: str
@@ -61,6 +87,94 @@ class RosReadonlyBackend:
 
     def close(self) -> None:
         self._graph.shutdown()
+
+    # ------------------------------------------------------------------ internal
+
+    def _build_platform_health(self) -> Any | None:
+        """Build the go2_piper composite health reader, or None.
+
+        Only the ``go2_piper`` platform wires Go2+Piper health into Robot
+        Edge here. Any missing evidence (bridge topics, probe, local stop)
+        is fail-closed: capabilities report UNAVAILABLE, never healthy.
+        """
+        if self._platform != "go2_piper":
+            return None
+        from robot_edge.hardware.go2_health import Go2Health, Go2PiperHealth, RosGo2Probe
+        from robot_edge.hardware.piper_health import PiperHealth
+
+        go2_probe = self._go2_probe
+        if go2_probe is None:
+            go2_probe = RosGo2Probe(self._graph)
+        piper_probe = self._piper_probe
+        piper_health = (
+            PiperHealth(piper_probe)
+            if piper_probe is not None
+            else self._missing_piper_health()
+        )
+        local_stop_bound = bool(self._local_stop_bound) if self._local_stop_bound is not None else False
+        return _Go2PiperHealthView(
+            Go2PiperHealth(
+                go2_health=Go2Health(go2_probe),
+                piper_health=piper_health,
+                tf_complete=False,  # TF tree not yet probed; fail-closed
+                local_stop_bound=local_stop_bound,
+            )
+        )
+
+    def _missing_piper_health(self) -> Any:
+        from ubrobot_contracts.capabilities import (
+            CapabilityAvailability,
+            CapabilityHealth,
+            CapabilityName,
+            CapabilitySnapshot,
+            ExecutionMode,
+        )
+        from datetime import datetime, timezone
+
+        now = datetime.now(timezone.utc)
+        return _UnavailablePiper(
+            CapabilitySnapshot(
+                name=CapabilityName.GRASP,
+                availability=CapabilityAvailability.UNAVAILABLE,
+                health=CapabilityHealth.UNKNOWN,
+                execution_mode=ExecutionMode.HARDWARE,
+                required_resources=["can", "piper_driver", "safety_control"],
+                hardware_authority=False,
+                detail="Piper probe not bound (Task 4 wires CAN binding)",
+                last_updated=now,
+            )
+        )
+
+
+class _Go2PiperHealthView:
+    """Adapter exposing the Go2PiperHealth as capability/telemetry dicts."""
+
+    def __init__(self, platform_health: Any) -> None:
+        self._health = platform_health
+
+    def capabilities(self) -> dict[CapabilityName, CapabilitySnapshot]:
+        from ubrobot_contracts.capabilities import CapabilityName
+
+        return {
+            CapabilityName.NAVIGATION: self._health.capability(CapabilityName.NAVIGATION),
+            CapabilityName.GRASP: self._health.capability(CapabilityName.GRASP),
+        }
+
+    def telemetry(self) -> dict[TelemetryChannel, TelemetrySnapshot]:
+        return {}
+
+
+class _UnavailablePiper:
+    """PiperHealth stand-in reporting a fixed unavailable capability."""
+
+    def __init__(self, snapshot: CapabilitySnapshot) -> None:
+        self._snapshot = snapshot
+
+    def capability(self, *, now: Any | None = None) -> CapabilitySnapshot:
+        return self._snapshot
+
+    def telemetry(self, *, now: Any | None = None) -> dict[TelemetryChannel, TelemetrySnapshot]:
+        return {}
 
 
 def _classify_feedback(message: str) -> CommandState:
@@ -329,16 +443,19 @@ class RosCortexCommandBackend:
         return _CortexClient()
 
 
-def create_readonly_ros_backend(*, execution_mode: str) -> RosReadonlyBackend | None:
+def create_readonly_ros_backend(
+    *, execution_mode: str, platform: str | None = None
+) -> RosReadonlyBackend | None:
     """Build the read-only ROS backend, or None outside hardware mode.
 
     ``rclpy`` is imported only here, and only when ``execution_mode`` is
-    ``hardware``. Fixture/mock modes never touch the ROS stack.
+    ``hardware``. Fixture/mock modes never touch the ROS stack. ``platform``
+    selects the platform health assembly (e.g. ``go2_piper``).
     """
     graph = create_ros_context(execution_mode=execution_mode)
     if graph is None:
         return None
-    return RosReadonlyBackend(graph)
+    return RosReadonlyBackend(graph, platform=platform)
 
 
 def create_cortex_command_backend(

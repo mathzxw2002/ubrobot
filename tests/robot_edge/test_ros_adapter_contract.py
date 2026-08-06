@@ -221,6 +221,32 @@ class TestRosActionInventory(unittest.TestCase):
             self.assertFalse(caps[name].hardware_authority)
 
 
+class TestReadonlyBackendGo2Piper(unittest.TestCase):
+    """go2_piper platform health wired into the read-only backend (M6)."""
+
+    def _backend(self, platform="go2_piper", **kw) -> RosReadonlyBackend:
+        return RosReadonlyBackend(FakeRosGraph(), platform=platform, **kw)
+
+    def test_go2_piper_without_evidence_is_unavailable_not_healthy(self) -> None:
+        backend = self._backend()
+        caps = backend.get_capabilities()
+        for name in (CapabilityName.NAVIGATION, CapabilityName.GRASP):
+            self.assertEqual(
+                caps[name].availability, CapabilityAvailability.UNAVAILABLE
+            )
+            self.assertEqual(caps[name].health.value, "unhealthy")
+            self.assertFalse(caps[name].hardware_authority)
+
+    def test_non_go2_platform_keeps_action_presence_behavior(self) -> None:
+        backend = self._backend(platform="lekiwi")
+        caps = backend.get_capabilities()
+        # lekiwi has no platform health view -> NAVIGATION unavailable (no action server)
+        self.assertEqual(
+            caps[CapabilityName.NAVIGATION].availability,
+            CapabilityAvailability.UNAVAILABLE,
+        )
+
+
 class TestReadonlyBackendRejectsCommands(unittest.TestCase):
     """M6: every command path rejects while read-only."""
 

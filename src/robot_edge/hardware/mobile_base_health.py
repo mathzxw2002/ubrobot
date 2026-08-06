@@ -1,9 +1,8 @@
 """Mobile base health for the selected profile (M6, read-only).
 
-Only the owner-selected profile is ever probed. M6 supports `lekiwi`; the
-`go2` profile is rejected until the owner selects it and the host is online.
-All reads are read-only: state/odometry/driver health only, never movement
-commands.
+Only the owner-selected profile is ever probed. M6 supports `lekiwi` and
+`go2`; both are read-only. All reads are read-only: state/odometry/driver
+health only, never movement commands.
 """
 
 from __future__ import annotations
@@ -20,7 +19,7 @@ from ubrobot_contracts.telemetry import (
 
 from robot_edge.ros.context import RosGraph
 
-SUPPORTED_PROFILES = ("lekiwi",)
+SUPPORTED_PROFILES = ("lekiwi", "go2")
 
 
 def _quaternion_yaw(orientation: dict) -> float | None:
@@ -39,10 +38,16 @@ def _quaternion_yaw(orientation: dict) -> float | None:
 # lekiwi: /lekiwi_base_controller/odom (wheel odometry, measured live on the
 # Raspberry Pi 2026-08-03; the ros2_control controller publishes under its
 # own namespace, not the historical /odom/wheel design), /joint_states.
+# go2: dock bridge output topics (Task 1 inventory defaults; the go2_piper
+# bridge exposes odometry/IMU/joint state from the Unitree DDS topics).
 _PROFILE_TOPICS: dict[str, dict[TelemetryChannel, tuple[str, str]]] = {
     "lekiwi": {
         TelemetryChannel.ODOMETRY: ("/lekiwi_base_controller/odom", "wheel odometry"),
         TelemetryChannel.JOINT_STATES: ("/joint_states", "motor joint states"),
+    },
+    "go2": {
+        TelemetryChannel.ODOMETRY: ("/odom", "go2 bridge odometry"),
+        TelemetryChannel.JOINT_STATES: ("/joint_states", "go2 leg joint states"),
     },
 }
 

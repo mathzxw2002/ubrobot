@@ -251,7 +251,10 @@ def _create_backend(execution_mode: str, *, fixture_step_delay_sec: float):
         if _hardware_authority_enabled():
             backend = create_cortex_command_backend(execution_mode="hardware")
         else:
-            backend = create_readonly_ros_backend(execution_mode="hardware")
+            backend = create_readonly_ros_backend(
+                execution_mode="hardware",
+                platform=os.environ.get("UBROBOT_PLATFORM"),
+            )
         if backend is None:
             raise RuntimeError("hardware mode requested but ROS context unavailable")
         return backend

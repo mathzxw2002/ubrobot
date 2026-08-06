@@ -74,12 +74,9 @@ def generate_launch_description():
                 PythonLaunchDescriptionSource(sensor_launch),
                 condition=IfCondition(start_sensors),
             ),
-            Node(
-                package="ubrobot_navigation",
-                executable="navigate_to_object_server",
-                name="navigate_to_object_server",
-                output="screen",
-            ),
+            # navigate_to_object_server moved to the recipe container so its
+            # action call to /track_vision_target (my_controller/Kompass) is
+            # in-process, not cross-container DDS.
             Node(
                 package="ubrobot_manipulation",
                 executable="grasp_object_server",

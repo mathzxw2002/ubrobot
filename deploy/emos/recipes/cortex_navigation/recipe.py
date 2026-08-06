@@ -57,7 +57,10 @@ GRASP_TOOL_DESCRIPTION = (
     "when perception, the arm, or the target workspace is unavailable. "
     "CRITICAL: only use this for a FIXED, fully stationary base — never "
     "grasp while the base is moving or immediately after navigating; the "
-    "base must have settled. Do NOT chain navigation and grasp automatically."
+    "base must have settled (wait for navigation to report success and the "
+    "base to hold still) before grasping. Do NOT chain navigation and grasp "
+    "automatically in a single step — run navigation to completion, then "
+    "grasp as a separate step only after navigation succeeded."
 )
 
 # The grasp capability server ships separately; keep the tool hidden until
@@ -379,7 +382,15 @@ def build_recipe(*, include_robot_stack=True):
                 "your plan.  NEVER respond with plain text describing what "
                 "you would do — always use tool calls to actually execute "
                 "the steps.  If the user's request can be fulfilled by "
-                "calling available tools, call them."
+                "calling available tools, call them. "
+                "SEQUENTIAL DEPENDENCIES: when a task requires navigation "
+                "followed by grasping, always run navigation FIRST and wait "
+                "for it to report success before calling the grasp tool. "
+                "If navigation fails or is cancelled, DO NOT continue to the "
+                "grasp. Never call the grasp tool in the same step as a "
+                "navigation call, and only ever use the tools you have "
+                "discovered (inspect_component). The robot base must be "
+                "fully stationary before any grasp."
             ),
         ),
         component_name="navigation_cortex",

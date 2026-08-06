@@ -119,10 +119,16 @@ class GraspServerSkeletonTest(unittest.TestCase):
         server = (MANIPULATION / "ubrobot_manipulation/grasp_object_server.py").read_text(
             encoding="utf-8"
         )
-        # Missing/unknown platform aborts startup; missing executor binding
-        # fails the goal fast instead of hanging.
+        resolver = (
+            MANIPULATION / "ubrobot_manipulation/executors/__init__.py"
+        ).read_text(encoding="utf-8")
+        # Missing/unknown platform aborts startup (RuntimeError in the server);
+        # missing executor binding fails the goal fast (NotImplementedError in
+        # the pure resolver) instead of hanging.
         self.assertIn("raise RuntimeError", server)
-        self.assertIn("raise NotImplementedError", server)
+        self.assertIn("raise NotImplementedError", resolver)
+        # The server delegates the platform/env decision to the pure resolver.
+        self.assertIn("resolve_executor_binding", server)
 
     def test_authority_tracker_is_fail_closed(self):
         authority = (MANIPULATION / "ubrobot_manipulation/authority.py").read_text(

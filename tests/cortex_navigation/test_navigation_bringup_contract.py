@@ -18,8 +18,13 @@ class NavigationBringupContractTest(unittest.TestCase):
     def test_launch_composes_sensors_capability_server_and_guard(self):
         source = LAUNCH.read_text(encoding="utf-8")
         self.assertIn("vision_depth_bringup.launch.py", source)
-        self.assertIn('executable="navigate_to_object_server"', source)
+        # The guarded /cmd_vel chain lives in the launch: grasp server +
+        # cmd_vel_guard. The navigate_to_object_server was moved to the
+        # recipe container so its /track_vision_target call is in-process.
+        self.assertIn('executable="grasp_object_server"', source)
         self.assertIn('executable="cmd_vel_guard"', source)
+        self.assertIn("UBROBOT_GRASP_PLATFORM", source)
+        self.assertIn("UBROBOT_GRASP_EXECUTOR", source)
 
     def test_guard_defaults_are_explicit_and_bounded(self):
         source = LAUNCH.read_text(encoding="utf-8")

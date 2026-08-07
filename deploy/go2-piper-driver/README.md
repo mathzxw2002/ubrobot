@@ -47,3 +47,28 @@ docker compose -f deploy/go2-piper-driver/compose.yaml up -d
 
 Torque is NOT enabled on startup: call the `/piper/enable` service
 (`std_srvs/SetBool`) from the semantic layer before any grasp.
+
+## Autostart on boot (systemd, recommended)
+
+Two systemd units survive a power cycle: bring up `can0` first, then start
+the container (the piper SDK must see a live `can0` at startup or it
+degrades to telemetry-only). Units live in `systemd/`:
+
+- `can0-up.service` — `ip link set can0 up type can bitrate 1000000` (oneshot).
+- `go2-piper-driver.service` — `docker run` the container; `Requires` +
+  `After=can0-up.service` so CAN is up before the SDK initializes. The
+  container is created with `--restart unless-stopped` as a Docker-level
+  backstop.
+
+Install on the dock host:
+
+```bash
+sudo cp deploy/go2-piper-driver/systemd/can0-up.service \
+        deploy/go2-piper-driver/systemd/go2-piper-driver.service \
+        /etc/systemd/system/
+sudo systemctl daemon-reload
+sudo systemctl enable can0-up.service go2-piper-driver.service
+```
+
+After a power cycle: `can0` is up, the container runs, and
+`/piper/arm_status` reports `enabled=False sdk=ok` (torque off, arm safe).

@@ -1,0 +1,21 @@
+[Unit]
+Description=Bring up the Piper CAN interface (socketcan can0 @ 1 Mbps)
+After=network.target
+Wants=network.target
+# Failures here should NOT block boot forever: a USB CAN adapter that is
+# unplugged or slow to enumerate would otherwise hold the machine in a
+# degraded boot state.
+StartLimitBurst=5
+StartLimitIntervalSec=30
+
+[Service]
+Type=oneshot
+RemainAfterExit=yes
+# "-" prefix: ignore failure if can0 is already down / not yet present.
+ExecStartPre=-/usr/bin/ip link set can0 down
+ExecStart=/usr/bin/ip link set can0 up type can bitrate 1000000
+ExecStartPost=/usr/bin/ip link set can0 txqueuelen 1000
+ExecStartPost=/bin/sleep 1
+
+[Install]
+WantedBy=multi-user.target

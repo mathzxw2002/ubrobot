@@ -1,0 +1,32 @@
+[Unit]
+Description=Go2+Piper hardware driver container
+# CAN must be up BEFORE the piper_driver node initializes its SDK, or the SDK
+# connection fails and the node degrades to telemetry-only for the whole run.
+After=can0-up.service docker.service network-online.target
+Requires=can0-up.service
+Wants=network-online.target
+StartLimitBurst=5
+StartLimitIntervalSec=60
+
+[Service]
+Type=oneshot
+RemainAfterExit=yes
+# --rm ensures a stale stopped container never holds the name; restart always
+# starts from the image so the SDK re-initializes against a live can0.
+ExecStartPre=-/usr/bin/docker rm -f go2-piper-driver
+ExecStart=/usr/bin/docker run -d --name go2-piper-driver \
+  --network host --cap-add NET_ADMIN --init --restart unless-stopped \
+  --security-opt no-new-privileges:true \
+  -e ROS_DOMAIN_ID=0 \
+  -e RMW_IMPLEMENTATION=rmw_cyclonedds_cpp \
+  -e CYCLONEDDS_URI=/etc/cyclonedds/cyclonedds.xml \
+  -e ROS_HOME=/tmp/ros-home \
+  -e ROS_LOG_DIR=/tmp/ros-logs \
+  -e GO2_BRIDGE_INTERFACE=eth0 \
+  -e GO2_BRIDGE_BODY_IP=192.168.123.161 \
+  -e PIPER_CAN_INTERFACE=can0 \
+  -v /home/unitree/ubrobot/deploy/go2-piper-driver/cyclonedds.xml:/etc/cyclonedds/cyclonedds.xml:ro \
+  ubrobot/go2-piper-driver:0.1.0
+
+[Install]
+WantedBy=multi-user.target

@@ -77,6 +77,7 @@ class TestGo2PiperDriverCompose(unittest.TestCase):
             / "deploy"
             / "go2-piper-driver"
             / "go2_piper_driver"
+            / "go2_piper_driver"
             / "launch"
             / "go2_piper_bringup.launch.py"
         )

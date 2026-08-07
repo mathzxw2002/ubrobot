@@ -17,7 +17,9 @@ WORKDIR /ws
 # unitree_sdk2py at runtime; the piper node uses piper_sdk (pip-installed in
 # the runtime stage).
 COPY deploy/go2-piper-driver/go2_piper_driver src/go2_piper_driver
-COPY deploy/go2-piper-driver/launch src/go2_launch
+# Bring-up launch lives inside the package so colcon installs it as data.
+COPY deploy/go2-piper-driver/launch/go2_piper_bringup.launch.py \
+    src/go2_piper_driver/launch/go2_piper_bringup.launch.py
 
 RUN source /opt/ros/jazzy/setup.bash \
     && colcon build --merge-install --cmake-args -DCMAKE_BUILD_TYPE=Release -DBUILD_TESTING=OFF
@@ -52,4 +54,4 @@ ENV ROS_DISTRO=jazzy \
     PYTHONPATH=/opt/go2_ws/lib/python3.12/site-packages
 
 USER root
-CMD ["ros2", "launch", "go2_launch", "go2_piper_bringup.launch.py"]
+CMD ["ros2", "launch", "go2_piper_driver", "go2_piper_bringup.launch.py"]

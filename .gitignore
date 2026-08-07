@@ -151,3 +151,6 @@ tmp/
 checkpoints/
 output/
 test_data/
+
+# Dock-side build staging (private SDK sources, not in the repo)
+.dock-build/

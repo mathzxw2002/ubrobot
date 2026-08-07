@@ -37,8 +37,17 @@ RUN apt-get update \
         ros-jazzy-std-srvs \
         ros-jazzy-rmw-cyclonedds-cpp \
         python3-pip \
-    && rm -rf /var/lib/apt/lists/* \
-    && pip3 install --break-system-packages --no-cache-dir unitree-sdk2py piper-sdk
+    && rm -rf /var/lib/apt/lists/*
+
+# The Unitree and Piper SDKs are private (not on PyPI). They are staged into
+# the build context at .dock-build/sdks/ on the dock host before building
+# (see deploy/go2-piper-driver/README). Build the docker image from the repo
+# root so these COPY paths resolve.
+COPY .dock-build/sdks/piper_sdk /opt/sdks/piper_sdk
+COPY .dock-build/sdks/unitree_sdk2_python /opt/sdks/unitree_sdk2_python
+RUN pip3 install --break-system-packages --no-cache-dir \
+        /opt/sdks/piper_sdk \
+        /opt/sdks/unitree_sdk2_python
 
 COPY --from=builder /ws/install /opt/go2_ws
 COPY deploy/go2-piper-driver/cyclonedds.xml /etc/cyclonedds/cyclonedds.xml

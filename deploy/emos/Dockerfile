@@ -4,7 +4,11 @@ FROM ${EMOS_BASE_IMAGE}
 ARG KOMPASS_CORE_VERSION=0.8.1
 
 # Cortex imports initialize the configured ROS middleware. Keep build-time API
-# verification on the same implementation used by the deployed containers.
+# verification on a Fast DDS implementation (default base image behavior); the
+# runtime RMW is chosen per deployment via compose env override:
+#   - Pi/LeKiwi: rmw_fastrtps_cpp (deploy/emos/compose.yaml)
+#   - Go2 dock:  rmw_cyclonedds_cpp (deploy/emos/compose.dock-cyclonedds.yaml,
+#                required to talk to go2-piper-driver)
 ENV RMW_IMPLEMENTATION=rmw_fastrtps_cpp
 
 RUN apt-get update \
@@ -16,6 +20,7 @@ RUN apt-get update \
         ros-jazzy-depthimage-to-laserscan \
         ros-jazzy-realsense2-camera \
         ros-jazzy-realsense2-camera-msgs \
+        ros-jazzy-rmw-cyclonedds-cpp \
         ros-jazzy-rtabmap-odom \
     && python3 -m pip install --no-cache-dir --break-system-packages \
         "kompass-core==${KOMPASS_CORE_VERSION}" \

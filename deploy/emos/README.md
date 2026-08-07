@@ -63,6 +63,30 @@ CLI's built-in Docker arguments and would discard the profile environment and
 mount. Update the image with a backup followed by `docker compose pull` and
 `docker compose up -d`, then repeat the cross-container topic test.
 
+## Go2 dock deployment (CycloneDDS)
+
+On the Go2 dock the emos stack MUST run `rmw_cyclonedds_cpp` so it can talk to
+the `go2-piper-driver` hardware container (Go2's Unitree DDS transport is
+CycloneDDS; see `deploy/go2-piper-driver/README`). Overlay the base compose with
+the dock-specific CycloneDDS override:
+
+```bash
+docker compose -f deploy/emos/compose.yaml \
+               -f deploy/emos/compose.dock-cyclonedds.yaml \
+               -f deploy/emos/compose.cortex-navigation.yaml \
+               up -d
+```
+
+The override sets `RMW_IMPLEMENTATION=rmw_cyclonedds_cpp` and mounts the same
+`cyclonedds.xml` (eth0, spdp multicast) that `go2-piper-driver` uses, so both
+containers join the same CycloneDDS domain on `ROS_DOMAIN_ID`. Without it the
+emos `GraspObject` server cannot reach the piper driver's `/piper/joint_cmd`
+topic (different RMW = different domain).
+
+The Pi/LeKiwi stack keeps `rmw_fastrtps_cpp` (`deploy/emos/compose.yaml` alone)
+and is unaffected.
+
+
 ## Cortex navigation mock validation
 
 Use `test/cortex_navigation_mock_test.py` only with a disposable EMOS test

@@ -1,0 +1,29 @@
+# Go2 dock-specific EMOS override: run the whole stack on CycloneDDS.
+#
+# WHY: the Go2+Piper hardware driver container (go2-piper-driver) must use
+# rmw_cyclonedds_cpp (Go2's Unitree DDS transport is CycloneDDS, Task 1
+# finding 3). The emos semantic layer (Cortex, navigation, GraspObject
+# server) must share the SAME RMW + ROS_DOMAIN_ID with the hardware container
+# so the guarded /cmd_vel reaches the bridge AND the /piper/joint_cmd topic
+# reaches the piper driver. Without this, emos and go2-piper-driver cannot
+# talk to each other (different RMW = different DDS domains).
+#
+# The Pi/LeKiwi stack keeps rmw_fastrtps_cpp (deploy/emos/compose.yaml) and
+# is unaffected: separate robot, separate domain, separate RMW.
+#
+# Use together with the base compose:
+#   docker compose -f deploy/emos/compose.yaml \
+#                  -f deploy/emos/compose.dock-cyclonedds.yaml \
+#                  -f deploy/emos/compose.cortex-navigation.yaml up
+services:
+  emos:
+    environment:
+      # Override the base Fast DDS RMW with CycloneDDS (dock-only).
+      RMW_IMPLEMENTATION: rmw_cyclonedds_cpp
+      # Same CycloneDDS config as go2-piper-driver: eth0, spdp multicast.
+      CYCLONEDDS_URI: /etc/cyclonedds/cyclonedds.xml
+      ROS_DOMAIN_ID: ${ROS_DOMAIN_ID:-0}
+    volumes:
+      # Mount the same cyclonedds.xml the go2-piper-driver container uses so
+      # both containers participate in the same CycloneDDS domain on eth0.
+      - ../go2-piper-driver/cyclonedds.xml:/etc/cyclonedds/cyclonedds.xml:ro

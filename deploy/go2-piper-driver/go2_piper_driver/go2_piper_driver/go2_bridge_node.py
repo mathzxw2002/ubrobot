@@ -1,4 +1,4 @@
-"""Go2 bridge: guarded /cmd_vel in, Unitree DDS out; telemetry topics out.
+"""Go2 bridge: guarded /cmd_vel in, Unitree DDS out; telemetry + stand out.
 
 This node is the **only** software bridge between the ROS 2 guarded velocity
 chain (``cmd_vel_guard`` -> ``/cmd_vel``) and the Go2 body. It:
@@ -6,12 +6,15 @@ chain (``cmd_vel_guard`` -> ``/cmd_vel``) and the Go2 body. It:
 - subscribes ``/cmd_vel`` (``geometry_msgs/Twist``);
 - forwards the Twist to the Go2 sport client over Unitree DDS (CycloneDDS);
 - publishes ``/odom``, ``/imu``, ``/joint_states`` for the read-only health
-  and telemetry probes.
+  and telemetry probes;
+- exposes a ``/go2/stand`` service (``std_srvs/SetBool``) for low-risk
+  posture primitives only: true = StandUp, false = StandDown. No movement is
+  triggered by this service.
 
-The bridge NEVER stands the dog up on its own: the Go2 must already be in
-standing sport-velocity mode (operator- or bridge-primitive-triggered) for
-``/cmd_vel`` to be effective. It publishes zero velocity whenever the Twist
-is missing or all-zero, and never invents commands.
+The bridge NEVER enables velocity/sport mode on its own and never issues
+movement commands except what arrives on ``/cmd_vel`` (guarded upstream).
+``/go2/stand`` only changes posture, which is useful to bring the dog up for
+telemetry or settle it down without driving the (heavy-load) base.
 
 The unitree_sdk2py import is deferred to ``_create_sport_client`` so the
 telemetry-only path works even when the SDK is unavailable (and so unit
@@ -35,6 +38,7 @@ from rclpy.qos import (
 )
 from sensor_msgs.msg import Imu, JointState
 from std_msgs.msg import Header
+from std_srvs.srv import SetBool
 
 
 def velocity_qos() -> QoSProfile:
@@ -59,13 +63,17 @@ class Go2BridgeNode(Node):
         self._cmd_sub = self.create_subscription(
             Twist, "/cmd_vel", self._on_cmd_vel, velocity_qos()
         )
+        self._stand_srv = self.create_service(
+            SetBool, "/go2/stand", self._on_stand
+        )
         self._odom_pub = self.create_publisher(Odometry, "/odom", velocity_qos())
         self._imu_pub = self.create_publisher(Imu, "/imu", velocity_qos())
         self._joint_pub = self.create_publisher(JointState, "/joint_states", velocity_qos())
         # 20 Hz telemetry tick keeps the read-only health probes fresh.
         self.create_timer(0.05, self._publish_telemetry)
         self.get_logger().info(
-            f"go2 bridge up: interface={self._interface} body_ip={self._body_ip} (awaiting /cmd_vel)"
+            f"go2 bridge up: interface={self._interface} body_ip={self._body_ip} "
+            "(awaiting /cmd_vel; /go2/stand for posture)"
         )
 
     def _sport_client(self) -> Any | None:
@@ -96,6 +104,32 @@ class Go2BridgeNode(Node):
             client.Move(message.linear.x, message.linear.y, message.angular.z)
         except Exception as exc:  # noqa: BLE001
             self.get_logger().warning(f"go2 Move failed: {exc}")
+
+    def _on_stand(
+        self, request: SetBool.Request, response: SetBool.Response
+    ) -> SetBool.Response:
+        """Stand up (true) or sit down (false). No movement, posture only."""
+        client = self._sport_client()
+        if client is None:
+            self.get_logger().error("stand request rejected: sport client unavailable")
+            response.success = False
+            response.message = "sport client unavailable"
+            return response
+        try:
+            if request.data:
+                client.StandUp()
+                self.get_logger().info("go2 STAND UP")
+                response.message = "stand up"
+            else:
+                client.StandDown()
+                self.get_logger().info("go2 SIT DOWN")
+                response.message = "sit down"
+            response.success = True
+        except Exception as exc:  # noqa: BLE001
+            self.get_logger().error(f"go2 stand failed: {exc}")
+            response.success = False
+            response.message = str(exc)
+        return response
 
     def _publish_telemetry(self) -> None:
         now = self.get_clock().now().to_msg()

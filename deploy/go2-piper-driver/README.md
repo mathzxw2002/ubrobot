@@ -17,13 +17,22 @@ One-robot-one-container hardware driver: Go2 bridge + Piper arm CAN.
 
 The Unitree and Piper SDKs are **private** (not on PyPI) and live on the dock
 host at `/home/unitree/unitree_sdk2_python` and `/home/unitree/piper_sdk`.
-Stage them into the build context before building:
+Stage them into the build context before building. The `cyclonedds` Python
+package (required by unitree_sdk2py's SportClient) is compiled against a
+host-built CycloneDDS C library (0.10.2, not packaged for Ubuntu Noble), so
+stage that install tree + its OpenSSL 1.1 runtime deps too:
 
 ```bash
 # from the repo root on the dock host:
 mkdir -p .dock-build/sdks
 cp -r /home/unitree/piper_sdk .dock-build/sdks/piper_sdk
 cp -r /home/unitree/unitree_sdk2_python .dock-build/sdks/unitree_sdk2_python
+
+# CycloneDDS 0.10.2 C library + headers (host source build) + libssl1.1 deps:
+mkdir -p .dock-build/cyclonedds
+cp -r /home/unitree/cyclonedds_ws/install/cyclonedds/* .dock-build/cyclonedds/
+cp /usr/lib/aarch64-linux-gnu/libssl.so.1.1 .dock-build/cyclonedds/lib/
+cp /usr/lib/aarch64-linux-gnu/libcrypto.so.1.1 .dock-build/cyclonedds/lib/
 
 # build from the repo root (the Dockerfile COPY paths resolve against it):
 sudo docker build \
@@ -34,6 +43,14 @@ sudo docker build \
 ```
 
 `.dock-build/` is git-ignored (contains no source secrets, just staged SDKs).
+
+> **Process isolation for the Unitree SDK**: initializing a `SportClient`
+> (which uses the `cyclonedds` Python package) in the same process as the RMW
+> CycloneDDS participant (`rclpy` / `rmw_cyclonedds_cpp`) segfaults. The
+> `go2_bridge_node` therefore never constructs a SportClient in-process;
+> `/go2/stand` shells out to `go2_stand_cli.py` (a separate python process
+> with no rclpy). `/cmd_vel` forwarding from the ROS node is intentionally
+> disabled for the same reason.
 
 ## Run
 

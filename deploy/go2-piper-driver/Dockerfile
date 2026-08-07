@@ -33,25 +33,45 @@ SHELL ["/bin/bash", "-c"]
 RUN apt-get update \
     && apt-get install -y --no-install-recommends \
         iproute2 \
+        cmake \
         ros-jazzy-geometry-msgs \
         ros-jazzy-nav-msgs \
         ros-jazzy-sensor-msgs \
         ros-jazzy-std-srvs \
         ros-jazzy-rmw-cyclonedds-cpp \
         python3-pip \
+        python3-dev \
+        build-essential \
     && rm -rf /var/lib/apt/lists/*
 
+# CycloneDDS C library is NOT packaged for Ubuntu Noble/Jazzy (apt only has
+# legacy focal-era ros-rolling-cyclonedds 0.8.0). The dock host has a full
+# source build of CycloneDDS 0.10.2 (matching the `cyclonedds` Python package)
+# at ~/cyclonedds_ws/install/cyclonedds; we stage its install tree into the
+# build context (.dock-build/cyclonedds/) and use it both as the CMake prefix
+# for compiling the `cyclonedds` Python binding and at runtime (libddsc.so).
+#
 # The Unitree and Piper SDKs are private (not on PyPI). They are staged into
 # the build context at .dock-build/sdks/ on the dock host before building
 # (see deploy/go2-piper-driver/README).
 # - piper_sdk is pure Python: install it from the staged source.
-# - unitree_sdk2py is pure Python too (a lone prebuilt crc .so is optional):
-#   COPY the source and point PYTHONPATH at it, avoiding a native build that
-#   needs the host CycloneDDS C++ libs at image build time.
+# - unitree_sdk2py's SportClient imports the `cyclonedds` Python package
+#   (Cython, compiled against the staged CycloneDDS above) — install it from
+#   PyPI BEFORE unitree_sdk2py so `import
+#   unitree_sdk2py.go2.sport.sport_client` works inside the container.
+# - unitree_sdk2py itself is pure Python (a lone prebuilt crc .so is
+#   optional): COPY the source and point PYTHONPATH at it, avoiding a native
+#   build of the whole SDK.
 COPY .dock-build/sdks/piper_sdk /opt/sdks/piper_sdk
 COPY .dock-build/sdks/unitree_sdk2_python /opt/sdks/unitree_sdk2_python
+COPY .dock-build/cyclonedds /opt/cyclonedds
+ENV CMAKE_PREFIX_PATH=/opt/cyclonedds \
+    CYCLONEDDS_HOME=/opt/cyclonedds \
+    LD_LIBRARY_PATH=/opt/cyclonedds/lib
 RUN pip3 install --break-system-packages --no-cache-dir \
         -i https://pypi.tuna.tsinghua.edu.cn/simple \
+        --no-build-isolation \
+        cyclonedds==0.10.2 \
         /opt/sdks/piper_sdk
 
 COPY --from=builder /ws/install /opt/go2_ws

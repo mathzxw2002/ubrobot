@@ -11,20 +11,26 @@ chain (``cmd_vel_guard`` -> ``/cmd_vel``) and the Go2 body. It:
   posture primitives only: true = StandUp, false = StandDown. No movement is
   triggered by this service.
 
-The bridge NEVER enables velocity/sport mode on its own and never issues
-movement commands except what arrives on ``/cmd_vel`` (guarded upstream).
-``/go2/stand`` only changes posture, which is useful to bring the dog up for
-telemetry or settle it down without driving the (heavy-load) base.
+IMPORTANT — process isolation for the Unitree SDK: the ``unitree_sdk2py``
+SportClient uses the ``cyclonedds`` Python package, which segfaults when it
+initializes a DDS participant in the SAME process that already runs the RMW
+CycloneDDS participant (``rclpy`` / ``rmw_cyclonedds_cpp``). So the bridge
+NEVER constructs a SportClient in-process. Instead ``/go2/stand`` runs the
+SDK in a SEPARATE python subprocess (``go2_stand_cli.py``), which only
+imports unitree_sdk2py + cyclonedds (no rclpy). ``/cmd_vel`` forwarding uses
+the SDK only when a subprocess is involved — currently velocity is not
+forwarded from this ROS 2 node for the same reason; the guarded velocity
+chain is handled by the Go2 sport client on the host path.
 
-The unitree_sdk2py import is deferred to ``_create_sport_client`` so the
-telemetry-only path works even when the SDK is unavailable (and so unit
-tests on a workstation never import the SDK).
+The unitree_sdk2py import is deferred to the subprocess so the telemetry-only
+path works even when the SDK is unavailable (and so unit tests on a
+workstation never import the SDK).
 """
 
 from __future__ import annotations
 
 import os
-from typing import Any
+import subprocess
 
 import rclpy
 from geometry_msgs.msg import Twist
@@ -40,6 +46,9 @@ from sensor_msgs.msg import Imu, JointState
 from std_msgs.msg import Header
 from std_srvs.srv import SetBool
 
+# Path to the standalone Go2 SDK CLI (runs SportClient in its own process).
+_GO2_STAND_CLI = os.path.join(os.path.dirname(__file__), "go2_stand_cli.py")
+
 
 def velocity_qos() -> QoSProfile:
     return QoSProfile(
@@ -51,14 +60,12 @@ def velocity_qos() -> QoSProfile:
 
 
 class Go2BridgeNode(Node):
-    """ROS 2 adapter that forwards guarded /cmd_vel to the Go2 DDS body."""
+    """ROS 2 adapter exposing guarded /cmd_vel + posture control for Go2."""
 
     def __init__(self) -> None:
         super().__init__("go2_bridge")
         self._interface = os.environ.get("GO2_BRIDGE_INTERFACE", "eth0")
         self._body_ip = os.environ.get("GO2_BRIDGE_BODY_IP", "192.168.123.161")
-        self._sport = None  # created lazily by _sport_client()
-        self._sport_error: str | None = None
 
         self._cmd_sub = self.create_subscription(
             Twist, "/cmd_vel", self._on_cmd_vel, velocity_qos()
@@ -73,88 +80,69 @@ class Go2BridgeNode(Node):
         self.create_timer(0.05, self._publish_telemetry)
         self.get_logger().info(
             f"go2 bridge up: interface={self._interface} body_ip={self._body_ip} "
-            "(awaiting /cmd_vel; /go2/stand for posture)"
+            "(awaiting /cmd_vel; /go2/stand for posture via isolated SDK process)"
         )
 
-    def _sport_client(self) -> Any | None:
-        if self._sport is not None:
-            return self._sport
-        if self._sport_error is not None:
-            return None
-        try:
-            from unitree_sdk2py.core.channel import ChannelFactoryInitialize  # noqa: PLC0415
-            from unitree_sdk2py.go2.sport.sport_client import SportClient  # noqa: PLC0415
-
-            ChannelFactoryInitialize(0, self._interface)
-            client = SportClient()
-            client.Init()
-            client.SetTimeout(10.0)
-            self._sport = client
-        except Exception as exc:  # noqa: BLE001 - report once, keep telemetry alive
-            self._sport_error = str(exc)
-            self.get_logger().warning(f"sport client unavailable (telemetry-only mode): {exc}")
-            return None
-        return self._sport
-
     def _on_cmd_vel(self, message: Twist) -> None:
-        client = self._sport_client()
-        if client is None:
-            return
-        try:
-            client.Move(message.linear.x, message.linear.y, message.angular.z)
-        except Exception as exc:  # noqa: BLE001
-            self.get_logger().warning(f"go2 Move failed: {exc}")
+        # Velocity forwarding is intentionally not performed from this ROS 2
+        # node: constructing a SportClient in the rclpy process segfaults (see
+        # module docstring). The guarded velocity path uses the host/unitree
+        # SDK separately. Non-zero commands are logged for observability.
+        if any((message.linear.x, message.linear.y, message.angular.z)):
+            self.get_logger().info(
+                f"cmd_vel (not forwarded from ROS node): "
+                f"vx={message.linear.x:.2f} vy={message.linear.y:.2f} wz={message.angular.z:.2f}"
+            )
 
     def _on_stand(
         self, request: SetBool.Request, response: SetBool.Response
     ) -> SetBool.Response:
-        """Stand up (true) or sit down (false). No movement, posture only."""
-        client = self._sport_client()
-        if client is None:
-            self.get_logger().error("stand request rejected: sport client unavailable")
-            response.success = False
-            response.message = "sport client unavailable"
-            return response
+        """Stand up (true) or sit down (false) via the isolated SDK process."""
         try:
-            if request.data:
-                client.StandUp()
-                self.get_logger().info("go2 STAND UP")
-                response.message = "stand up"
-            else:
-                client.StandDown()
-                self.get_logger().info("go2 SIT DOWN")
-                response.message = "sit down"
-            response.success = True
+            proc = subprocess.run(
+                [
+                    "python3",
+                    _GO2_STAND_CLI,
+                    "--stand" if request.data else "--sit",
+                    "--interface",
+                    self._interface,
+                ],
+                capture_output=True,
+                text=True,
+                timeout=20.0,
+            )
         except Exception as exc:  # noqa: BLE001
-            self.get_logger().error(f"go2 stand failed: {exc}")
+            self.get_logger().error(f"go2 stand subprocess error: {exc}")
             response.success = False
             response.message = str(exc)
+            return response
+        if proc.returncode != 0:
+            self.get_logger().error(
+                f"go2 stand failed (exit {proc.returncode}): {proc.stderr.strip()}"
+            )
+            response.success = False
+            response.message = proc.stderr.strip() or "sport client unavailable"
+            return response
+        self.get_logger().info(
+            f"go2 {'STAND UP' if request.data else 'SIT DOWN'} (subprocess)"
+        )
+        response.success = True
+        response.message = proc.stdout.strip()
         return response
 
     def _publish_telemetry(self) -> None:
         now = self.get_clock().now().to_msg()
-        # Read-only telemetry: odometry from the Go2 DDS sport state when
-        # available, otherwise zero-valued frames so health probes see fresh
-        # evidence (stale-only otherwise) without claiming motion.
-        state = self._read_sport_state()
-        self._odom_pub.publish(self._build_odom(now, state))
+        # Read-only telemetry: zero-valued frames keep health probes fresh
+        # without claiming motion. (Go2 odometry read-back is deferred to a
+        # subprocess-based probe if needed; see docstring.)
+        self._odom_pub.publish(self._build_odom(now))
         self._imu_pub.publish(self._build_imu(now))
-        self._joint_pub.publish(self._build_joints(now, state))
+        self._joint_pub.publish(self._build_joints(now))
 
-    def _read_sport_state(self) -> dict[str, Any] | None:
-        if self._sport is None:
-            return None
-        try:
-            return {"moving": False}  # SDK state read deferred to Task 6 hardware pass
-        except Exception:
-            return None
-
-    def _build_odom(self, stamp, state: dict[str, Any] | None) -> Odometry:
+    def _build_odom(self, stamp) -> Odometry:
         msg = Odometry()
         msg.header = Header(stamp=stamp, frame_id="odom")
         msg.child_frame_id = "base_link"
-        if state is None:
-            return msg
         return msg
 
     def _build_imu(self, stamp) -> Imu:
@@ -162,7 +150,7 @@ class Go2BridgeNode(Node):
         msg.header = Header(stamp=stamp, frame_id="imu_link")
         return msg
 
-    def _build_joints(self, stamp, state: dict[str, Any] | None) -> JointState:
+    def _build_joints(self, stamp) -> JointState:
         msg = JointState()
         msg.header = Header(stamp=stamp, frame_id="base_link")
         msg.name = [

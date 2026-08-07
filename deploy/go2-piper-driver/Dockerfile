@@ -12,14 +12,11 @@ RUN apt-get update \
 
 WORKDIR /ws
 # Go2+Piper hardware driver package: go2_bridge_node (guarded /cmd_vel ->
-# Go2 Unitree DDS body) and piper_driver_node (/piper/joint_cmd -> Piper CAN).
-# No unitree SDK binary is compiled here: the go2 node uses the python
-# unitree_sdk2py at runtime; the piper node uses piper_sdk (pip-installed in
-# the runtime stage).
+# Go2 Unitree DDS body), piper_driver_node (/piper/joint_cmd -> Piper CAN),
+# and the in-package bring-up launch. No unitree SDK binary is compiled here:
+# the go2 node uses the python unitree_sdk2py at runtime; the piper node uses
+# piper_sdk (pip-installed in the runtime stage).
 COPY deploy/go2-piper-driver/go2_piper_driver src/go2_piper_driver
-# Bring-up launch lives inside the package so colcon installs it as data.
-COPY deploy/go2-piper-driver/launch/go2_piper_bringup.launch.py \
-    src/go2_piper_driver/launch/go2_piper_bringup.launch.py
 
 RUN source /opt/ros/jazzy/setup.bash \
     && colcon build --merge-install --cmake-args -DCMAKE_BUILD_TYPE=Release -DBUILD_TESTING=OFF

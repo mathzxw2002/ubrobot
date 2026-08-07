@@ -1,5 +1,5 @@
 from launch import LaunchDescription
-from launch_ros.actions import Node
+from launch.actions import ExecuteProcess
 
 
 def generate_launch_description() -> LaunchDescription:
@@ -13,18 +13,20 @@ def generate_launch_description() -> LaunchDescription:
 
     Neither node stands the dog up nor enables arm torque on its own; those
     are operator pre-steps (or the /piper/enable service).
+
+    The console_scripts for an ament_python package install to ``bin/``, not
+    the ``libexec`` dir that ``Node(executable=)`` resolves, so we execute
+    them by absolute path (robust across install layouts).
     """
     return LaunchDescription(
         [
-            Node(
-                package="go2_piper_driver",
-                executable="go2_bridge_node",
+            ExecuteProcess(
+                cmd=["/opt/go2_ws/bin/go2_bridge_node"],
                 name="go2_bridge",
                 output="screen",
             ),
-            Node(
-                package="go2_piper_driver",
-                executable="piper_driver_node",
+            ExecuteProcess(
+                cmd=["/opt/go2_ws/bin/piper_driver_node"],
                 name="piper_driver",
                 output="screen",
             ),

@@ -7,8 +7,5 @@
             </Interfaces>
             <AllowMulticast>spdp</AllowMulticast>
         </General>
-        <Internal>
-            <MinimumSocketReceiveBufferSize>1MB</MinimumSocketReceiveBufferSize>
-        </Internal>
     </Domain>
 </CycloneDDS>

@@ -87,7 +87,7 @@ class PiperDriverNode(Node):
         )
         self.create_timer(0.1, self._publish_state)
         self.get_logger().info(
-            "piper driver up: can=%s (torque NOT enabled)", self._can_port
+            f"piper driver up: can={self._can_port} (torque NOT enabled)"
         )
 
     # ---------------------------------------------------------------- public
@@ -102,7 +102,7 @@ class PiperDriverNode(Node):
             self._piper = self._sdk_factory(self._can_port)
         except Exception as exc:  # noqa: BLE001 - report once, stay telemetry-only
             self._sdk_error = str(exc)
-            self.get_logger().warning("piper SDK unavailable: %s", exc)
+            self.get_logger().warning(f"piper SDK unavailable: {exc}")
             return None
         return self._piper
 
@@ -123,7 +123,7 @@ class PiperDriverNode(Node):
             self.get_logger().info("piper torque DISABLED")
             return SetBool.Response(success=True, message="torque disabled")
         except Exception as exc:  # noqa: BLE001
-            self.get_logger().error("enable failed: %s", exc)
+            self.get_logger().error(f"enable failed: {exc}")
             self._enabled = False
             return SetBool.Response(success=False, message=str(exc))
 
@@ -137,7 +137,7 @@ class PiperDriverNode(Node):
             return
         if len(msg.position) < 6:
             self.get_logger().warning(
-                "joint command dropped: need >=6 positions, got %d", len(msg.position)
+                f"joint command dropped: need >=6 positions, got {len(msg.position)}"
             )
             return
         try:
@@ -156,7 +156,7 @@ class PiperDriverNode(Node):
                 "gripper_mm": float(msg.position[6]) if len(msg.position) >= 7 else None,
             }
         except Exception as exc:  # noqa: BLE001
-            self.get_logger().error("joint command failed: %s", exc)
+            self.get_logger().error(f"joint command failed: {exc}")
 
     def _publish_state(self) -> None:
         piper = self._piper_iface()

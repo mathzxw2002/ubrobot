@@ -65,9 +65,7 @@ class Go2BridgeNode(Node):
         # 20 Hz telemetry tick keeps the read-only health probes fresh.
         self.create_timer(0.05, self._publish_telemetry)
         self.get_logger().info(
-            "go2 bridge up: interface=%s body_ip=%s (awaiting /cmd_vel)",
-            self._interface,
-            self._body_ip,
+            f"go2 bridge up: interface={self._interface} body_ip={self._body_ip} (awaiting /cmd_vel)"
         )
 
     def _sport_client(self) -> Any | None:
@@ -86,9 +84,7 @@ class Go2BridgeNode(Node):
             self._sport = client
         except Exception as exc:  # noqa: BLE001 - report once, keep telemetry alive
             self._sport_error = str(exc)
-            self.get_logger().warning(
-                "sport client unavailable (telemetry-only mode): %s", exc
-            )
+            self.get_logger().warning(f"sport client unavailable (telemetry-only mode): {exc}")
             return None
         return self._sport
 
@@ -99,7 +95,7 @@ class Go2BridgeNode(Node):
         try:
             client.Move(message.linear.x, message.linear.y, message.angular.z)
         except Exception as exc:  # noqa: BLE001
-            self.get_logger().warning("go2 Move failed: %s", exc)
+            self.get_logger().warning(f"go2 Move failed: {exc}")
 
     def _publish_telemetry(self) -> None:
         now = self.get_clock().now().to_msg()

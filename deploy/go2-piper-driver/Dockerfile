@@ -19,6 +19,7 @@ WORKDIR /ws
 COPY deploy/go2-piper-driver/go2_piper_driver src/go2_piper_driver
 
 RUN source /opt/ros/jazzy/setup.bash \
+    && rm -rf build install log \
     && colcon build --merge-install --cmake-args -DCMAKE_BUILD_TYPE=Release -DBUILD_TESTING=OFF
 
 FROM ${ROS_BASE_IMAGE} AS runtime
@@ -31,6 +32,7 @@ SHELL ["/bin/bash", "-c"]
 
 RUN apt-get update \
     && apt-get install -y --no-install-recommends \
+        iproute2 \
         ros-jazzy-geometry-msgs \
         ros-jazzy-nav-msgs \
         ros-jazzy-sensor-msgs \
@@ -41,13 +43,16 @@ RUN apt-get update \
 
 # The Unitree and Piper SDKs are private (not on PyPI). They are staged into
 # the build context at .dock-build/sdks/ on the dock host before building
-# (see deploy/go2-piper-driver/README). Build the docker image from the repo
-# root so these COPY paths resolve.
+# (see deploy/go2-piper-driver/README).
+# - piper_sdk is pure Python: install it from the staged source.
+# - unitree_sdk2py is pure Python too (a lone prebuilt crc .so is optional):
+#   COPY the source and point PYTHONPATH at it, avoiding a native build that
+#   needs the host CycloneDDS C++ libs at image build time.
 COPY .dock-build/sdks/piper_sdk /opt/sdks/piper_sdk
 COPY .dock-build/sdks/unitree_sdk2_python /opt/sdks/unitree_sdk2_python
 RUN pip3 install --break-system-packages --no-cache-dir \
-        /opt/sdks/piper_sdk \
-        /opt/sdks/unitree_sdk2_python
+        -i https://pypi.tuna.tsinghua.edu.cn/simple \
+        /opt/sdks/piper_sdk
 
 COPY --from=builder /ws/install /opt/go2_ws
 COPY deploy/go2-piper-driver/cyclonedds.xml /etc/cyclonedds/cyclonedds.xml
@@ -57,7 +62,9 @@ ENV ROS_DISTRO=jazzy \
     ROS_LOG_DIR=/tmp/ros-logs \
     RMW_IMPLEMENTATION=rmw_cyclonedds_cpp \
     CYCLONEDDS_URI=/etc/cyclonedds/cyclonedds.xml \
-    PYTHONPATH=/opt/go2_ws/lib/python3.12/site-packages
+    PYTHONPATH=/opt/go2_ws/lib/python3.12/site-packages:/opt/sdks/unitree_sdk2_python
 
 USER root
-CMD ["ros2", "launch", "go2_piper_driver", "go2_piper_bringup.launch.py"]
+CMD ["/bin/bash", "-c", \
+    "source /opt/ros/jazzy/setup.bash && source /opt/go2_ws/setup.bash && \
+     ros2 launch go2_piper_driver go2_piper_bringup.launch.py"]

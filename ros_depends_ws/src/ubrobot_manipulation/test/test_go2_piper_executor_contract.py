@@ -247,5 +247,95 @@ class TestBuildExecutorGating(unittest.TestCase):
             self._resolve("piper_station", "hardware")
 
 
+class _FakeFrame:
+    def __init__(self, name, parent_joint):
+        self.name = name
+        self.parentJoint = parent_joint
+
+
+class _FakeModel:
+    def __init__(self):
+        self.frames = [_FakeFrame(f"frame{i}", i) for i in range(7)] + [
+            _FakeFrame("tool", 6)
+        ]
+        self.nq = 8
+        self.njoints = 8
+        self.names = [f"joint{i}" for i in range(8)]
+        self.lowerPositionLimit = [-2.618, 0.0, -2.967, -1.745, -1.22, -2.094, 0.0, -0.035]
+        self.upperPositionLimit = [2.618, 3.14, 0.0, 1.745, 1.22, 2.094, 0.035, 0.0]
+
+    def createData(self):
+        return _FakeData(self)
+
+
+class _FakeData:
+    def __init__(self, model):
+        self.oMf = [object() for _ in range(len(model.frames))]
+
+
+class _FakePinocchio:
+    """Minimal pinocchio stand-in (v3-style API) for the PiperIk unit test."""
+
+    class ReferenceFrame:
+        WORLD = "WORLD"
+
+    def __init__(self):
+        self.compute_jacobian_calls = []
+
+    def buildModelFromUrdf(self, _urdf):
+        return _FakeModel()
+
+    def neutral(self, model):
+        return [0.0] * model.nq
+
+    def forwardKinematics(self, _model, _data, _q):
+        pass
+
+    def updateFramePlacements(self, _model, _data):
+        pass
+
+    def log3(self, _matrix):
+        return [0.1, 0.0, 0.0]
+
+    def computeJointJacobians(self, _model, _data, _q):
+        pass
+
+    def getFrameJacobian(self, _model, _data, frame_id, reference):
+        self.compute_jacobian_calls.append((frame_id, reference))
+        return [[0.0] * _model.nq for _ in range(6)]
+
+
+class TestPiperIkStructure(unittest.TestCase):
+    """PiperIk wiring (version-agnostic Jacobian + active-joint locking)."""
+
+    def test_constructs_model_and_active_joints(self):
+        fake = _FakePinocchio()
+        with patch.dict(sys.modules, {"pinocchio": fake}):
+            from ubrobot_manipulation.executors.piper_ik import PiperIk  # noqa: PLC0415
+
+            ik = PiperIk(urdf_path="fake.urdf")
+        self.assertEqual(ik._active, list(range(6)))  # joint1..6 only
+        self.assertEqual(ik._model.nq, 8)
+
+    def test_jacobian_uses_v3_get_frame_api_in_world_frame(self):
+        fake = _FakePinocchio()
+        with patch.dict(sys.modules, {"pinocchio": fake}):
+            from ubrobot_manipulation.executors.piper_ik import PiperIk  # noqa: PLC0415
+
+            ik = PiperIk(urdf_path="fake.urdf")
+            J = ik._joint_jacobian([0.0] * 8)
+        self.assertEqual(len(J), 6)
+        # v3 path resolves the tool frame's parent joint and asks for the
+        # WORLD-frame Jacobian of the tool frame.
+        frame_id, reference = fake.compute_jacobian_calls[0]
+        self.assertEqual(frame_id, len(ik._model.frames) - 1)
+        self.assertEqual(reference, "WORLD")
+
+    def test_no_pinocchio_import_at_module_level(self):
+        import ubrobot_manipulation.executors.piper_ik  # noqa: F401, PLC0415
+
+        self.assertNotIn("pinocchio", sys.modules)
+
+
 if __name__ == "__main__":
     unittest.main()

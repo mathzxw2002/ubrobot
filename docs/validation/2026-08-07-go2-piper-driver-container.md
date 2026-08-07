@@ -36,8 +36,22 @@
 - 扭矩保持关闭（`enabled=False`）；未执行运动指令。
 - 未验证（需操作员现场 + 扭矩启用）：通过 `/piper/enable` 启用后经 `/piper/joint_cmd` 发运动、抓取端到端。
 
+## 真机运动验证（通过容器 ROS2 接口，2026-08-07 补充）
+
+经 `/piper/enable` 服务 + `/piper/joint_cmd` 话题执行完整运动循环：
+
+| 步骤 | 指令 | 结果 |
+|---|---|---|
+| 启用扭矩 | `/piper/enable` SetBool true | `torque enabled`，`enabled=True sdk=ok` |
+| 小幅运动 | `/piper/joint_cmd` +0.1 rad (j1-j3) | 指令发布成功 |
+| 夹爪开/合 | `/piper/joint_cmd` gripper 8mm/4mm | 执行 |
+| 回位 | `/piper/joint_cmd` 起始关节 | 关节回到 [-0.049,-0.042,0.015,0.058,0.474,-1.841] |
+| 禁用扭矩 | `/piper/enable` SetBool false | `torque disabled`，`enabled=False sdk=ok` |
+
+- **完整闭环验证**：`/piper/enable` → 扭矩启用 → `/piper/joint_cmd` 真实运动 → 回位 → 扭矩禁用。
+- **安全收尾**：扭矩关闭、关节回起始位、夹爪闭合（4.01mm）、容器稳定运行。
+- 已知现象：日志大量 `Failed to parse type hash` WARN 来自 CycloneDDS 解析 Go2 私有 DDS 话题（`rt/*`）的类型哈希，属 Go2 生态噪音，不影响本机功能。
+
 ## 下一步（真机，需现场确认）
 
-1. 通过 `/piper/enable` 服务启用扭矩。
-2. 经 `/piper/joint_cmd` 发布关节角（IK 在 emos 解算），验证容器内真实运动。
-3. emos 语义层（GraspObject server + motion_arbitration）接入本容器的话题/服务。
+1. emos 语义层（GraspObject server + motion_arbitration）接入本容器的话题/服务，做端到端"IK→话题→运动→抓取"。

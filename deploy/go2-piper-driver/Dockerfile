@@ -38,7 +38,7 @@ RUN apt-get update \
         ros-jazzy-rmw-cyclonedds-cpp \
         python3-pip \
     && rm -rf /var/lib/apt/lists/* \
-    && pip3 install --no-cache-dir unitree-sdk2py piper-sdk
+    && pip3 install --break-system-packages --no-cache-dir unitree-sdk2py piper-sdk
 
 COPY --from=builder /ws/install /opt/go2_ws
 COPY deploy/go2-piper-driver/cyclonedds.xml /etc/cyclonedds/cyclonedds.xml

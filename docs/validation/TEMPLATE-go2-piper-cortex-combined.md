@@ -9,7 +9,7 @@
 
 - Date/time: ________
 - Commit: ________ (see `git log -1`)
-- Image/tag: robot-edge `ubrobot/robot-edge:go2-piper-hardware`; go2-bridge `ubrobot/go2-bridge:<tag>`
+- Image/tag: robot-edge `ubrobot/robot-edge:go2-piper-hardware`; go2-piper-driver `ubrobot/go2-piper-driver:<tag>`
 - Profile/config hash: ________
 - RMW / ROS domain: `rmw_cyclonedds_cpp` / `ROS_DOMAIN_ID=__`
 - Operator: ________ ; Observer: ________
@@ -21,7 +21,7 @@
 - [ ] `UBROBOT_EDGE_MODE=hardware` + `UBROBOT_EDGE_HARDWARE_AUTHORITY=true`
 - [ ] Local stop bound (`/v1/health/ready` reports `local_stop.bound=true`, contact closed)
 - [ ] `REMOTE_PERCEPTION_SERVICE_URL` reachable; `/grasp_poses` returns valid poses
-- [ ] go2-bridge + emos containers running, same RMW/domain
+- [ ] go2-piper-driver + emos containers running, same RMW/domain
 
 ## Acceptance harness (workstation + hardware)
 

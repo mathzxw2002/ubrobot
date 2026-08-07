@@ -1,11 +1,12 @@
-"""Contract test for the Go2 bridge bring-up + Kompass go2 configuration.
+"""Contract test for the Go2+Piper driver bring-up + Kompass go2 configuration.
 
-Asserts configuration-level facts only (no real Go2/dock required):
+Asserts configuration-level facts only (no real Go2/Piper/dock required):
 
-- ``deploy/go2-driver/compose.yaml`` runs a Go2 ROS 2 bridge container that
-  subscribes ``/cmd_vel`` (geometry_msgs/Twist) and publishes ``/odom``,
-  ``/imu``, ``/joint_states``, with RMW + ROS_DOMAIN_ID consistent with the
-  rest of the dock stack.
+- ``deploy/go2-piper-driver/compose.yaml`` runs the Go2+Piper hardware
+  driver container: Go2 bridge (subscribes ``/cmd_vel``, publishes
+  ``/odom``/``/imu``/``/joint_states``) + Piper driver (subscribes
+  ``/piper/joint_cmd``, maps ``can0``), with RMW + ROS_DOMAIN_ID consistent
+  with the rest of the dock stack.
 - ``cmd_vel_guard`` still publishes ``/cmd_vel`` and gates on
   ``/navigation/command_lease`` (unchanged safety chain).
 - Kompass ``DriveManager`` still outputs ``/navigation/raw_cmd_vel``.
@@ -22,7 +23,7 @@ from pathlib import Path
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 
-COMPOSE_PATH = REPO_ROOT / "deploy" / "go2-driver" / "compose.yaml"
+COMPOSE_PATH = REPO_ROOT / "deploy" / "go2-piper-driver" / "compose.yaml"
 NAV_POLICY_PATH = (
     REPO_ROOT
     / "ros_depends_ws"
@@ -43,13 +44,13 @@ RECIPE_PATH = REPO_ROOT / "deploy" / "emos" / "recipes" / "cortex_navigation" / 
 PLATFORMS_PATH = REPO_ROOT / "src" / "robot_edge" / "platforms.py"
 
 
-class TestGo2DriverCompose(unittest.TestCase):
+class TestGo2PiperDriverCompose(unittest.TestCase):
     def test_compose_exists(self) -> None:
         self.assertTrue(COMPOSE_PATH.is_file(), f"missing {COMPOSE_PATH}")
 
-    def test_compose_has_go2_bridge_service(self) -> None:
+    def test_compose_has_driver_service(self) -> None:
         text = COMPOSE_PATH.read_text(encoding="utf-8")
-        self.assertIn("go2", text.lower())
+        self.assertIn("go2-piper-driver", text.lower())
         self.assertIn("ros2", text.lower())
 
     def test_compose_sets_rmw_and_domain_consistently(self) -> None:
@@ -65,9 +66,26 @@ class TestGo2DriverCompose(unittest.TestCase):
         text = COMPOSE_PATH.read_text(encoding="utf-8")
         self.assertIn("CYCLONEDDS_URI", text)
 
+    def test_compose_maps_can0_for_piper(self) -> None:
+        text = COMPOSE_PATH.read_text(encoding="utf-8")
+        self.assertIn("/dev/can0", text)
+        self.assertIn("PIPER_CAN_INTERFACE", text)
+
+    def test_compose_bringup_launch_includes_piper(self) -> None:
+        launch = (
+            REPO_ROOT
+            / "deploy"
+            / "go2-piper-driver"
+            / "launch"
+            / "go2_piper_bringup.launch.py"
+        )
+        source = launch.read_text(encoding="utf-8")
+        self.assertIn("go2_bridge_node", source)
+        self.assertIn("piper_driver_node", source)
+
     def test_compose_does_not_use_host_ros1(self) -> None:
         text = COMPOSE_PATH.read_text(encoding="utf-8")
-        # No noetic/ros1 reference; the bridge runs in a Jazzy container.
+        # No noetic/ros1 reference; the driver runs in a Jazzy container.
         self.assertNotRegex(text, r"(?i)noetic|ros1_bridge|/opt/ros")
 
 

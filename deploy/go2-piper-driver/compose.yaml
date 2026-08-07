@@ -1,28 +1,34 @@
 services:
-  # Go2 ROS 2 bridge (containerized on the Go2 expansion dock).
+  # Go2+Piper hardware driver container (one robot = one hardware container).
+  #
+  # Hosts the Go2 bridge (guarded /cmd_vel -> Unitree DDS body) AND the Piper
+  # arm driver (/piper/joint_cmd -> CAN JointCtrl/GripperCtrl). Both are the
+  # robot's motion execution layer; the semantic layer (Cortex, grasp Action
+  # server, motion arbitration) lives in the emos container and talks to this
+  # container over ROS 2 topics/services.
   #
   # Task 1 finding (2026-08-07): the Go2 body talks Unitree private DDS over
   # CycloneDDS on eth0 (192.168.123.x); the host .bashrc already sets
   # RMW_IMPLEMENTATION=rmw_cyclonedds_cpp. Because the Go2 DDS transport is
-  # CycloneDDS, ALL dock-side ROS 2 containers (this bridge + the ubrobot
+  # CycloneDDS, ALL dock-side ROS 2 containers (this driver + the ubrobot
   # emos/navigation containers) must run rmw_cyclonedds_cpp on the same
   # ROS_DOMAIN_ID. The Pi/LeKiwi stack keeps rmw_fastrtps_cpp and is
   # unaffected (separate robot, separate domain).
-  go2-bridge:
-    image: ubrobot/go2-bridge:${GO2_BRIDGE_TAG:-0.1.0}
+  go2-piper-driver:
+    image: ubrobot/go2-piper-driver:${GO2_PIPER_DRIVER_TAG:-0.1.0}
     build:
       context: ../..
-      dockerfile: deploy/go2-driver/Dockerfile
+      dockerfile: deploy/go2-piper-driver/Dockerfile
       args:
         ROS_BASE_IMAGE: ${ROS_BASE_IMAGE:-ros:jazzy-ros-base-noble}
-    container_name: go2-bridge
+    container_name: go2-piper-driver
     network_mode: host
     init: true
     stop_signal: SIGINT
     restart: unless-stopped
     environment:
       ROS_DOMAIN_ID: ${ROS_DOMAIN_ID:-0}
-      # Go2 DDS transport is CycloneDDS (Task 1 finding 3): the bridge and
+      # Go2 DDS transport is CycloneDDS (Task 1 finding 3): this driver and
       # every dock-side ubrobot container MUST use rmw_cyclonedds_cpp so the
       # guarded /cmd_vel reaches the bridge on the same RMW + domain.
       RMW_IMPLEMENTATION: rmw_cyclonedds_cpp
@@ -32,17 +38,21 @@ services:
       # Go2 body is reachable on eth0 (192.168.123.18/24 -> 192.168.123.161).
       GO2_BRIDGE_INTERFACE: ${GO2_BRIDGE_INTERFACE:-eth0}
       GO2_BRIDGE_BODY_IP: ${GO2_BRIDGE_BODY_IP:-192.168.123.161}
+      # Piper arm on the dock's CAN interface.
+      PIPER_CAN_INTERFACE: ${PIPER_CAN_INTERFACE:-can0}
     volumes:
       - ./cyclonedds.xml:/etc/cyclonedds/cyclonedds.xml:ro
+    devices:
+      # Piper arm CAN (socketcan). Map the CAN device into the container so
+      # only this hardware container can touch the arm.
+      - /dev/can0:/dev/can0
     security_opt:
       - no-new-privileges:true
-    cap_drop:
-      - ALL
     command:
       - ros2
       - launch
-      - go2_bringup
-      - go2_bringup.launch.py
+      - go2_launch
+      - go2_piper_bringup.launch.py
     healthcheck:
       test: ["CMD", "ros2", "topic", "hz", "/odom", "--window", "5"]
       interval: 15s

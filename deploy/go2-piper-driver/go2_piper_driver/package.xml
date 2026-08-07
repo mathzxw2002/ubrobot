@@ -1,9 +1,9 @@
 <?xml version="1.0"?>
 <?xml-model href="http://download.ros.org/schemas/package_format3.xsd" schematypens="http://www.w3.org/2001/XMLSchema"?>
 <package format="3">
-  <name>go2_bridge</name>
+  <name>go2_piper_driver</name>
   <version>0.1.0</version>
-  <description>Go2 ROS 2 bridge from guarded /cmd_vel to the Unitree DDS body</description>
+  <description>Go2+Piper hardware driver container: /cmd_vel to Go2 DDS body, Piper arm CAN commands</description>
   <maintainer email="ubrobot@example.com">ubrobot</maintainer>
   <license>Apache-2.0</license>
 

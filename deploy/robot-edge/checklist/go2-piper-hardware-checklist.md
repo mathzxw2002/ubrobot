@@ -15,7 +15,7 @@ hash and git commit in the validation report.
 ## Go2 base
 
 - [ ] Go2 is standing (operator-verified) and in sport velocity mode
-- [ ] Go2 bridge container (`go2-bridge`) is running, CycloneDDS on eth0
+- [ ] Go2+Piper driver container (`go2-piper-driver`) is running, CycloneDDS on eth0, can0 mapped
 - [ ] `/odom`, `/imu`, `/joint_states` published and fresh
 - [ ] Local stop / E-stop bound and contact closed
 - [ ] Go2 navigation speed caps confirmed (linear <= 0.2 m/s, angular <= 0.5 rad/s)

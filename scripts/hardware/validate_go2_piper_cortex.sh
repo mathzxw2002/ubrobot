@@ -62,7 +62,7 @@ run "test -n \"\${UBROBOT_EDGE_ESTOP_LINE:-}\" && echo OK || echo 'MISSING UBROB
 section "4. Remote perception service URL (x86 GPU server)"
 run "test -n \"\${REMOTE_PERCEPTION_SERVICE_URL:-}\" && echo OK || echo 'MISSING REMOTE_PERCEPTION_SERVICE_URL'"
 
-section "5. RMW + ROS domain (CycloneDDS, matching go2-bridge and emos dock containers)"
+section "5. RMW + ROS domain (CycloneDDS, matching go2-piper-driver and emos dock containers)"
 run "test \"\${RMW_IMPLEMENTATION:-}\" = rmw_cyclonedds_cpp && echo OK || echo 'MISSING RMW_IMPLEMENTATION=rmw_cyclonedds_cpp'"
 run "echo \"ROS_DOMAIN_ID=\${ROS_DOMAIN_ID:-<unset>}\""
 
@@ -72,7 +72,7 @@ run "test -f deploy/robot-edge/config/go2-piper.example.env && echo OK || echo '
 
 section "7. Dock readiness (read-only inventory)"
 run "docker --version"
-run "docker ps -a --format '{{.Names}}\t{{.Status}}' | grep -E 'go2-bridge|emos' || echo 'go2-bridge/emos not listed (expected in hardware run)'"
+run "docker ps -a --format '{{.Names}}\t{{.Status}}' | grep -E 'go2-piper-driver|emos' || echo 'go2-piper-driver/emos not listed (expected in hardware run)'"
 
 if [ "${DRY_RUN}" -eq 1 ]; then
     echo

@@ -14,7 +14,7 @@
 #   UBROBOT_EDGE_ESTOP_ENABLED=true  (+ CHIP/LINE for the bound local stop)
 #   REMOTE_PERCEPTION_SERVICE_URL=<x86 GPU server reachable from the dock>
 #   RMW_IMPLEMENTATION=rmw_cyclonedds_cpp   (Task 1: Go2 DDS is CycloneDDS)
-#   ROS_DOMAIN_ID=<same as the go2-bridge + emos dock containers>
+#   ROS_DOMAIN_ID=<same as the go2-piper-driver + emos dock containers>
 #
 # Bring up together with the base fixture compose:
 #   docker compose -f deploy/robot-edge/compose.fixture.yaml \
@@ -54,7 +54,7 @@ services:
       # --- safety checklist (reviewed, version-controlled path) ---
       - UBROBOT_EDGE_SAFETY_CHECKLIST=/app/checklist/go2-piper-hardware-checklist.md
     volumes:
-      - ../go2-driver/cyclonedds.xml:/etc/cyclonedds/cyclonedds.xml:ro
+      - ../go2-piper-driver/cyclonedds.xml:/etc/cyclonedds/cyclonedds.xml:ro
       - ./config:/app/config:ro
       - ./checklist:/app/checklist:ro
     devices:

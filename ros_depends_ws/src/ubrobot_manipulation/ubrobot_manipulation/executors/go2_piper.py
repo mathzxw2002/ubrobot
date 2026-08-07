@@ -1,4 +1,4 @@
-"""Go2+Piper executor bindings: remote perception, local motion (Task 4).
+"""Go2+Piper executor bindings: remote perception, ROS-topic motion (Task 4 + Step 1).
 
 Implements the two concrete bindings behind the platform-agnostic
 ``PerceptionInterface`` / ``MotionInterface`` protocols used by
@@ -9,13 +9,15 @@ Implements the two concrete bindings behind the platform-agnostic
   sends RGB-D + intrinsics + workspace and receives 6D grasp poses. Any
   unreachable / malformed response raises (fail-closed) so the pipeline
   never degrades to local guessing.
-- ``PiperMotionBinding``: pinocchio IK against the Piper URDF, then joint +
-  gripper execution through ``piper_sdk_interface.PiperSDKInterface``. It
-  never touches ``piper_ctrl_single_node`` CAN objects directly.
+- ``PiperMotionBinding``: pinocchio IK against the Piper URDF (still on the
+  emos side), then sends the resulting joint angles over a
+  ``PiperCommandTransport``. The default transport publishes ``/piper/joint_cmd``
+  and calls ``/piper/enable`` on the go2-piper-driver hardware container; it
+  never touches the Piper SDK or CAN directly (that is the hardware
+  container's job). Tests inject a fake transport.
 
-No torch / rclpy / piper_sdk / pinocchio / unitree SDK import at module
-level: all hardware imports are deferred inside the binding constructors so
-this module stays importable and testable on a workstation.
+The SDK / rclpy / pinocchio imports are deferred inside constructors so this
+module stays importable and testable on a workstation.
 """
 
 from __future__ import annotations
@@ -23,7 +25,7 @@ from __future__ import annotations
 import json
 import threading
 import urllib.request
-from typing import Any, Callable
+from typing import Any, Callable, Protocol
 
 from ..policy import PlatformProfile, WorkspaceBox
 from .piper_graspnet import (
@@ -33,16 +35,46 @@ from .piper_graspnet import (
     PiperGraspNetExecutor,
 )
 
+# Topics/services on the go2-piper-driver hardware container.
+PIPER_JOINT_CMD_TOPIC = "/piper/joint_cmd"
+PIPER_ENABLE_SERVICE = "/piper/enable"
+PIPER_JOINT_STATES_TOPIC = "/piper/joint_states"
+PIPER_COMMAND_TIMEOUT_SEC = 10.0
 
-def build_go2_piper_executor(profile: PlatformProfile, frames: Callable[[], dict[str, Any]] | None = None) -> Any:
+
+class PiperCommandTransport(Protocol):
+    """Sends joint/gripper commands to the Piper hardware layer.
+
+    The emos side never touches the Piper SDK or CAN: it only sends
+    high-level joint commands. Tests inject a fake; the production transport
+    publishes to the go2-piper-driver container's topics/services.
+    """
+
+    def enable(self, on: bool) -> bool:
+        """Enable/disable Piper torque; returns success (fail-closed False)."""
+        ...
+
+    def send_joint_command(self, joints_deg: list[float], gripper_mm: float | None) -> None:
+        """Send six joint angles (deg) + optional gripper (mm) to the arm."""
+        ...
+
+    def read_joint_degrees(self) -> list[float] | None:
+        """Latest six joint angles (deg), or None when unavailable."""
+        ...
+
+
+def build_go2_piper_executor(
+    profile: PlatformProfile,
+    frames: Callable[[], dict[str, Any]] | None = None,
+    transport: PiperCommandTransport | None = None,
+    transport_factory: Callable[[], PiperCommandTransport] | None = None,
+) -> Any:
     """Construct the real Go2+Piper executor from the profile binding.
 
-    Pure binding (no ROS, no rclpy): requires
+    Pure binding (no ROS, no rclpy at construction): requires
     ``profile.remote_perception_service_url`` to be set; raises
     ``NotImplementedError`` otherwise so a misconfiguration never runs.
-    Hardware imports (Piper SDK, pinocchio IK) are deferred until motion.
-    ``frames`` is the RGB-D + intrinsics source (default: lazily read the
-    dock's RealSense topics on first perception call).
+    pinocchio IK and the command transport are created lazily.
     """
     service_url = (profile.remote_perception_service_url or "").strip()
     if not service_url:
@@ -50,7 +82,9 @@ def build_go2_piper_executor(profile: PlatformProfile, frames: Callable[[], dict
             "go2_piper hardware executor requires a remote perception service URL"
         )
     perception = RemoteGraspPerception(service_url=service_url, frames=frames or _default_frames)
-    motion = PiperMotionBinding()
+    motion = PiperMotionBinding(
+        transport=transport, transport_factory=transport_factory
+    )
     return PiperGraspNetExecutor(profile=profile, perception=perception, motion=motion)
 
 
@@ -248,11 +282,118 @@ def _candidate_from_dict(item: Any) -> GraspCandidate:
     return GraspCandidate(score=score, position=position, orientation=orientation)
 
 
+class RosPiperCommandTransport:
+    """Production transport: publish /piper/joint_cmd, call /piper/enable.
+
+    rclpy is imported lazily (dock-only). The node spins on its own executor
+    thread so publish/call never block the grasp lifecycle. Reads the latest
+    joint state from ``/piper/joint_states`` for ``hold_position``.
+    """
+
+    def __init__(
+        self,
+        *,
+        joint_cmd_topic: str = PIPER_JOINT_CMD_TOPIC,
+        enable_service: str = PIPER_ENABLE_SERVICE,
+        joint_states_topic: str = PIPER_JOINT_STATES_TOPIC,
+        timeout_sec: float = PIPER_COMMAND_TIMEOUT_SEC,
+        node: Any | None = None,
+    ) -> None:
+        import rclpy  # noqa: PLC0415 - deferred, dock-only
+        from rclpy.executors import SingleThreadedExecutor  # noqa: PLC0415
+        from rclpy.node import Node  # noqa: PLC0415
+
+        if node is None:
+            if not rclpy.ok():
+                rclpy.init(args=[])
+            node = Node("grasp_piper_command")
+        self._node = node
+        self._executor = SingleThreadedExecutor()
+        self._executor.add_node(node)
+        self._spin_thread = threading.Thread(
+            target=self._executor.spin, daemon=True, name="grasp-piper-command"
+        )
+        self._spin_thread.start()
+
+        from sensor_msgs.msg import JointState  # noqa: PLC0415 - deferred
+        from std_srvs.srv import SetBool  # noqa: PLC0415 - deferred
+
+        self._joint_state_type = JointState
+        self._set_bool_type = SetBool
+        self._joint_cmd_topic = joint_cmd_topic
+        self._enable_service = enable_service
+        self._joint_states_topic = joint_states_topic
+        self._timeout_sec = float(timeout_sec)
+        self._pub = self._node.create_publisher(JointState, joint_cmd_topic, 10)
+        self._enable_client = self._node.create_client(SetBool, enable_service)
+        self._latest_joints_deg: list[float] | None = None
+        self._node.create_subscription(
+            JointState, joint_states_topic, self._on_joint_states, 10
+        )
+
+    # ------------------------------------------------------------ transport
+
+    def enable(self, on: bool) -> bool:
+        if not self._enable_client.wait_for_service(timeout_sec=self._timeout_sec):
+            return False
+        request = self._set_bool_type.Request()
+        request.data = bool(on)
+        future = self._enable_client.call_async(request)
+        if not self._wait(future):
+            return False
+        response = future.result()
+        return bool(response.success)
+
+    def send_joint_command(self, joints_deg: list[float], gripper_mm: float | None) -> None:
+        msg = self._joint_state_type()
+        msg.header.stamp = self._node.get_clock().now().to_msg()
+        # JointState positions are radians; gripper (7th) is mm.
+        import math  # noqa: PLC0415
+
+        msg.position = [math.radians(float(v)) for v in joints_deg]
+        if gripper_mm is not None:
+            msg.position = list(msg.position) + [float(gripper_mm)]
+        self._pub.publish(msg)
+
+    def read_joint_degrees(self) -> list[float] | None:
+        latest = self._latest_joints_deg
+        if latest is None:
+            return None
+        return list(latest)
+
+    # ------------------------------------------------------------- internal
+
+    def _on_joint_states(self, msg: Any) -> None:
+        import math  # noqa: PLC0415
+
+        try:
+            self._latest_joints_deg = [math.degrees(float(v)) for v in msg.position[:6]]
+        except Exception:
+            self._latest_joints_deg = None
+
+    def _wait(self, future: Any) -> bool:
+        import time  # noqa: PLC0415
+
+        deadline = time.monotonic() + self._timeout_sec
+        while not future.done() and time.monotonic() < deadline:
+            time.sleep(0.02)
+        return future.done()
+
+    def shutdown(self) -> None:
+        try:
+            self._executor.shutdown(timeout_sec=1.0)
+        except Exception:
+            pass
+        self._spin_thread.join(timeout=2.0)
+
+
 class PiperMotionBinding(MotionInterface):
-    """pinocchio IK + Piper SDK execution (local on the dock).
+    """pinocchio IK + Piper command transport (IK on emos, motion over ROS).
 
     Attributes:
-        sdk: ``PiperSDKInterface``-compatible object (injectable for tests).
+        transport: ``PiperCommandTransport`` (injectable for tests).
+        transport_factory: callable building the transport lazily (defaults
+            to ``RosPiperCommandTransport`` on the dock).
         ik: IK solver exposing ``solve(position, orientation) -> list[float]``
             (injectable; default builds pinocchio lazily).
         urdf_path: path to ``piper_description.urdf`` for the default solver.
@@ -261,16 +402,17 @@ class PiperMotionBinding(MotionInterface):
     def __init__(
         self,
         *,
-        sdk: Any | None = None,
+        transport: PiperCommandTransport | None = None,
+        transport_factory: Callable[[], PiperCommandTransport] | None = None,
         ik: Any | None = None,
         urdf_path: str = "assets/urdf/piper_description.urdf",
         gripper_mm: float = 5.0,
     ) -> None:
-        self._sdk = sdk
+        self._transport = transport
+        self._transport_factory = transport_factory or self._default_transport_factory
         self._ik = ik
         self._urdf_path = urdf_path
         self._gripper_mm = float(gripper_mm)
-        self._acquired = False
 
     def execute_grasp(
         self,
@@ -282,32 +424,31 @@ class PiperMotionBinding(MotionInterface):
     ) -> None:
         if cancel_event.is_set():
             raise RuntimeError("grasp motion cancelled before start")
-        sdk = self._sdk or self._default_sdk()
+        transport = self._transport or self._transport_factory()
         ik = self._ik or self._default_ik()
         on_phase("approach", 0.0)
         joints = ik.solve(pose.position, pose.orientation)
         if cancel_event.is_set():
             raise RuntimeError("grasp motion cancelled after IK")
         on_phase("align", 1.0)
-        sdk.set_joint_positions_deg(joints, gripper_mm=self._gripper_mm)
+        transport.send_joint_command(joints, gripper_mm=self._gripper_mm)
         on_phase("grasp", 1.0)
-        self._acquired = True
         on_phase("retreat", 1.0)
 
     def hold_position(self) -> None:
-        """Freeze the arm at its current commanded joints."""
-        sdk = self._sdk or self._default_sdk()
-        current = sdk.get_status_deg()
-        joints = [float(current.get(f"joint_{i}.pos", 0.0)) for i in range(1, 7)]
-        sdk.set_joint_positions_deg(joints, gripper_mm=self._gripper_mm)
+        """Freeze the arm at its last known joints (via the transport)."""
+        transport = self._transport or self._transport_factory()
+        current = transport.read_joint_degrees()
+        if current is None:
+            return  # no evidence -> do not command anything (fail-closed)
+        transport.send_joint_command(current, gripper_mm=self._gripper_mm)
 
     # ------------------------------------------------------------------ internal
 
-    def _default_sdk(self) -> Any:
-        from ubrobot.robots.piper.piper_sdk_interface import PiperSDKInterface  # noqa: PLC0415
-
-        self._sdk = PiperSDKInterface(port="can0")
-        return self._sdk
+    def _default_transport_factory(self) -> PiperCommandTransport:
+        # Deferred so workstation imports never pull in rclpy.
+        self._transport = RosPiperCommandTransport()
+        return self._transport
 
     def _default_ik(self) -> Any:
         # Deferred so workstation imports never pull in pinocchio/URDF.

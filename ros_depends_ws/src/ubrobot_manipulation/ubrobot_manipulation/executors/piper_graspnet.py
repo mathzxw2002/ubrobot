@@ -8,9 +8,11 @@ bindings land with the on-machine executor milestone:
   (existing `src/service/reasoning/grasp_plan.py::RobotArmMotionPlan`,
   which produces 6D poses but has no execution path — `optimize_traj` is a
   TODO upstream);
-- motion: pinocchio IK against `assets/urdf/piper_description.urdf` and
-  joint/gripper execution through
-  `src/ubrobot/robots/piper/piper_sdk_interface.py::PiperSDKInterface`.
+- motion: pinocchio IK against `assets/urdf/piper_description.urdf` (on the
+  emos side), then joint/gripper execution via a `PiperCommandTransport`
+  that publishes `/piper/joint_cmd` to the go2-piper-driver hardware
+  container (see `executors/go2_piper.py`). The emos side never touches the
+  Piper SDK or CAN directly.
 
 No torch, ROS, or SDK imports happen at module level so the draft stays
 importable (and testable) on development workstations.

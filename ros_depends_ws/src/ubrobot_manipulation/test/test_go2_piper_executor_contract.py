@@ -140,33 +140,34 @@ class FakeIkSolver:
         return list(self.joints)
 
 
-class FakePiperSdk:
-    def __init__(self):
+class FakePiperTransport:
+    """Fake PiperCommandTransport recording enable/command calls."""
+
+    def __init__(self, joints_deg=None):
+        self.enable_calls = []
         self.joint_calls = []
-        self.gripper_calls = []
-        self.disconnect_calls = 0
+        self.reads = joints_deg or [0.0] * 6
 
-    def set_joint_positions_deg(self, joints_deg, gripper_mm=None):
+    def enable(self, on):
+        self.enable_calls.append(bool(on))
+        return True
+
+    def send_joint_command(self, joints_deg, gripper_mm=None):
         self.joint_calls.append((list(joints_deg), gripper_mm))
-        if gripper_mm is not None:
-            self.gripper_calls.append(gripper_mm)
 
-    def get_status_deg(self):
-        return {"joint_1.pos": 0.0}
-
-    def disconnect(self):
-        self.disconnect_calls += 1
+    def read_joint_degrees(self):
+        return list(self.reads) if self.reads is not None else None
 
 
 class TestPiperMotionBinding(unittest.TestCase):
-    def _binding(self, sdk=None, ik=None):
+    def _binding(self, transport=None, ik=None):
         from ubrobot_manipulation.executors.go2_piper import PiperMotionBinding
 
-        return PiperMotionBinding(sdk=sdk or FakePiperSdk(), ik=ik or FakeIkSolver())
+        return PiperMotionBinding(transport=transport or FakePiperTransport(), ik=ik or FakeIkSolver())
 
-    def test_execute_emits_all_phases_and_commands_sdk(self):
-        sdk = FakePiperSdk()
-        binding = self._binding(sdk=sdk)
+    def test_execute_emits_all_phases_and_commands_transport(self):
+        transport = FakePiperTransport()
+        binding = self._binding(transport=transport)
         pose = GraspCandidate(score=0.9, position=(0.30, 0.0, 0.20), orientation=(0, 0, 0, 1))
         phases = []
         binding.execute_grasp(
@@ -177,14 +178,21 @@ class TestPiperMotionBinding(unittest.TestCase):
         )
         seen = [phase for phase, _ in phases]
         self.assertEqual(seen, ["approach", "align", "grasp", "retreat"])
-        self.assertTrue(sdk.joint_calls, "Piper SDK joint command was not issued")
-        self.assertTrue(sdk.gripper_calls, "Piper SDK gripper command was not issued")
+        self.assertTrue(transport.joint_calls, "Piper transport joint command was not issued")
 
     def test_hold_position_keeps_current_pose(self):
-        sdk = FakePiperSdk()
-        binding = self._binding(sdk=sdk)
+        transport = FakePiperTransport(joints_deg=[1.0, 2.0, 3.0, 4.0, 5.0, 6.0])
+        binding = self._binding(transport=transport)
         binding.hold_position()
-        self.assertTrue(sdk.joint_calls)
+        self.assertTrue(transport.joint_calls)
+        self.assertEqual(transport.joint_calls[0][0], [1.0, 2.0, 3.0, 4.0, 5.0, 6.0])
+
+    def test_hold_position_with_no_evidence_is_fail_closed(self):
+        transport = FakePiperTransport()
+        transport.reads = None
+        binding = self._binding(transport=transport)
+        binding.hold_position()
+        self.assertEqual(transport.joint_calls, [])
 
     def test_ik_error_fails_closed(self):
         binding = self._binding(ik=FakeIkSolver(error=RuntimeError("ik no solution")))
@@ -245,6 +253,55 @@ class TestBuildExecutorGating(unittest.TestCase):
     def test_other_platform_hardware_still_not_implemented(self):
         with self.assertRaises(NotImplementedError):
             self._resolve("piper_station", "hardware")
+
+
+class TestTransportWiring(unittest.TestCase):
+    """build_go2_piper_executor wires a command transport into the motion binding."""
+
+    def _build_with_transport(self, transport=None, frames=None):
+        from ubrobot_manipulation.executors.go2_piper import build_go2_piper_executor
+
+        from dataclasses import replace  # noqa: PLC0415
+
+        profile = get_platform_profile("go2_piper")
+        profile = replace(profile, remote_perception_service_url="http://perception-server:5802")
+        return build_go2_piper_executor(
+            profile,
+            frames=frames or (lambda: {"color": b"c", "depth": b"d", "camera_intrinsic": [[1.0, 0, 0], [0, 1.0, 0], [0, 0, 1.0]]}),
+            transport=transport,
+        )
+
+    def test_transport_injected_into_executor(self):
+        transport = FakePiperTransport()
+        executor = self._build_with_transport(transport=transport)
+        self.assertIs(executor._motion._transport, transport)
+
+    def test_end_to_end_grasp_sends_command_via_transport(self):
+        transport = FakePiperTransport()
+        executor = self._build_with_transport(transport=transport)
+        result = []
+        from ubrobot_manipulation.executors.piper_graspnet import GraspCandidate  # noqa: PLC0415
+        import time  # noqa: PLC0415
+
+        # Directly exercise the motion binding through the executor's pipeline
+        # by invoking the executor's own perception/motion with a stub.
+        def _stub_perception(target, ws, cancel):
+            return [GraspCandidate(score=0.9, position=(0.15, 0.0, 0.25))]
+
+        executor._perception = type(
+            "StubPerception",
+            (),
+            {"locate_grasp_poses": staticmethod(_stub_perception)},
+        )()
+        executor._motion._ik = FakeIkSolver(joints=[0.1, 0.2, 0.3, 0.4, 0.5, 0.6])
+        started = executor.start("cup", 30.0, result.append)
+        self.assertTrue(started)
+        deadline = time.monotonic() + 5.0
+        while not executor.is_done() and time.monotonic() < deadline:
+            time.sleep(0.01)
+        self.assertTrue(executor.is_done())
+        self.assertTrue(executor.result().success)
+        self.assertTrue(transport.joint_calls, "grasp did not send a joint command")
 
 
 class _FakeFrame:

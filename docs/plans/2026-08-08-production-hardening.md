@@ -183,6 +183,27 @@ without ROS/hardware.
   `--hardware` driver + physical E-stop + operator. Fixture JSON data is
   exercised by e2e/qwen tests already in CI.
 
+### P2.5 — dependency vulnerability scan (DONE 2026-08-08, with gradio-6 debt)
+
+- CI `dependency-audit` job runs `scripts/ci/dependency_audit.sh` (pip-audit
+  against `requirements-operator-console.txt`). Any NEW vulnerability fails;
+  known ones are allowlisted with documented reasons.
+- Fixed now: `python-dotenv` 1.1.1→1.2.2 (PYSEC-2026-2270), `starlette`
+  0.47.2→0.49.1 (PYSEC-2026-1942).
+- **OUTSTANDING DEBT (gradio 6 upgrade):** `gradio==5.50.0` pins
+  `starlette<1` and `pillow<12`, so these remain vuln (allowlisted):
+  - gradio 5.50.0: PYSEC-2026-63..66, 211, 2178-2179 (fixed in gradio 6.x)
+  - pillow 11.3.0: PYSEC-2026-165, 2249-2257, 2874, 3451/3453-3454,
+    3493-3496 (fixed in pillow >=12.1.1, needs gradio 6)
+  - starlette 0.49.1: PYSEC-2026-161, 248-249, 2280-2281 (fixed in 1.x,
+    needs gradio 6)
+  Upgrading gradio is a major change (fastapi/starlette chain + chat_ui
+  compatibility pass for removed APIs like `gr.Chatbot(type=...)`); it is a
+  dedicated follow-up, not done here.
+- Locking: `requirements-operator-console.txt` is fully pinned (CI + audit
+  source of truth). Full `requirements.txt` (torch/CUDA ML stack) is NOT
+  pip-compile-able (resolver times out) and stays hand-maintained.
+
 ## Stop conditions
 
 - Any change that makes non-legacy paths (cortex/cortex-mock/robot-edge

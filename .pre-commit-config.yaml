@@ -1,0 +1,55 @@
+# Pre-commit hooks — run locally before every commit so CI gates are caught
+# early (e.g. the ruff 0.14.9-vs-0.14.13 format drift that red-flagged CI).
+#
+# Install:  pip install pre-commit && pre-commit install
+# Run all:  pre-commit run --all-files
+#
+# These local hooks must mirror .github/workflows/ci.yml exactly so local and
+# CI behavior stay in lockstep.
+repos:
+  - repo: local
+    hooks:
+      - id: ruff-check
+        name: ruff check (production packages)
+        entry: python -m ruff check src/ubrobot_contracts src/robot_edge src/chat_ui
+        language: system
+        pass_filenames: false
+        types: [python]
+
+      - id: ruff-format
+        name: ruff format --check (production packages)
+        entry: python -m ruff format --check src/ubrobot_contracts src/robot_edge src/chat_ui
+        language: system
+        pass_filenames: false
+        types: [python]
+
+      - id: ruff-check-experimental
+        name: ruff check (ubrobot + service, informational)
+        entry: python -m ruff check src/ubrobot src/service
+        language: system
+        pass_filenames: false
+        types: [python]
+        # Informational like CI: never blocks locally.
+        always_run: true
+        fail_fast: false
+
+      - id: unittest-robot-edge
+        name: robot-edge unit suite
+        entry: python -m unittest discover -s tests/robot_edge -p "test_*.py"
+        language: system
+        pass_filenames: false
+        always_run: true
+
+      - id: unittest-cortex
+        name: cortex navigation suite
+        entry: python -m unittest discover -s tests/cortex_navigation -p "test_*.py"
+        language: system
+        pass_filenames: false
+        always_run: true
+
+      - id: secrets-scan
+        name: hardcoded-secret scan (static)
+        entry: python -m unittest tests.security.test_hardcoded_secrets
+        language: system
+        pass_filenames: false
+        always_run: true

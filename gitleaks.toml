@@ -1,0 +1,39 @@
+# Gitleaks configuration for UBRobot.
+#
+# Strategy:
+# - Scan the current tree (git mode) so only tracked files are checked and
+#   gitignored local credentials (assets/key.pem) are automatically excluded.
+# - Allowlist vendored/third-party trees whose "secrets" are upstream test
+#   fixtures or API-call patterns, and the hardcoded-secret regression test
+#   that intentionally contains the old leaked key string.
+# - The git HISTORY still contains two retired DashScope keys (see
+#   docs/validation/2026-08-08-refactor-experimental-code.md). Cleaning them
+#   requires a `git filter-repo` history rewrite + force push (owner decision);
+#   this config only guards future commits.
+
+[extend]
+useDefault = true
+
+[[extensions]]
+# Local TLS dev credentials are gitignored (never committed); gitleaks git
+# mode ignores them automatically. Keep a guard in case --no-git is used.
+id = "no-git-credentials"
+paths = ["assets/key.pem", "assets/cert.pem"]
+
+[allowlist]
+# Local dev TLS credentials (gitignored; belt-and-braces guard for --no-git).
+paths = [
+  "assets/key.pem",
+  "assets/cert.pem",
+  # Regression test intentionally embeds the retired DashScope key to prove
+  # it never reappears; gitleaks would flag the literal string.
+  "tests/security/test_hardcoded_secrets.py",
+  # Vendored third-party trees: "secrets" are upstream test fixtures or
+  # benign API-call patterns, not real credentials for this project.
+  "third_party/cyclonedds/",
+  "third_party/dds/",
+  "ros_depends_ws/src/rtabmap/",
+  "ros_depends_ws/src/unitree_sdk2/",
+  "src/ubrobot/cameras/ascam_ros2_ws/",
+  "src/ubrobot/robots/logoplanner/",
+]

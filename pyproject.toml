@@ -225,3 +225,30 @@ dependencies = [
 [tool.setuptools.packages.find]
 where = ["src"]
 
+[tool.ruff]
+# Only first-party code is linted. Vendored/third-party trees (yahboomcar
+# ROS workspace, Logoplanner model checkpoints, third_party/) keep upstream
+# formatting and are excluded from the gate.
+exclude = [
+    "src/ubrobot/cameras/ascam_ros2_ws",
+    "src/ubrobot/robots/logoplanner",
+    "third_party",
+]
+target-version = "py310"
+
+[tool.ruff.lint]
+# Start with the default E/F rule set plus import sorting; escalate to
+# additional rules (B, UP, I) as the codebase is cleaned in later phases.
+# E501 (line-too-long) is intentionally ignored: ruff format owns line
+# wrapping, so a separate length check would just conflict with it.
+select = ["E", "F", "I"]
+ignore = ["E501"]
+
+[tool.ruff.lint.per-file-ignores]
+# Command/example entry points keep their __main__ block at the bottom.
+"src/chat_ui/*.py" = ["E402"]
+
+[tool.ruff.format]
+quote-style = "double"
+indent-style = "space"
+

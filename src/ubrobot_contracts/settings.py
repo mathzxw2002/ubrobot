@@ -52,23 +52,42 @@ class ConsoleSettings(BaseSettings):
 
     # Voice. voice_provider reads UBROBOT_VOICE_PROVIDER (no _CHAT_ segment);
     # qwen fields read UBROBOT_QWEN_*.
-    voice_provider: str = Field(default="off", validation_alias="UBROBOT_VOICE_PROVIDER")
-    qwen_model: str = Field(default="qwen3.5-omni-plus-realtime", validation_alias="UBROBOT_QWEN_REALTIME_MODEL")
-    qwen_voice: str = Field(default="Tina", validation_alias="UBROBOT_QWEN_REALTIME_VOICE")
-    qwen_region: str = Field(default="cn-beijing", validation_alias="UBROBOT_QWEN_REALTIME_REGION")
-    qwen_proxy: str = Field(default="direct", validation_alias="UBROBOT_QWEN_REALTIME_PROXY")
+    voice_provider: str = Field(
+        default="off", validation_alias="UBROBOT_VOICE_PROVIDER"
+    )
+    qwen_model: str = Field(
+        default="qwen3.5-omni-plus-realtime",
+        validation_alias="UBROBOT_QWEN_REALTIME_MODEL",
+    )
+    qwen_voice: str = Field(
+        default="Tina", validation_alias="UBROBOT_QWEN_REALTIME_VOICE"
+    )
+    qwen_region: str = Field(
+        default="cn-beijing", validation_alias="UBROBOT_QWEN_REALTIME_REGION"
+    )
+    qwen_proxy: str = Field(
+        default="direct", validation_alias="UBROBOT_QWEN_REALTIME_PROXY"
+    )
     qwen_session_timeout_sec: float = Field(
         default=1800.0, validation_alias="UBROBOT_QWEN_REALTIME_SESSION_TIMEOUT_SEC"
     )
 
     # Mock backend timing (cortex-mock only). Read UBROBOT_MOCK_*.
-    mock_nav_duration_sec: float = Field(default=4.0, validation_alias="UBROBOT_MOCK_NAV_DURATION_SEC")
-    mock_reply_delay_sec: float = Field(default=0.3, validation_alias="UBROBOT_MOCK_REPLY_DELAY_SEC")
+    mock_nav_duration_sec: float = Field(
+        default=4.0, validation_alias="UBROBOT_MOCK_NAV_DURATION_SEC"
+    )
+    mock_reply_delay_sec: float = Field(
+        default=0.3, validation_alias="UBROBOT_MOCK_REPLY_DELAY_SEC"
+    )
 
     # Edge backend connection (console side). These read UBROBOT_EDGE_*
     # (shared namespace), not UBROBOT_CHAT_EDGE_*.
-    edge_url: str = Field(default="http://127.0.0.1:8780", validation_alias="UBROBOT_EDGE_URL")
-    edge_operator_id: str = Field(default="operator", validation_alias="UBROBOT_EDGE_OPERATOR_ID")
+    edge_url: str = Field(
+        default="http://127.0.0.1:8780", validation_alias="UBROBOT_EDGE_URL"
+    )
+    edge_operator_id: str = Field(
+        default="operator", validation_alias="UBROBOT_EDGE_OPERATOR_ID"
+    )
     edge_token: str = Field(default="", validation_alias="UBROBOT_EDGE_TOKEN")
     edge_token_file: str = Field(default="", validation_alias="UBROBOT_EDGE_TOKEN_FILE")
     edge_local_hardware_permitted: bool = Field(
@@ -77,7 +96,9 @@ class ConsoleSettings(BaseSettings):
 
     # DashScope (voice + VLM). Read DASHSCOPE_*.
     dashscope_api_key: str = Field(default="", validation_alias="DASHSCOPE_API_KEY")
-    dashscope_workspace_id: str = Field(default="", validation_alias="DASHSCOPE_WORKSPACE_ID")
+    dashscope_workspace_id: str = Field(
+        default="", validation_alias="DASHSCOPE_WORKSPACE_ID"
+    )
 
     @field_validator("backend")
     @classmethod

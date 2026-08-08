@@ -429,7 +429,9 @@ class ChatPipeline:
                     user_input_txt += " [ASR disabled: media off]"
             self.asr_cost = round(time.time() - self.start_time, 2)
 
-            logger.info("[ASR] user input: %s, cost: %.2fs", user_input_txt, self.asr_cost)
+            logger.info(
+                "[ASR] user input: %s, cost: %.2fs", user_input_txt, self.asr_cost
+            )
             user_messages.append({"role": "user", "content": user_input})
             logger.debug("user messages: %s", user_messages)
 

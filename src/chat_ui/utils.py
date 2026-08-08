@@ -47,9 +47,7 @@ def merge_frames_with_audio(audio_path, fps=25):
     # subprocess.run was intentionally removed (merge-audio uses the
     # pre-built command); building the list is dead code.
     logger.debug("merge_frames_with_audio: %s -> %s", audio_path, video_path)
-    logger.info(
-        "Merging frames with audio costs %.2fs", time.time() - start_time
-    )
+    logger.info("Merging frames with audio costs %.2fs", time.time() - start_time)
     return VideoInfo(video_path, audio_path)
 
 
@@ -129,7 +127,9 @@ def merge_videos(video_folder_path, suffix=".mp4"):
         for filename in wav_files:
             audio_file_list.write(f"file '{filename}'\n")
 
-    logger.debug("merge_videos audio: %s -> %s", audio_file_list_path, output_audio_path)
+    logger.debug(
+        "merge_videos audio: %s -> %s", audio_file_list_path, output_audio_path
+    )
 
     ffmpeg_command = [
         "ffmpeg",

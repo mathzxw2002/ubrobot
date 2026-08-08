@@ -158,3 +158,6 @@ test_data/
 
 # Dock-side build staging (private SDK sources, not in the repo)
 .dock-build/
+
+# WorkBuddy agent workspace (tool-generated, not source)
+.workbuddy/

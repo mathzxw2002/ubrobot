@@ -109,6 +109,16 @@ Open `http://127.0.0.1:7863`. The local HTTP switch avoids the self-signed
 certificate warning during workstation-only testing; keep TLS enabled when
 the console is exposed beyond localhost.
 
+TLS uses per-machine self-signed dev credentials at `assets/key.pem` +
+`assets/cert.pem`, which are **not tracked in git** (see `.gitignore`). On a
+fresh clone, generate them once:
+
+```bash
+./scripts/generate_dev_cert.sh   # self-signed localhost cert (365 days)
+```
+
+Never commit these files; they are local development credentials.
+
 Run the software-only test suite without ROS or hardware:
 
 ```powershell
@@ -357,5 +367,7 @@ https://blog.csdn.net/qq_63234089/article/details/146914002
 
 
 # Generate Encrypt
-penssl req -x509 -newkey rsa:4096 -keyout key.pem -out cert.pem -days 365 -nodes
+Use `scripts/generate_dev_cert.sh` (see the TLS note above) instead of a raw
+openssl command. Equivalent one-off command:
+openssl req -x509 -newkey rsa:4096 -keyout key.pem -out cert.pem -days 365 -nodes
 

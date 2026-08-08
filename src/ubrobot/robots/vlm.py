@@ -1,25 +1,46 @@
-from openai import OpenAI
-#from threading import Thread
-import json
-import time
-import requests
-
-import numpy as np
-import os, re, cv2
 #import random
 import io
+
+#from threading import Thread
+import json
+import os
+import re
+import time
+
+import cv2
+import numpy as np
+import requests
+from openai import OpenAI
+
 #import ast
 #from io import BytesIO
 #from PIL import ImageColor
 #import xml.etree.ElementTree as ET
-
 from PIL import Image as PIL_Image
 
+# Base URL of the VLM reasoning HTTP service. Defaults to the internal
+# research server; override with UBROBOT_VLM_URL at deployment time instead
+# of editing code.
+_VLM_BASE_URL = os.environ.get(
+    "UBROBOT_VLM_URL", "http://192.168.18.230:5802"
+).rstrip("/")
+
+
+def _vlm_url(path: str) -> str:
+    """Resolve a VLM service URL under the configured base (no trailing slash)."""
+    return f"{_VLM_BASE_URL}/{path.lstrip('/')}"
+
+
 class RobotVLM:
-    def __init__(self, api_key = None, base_url = "https://dashscope.aliyuncs.com/compatible-mode/v1", url = "http://192.168.18.230:5802/eval_cosmos_reason1"):
-        self.url = url
+    def __init__(self, api_key = None, base_url = "https://dashscope.aliyuncs.com/compatible-mode/v1", url = None):
+        self.url = url or _vlm_url("eval_cosmos_reason1")
+        key = api_key or os.environ.get("DASHSCOPE_API_KEY", "").strip()
+        if not key:
+            raise RuntimeError(
+                "DASHSCOPE_API_KEY is required for RobotVLM; pass api_key= or set the environment variable"
+            )
         self.client = OpenAI(
-            api_key="sk-78b8ea9b14b944d0a2240408b8c766dd",
+            api_key=key,
             base_url=base_url,
         )            
     
@@ -202,8 +223,9 @@ class RobotVLM:
             "}"
         )
     
-    def reasoning_vlm_infer(self, image_np, depth_np, intrinc, instruction, url='http://192.168.18.230:5802/eval_reasoning_vqa_cosmos'):
+    def reasoning_vlm_infer(self, image_np, depth_np, intrinc, instruction, url=None):
         """发送图像和指令到HTTP服务，获取推理结果"""
+        url = url or _vlm_url("eval_reasoning_vqa_cosmos")
         print("=================================================== infer_cosmos_reason")
 
         #instruction = "Identify the carrot and provide a 3D trajectory for the gripper (which is at the bottom right of the image) to grasp the carrot. Output the trajectory as a JSON list of waypoints with x, y, z, and gripper_width. Format: <answer>your JSON</answer>"
@@ -217,7 +239,8 @@ class RobotVLM:
         response_str = self.local_http_service(image_np, None, None, instruction, url)
         return response_str
 
-    def vlm_infer_vqa(self, image_np, instruction, url='http://192.168.18.230:5802/eval_reasoning_vqa'):
+    def vlm_infer_vqa(self, image_np, instruction, url=None):
+        url = url or _vlm_url("eval_reasoning_vqa")
         #print("eval robobrain 2.5 ...")
         response_str = self.local_http_service(image_np, None, None, instruction, url)
         return response_str
@@ -297,13 +320,15 @@ class RobotVLM:
             print(f"Error processing image: {e}")
             return None
 
-    def vlm_infer_traj(self, rgb_image_np, depth_image_np, intrin, instruction, url='http://192.168.18.230:5802/eval_reasoning_traj'):
+    def vlm_infer_traj(self, rgb_image_np, depth_image_np, intrin, instruction, url=None):
         #print("eval robobrain 2.5 ...")
+        url = url or _vlm_url("eval_reasoning_traj")
         response_str = self.local_http_service(rgb_image_np, depth_image_np, intrin, instruction, url)
         return response_str
 
-    def vlm_infer_grounding(self, image_np, instruction, url='http://192.168.18.230:5802/eval_reasoning_grounding'):
+    def vlm_infer_grounding(self, image_np, instruction, url=None):
         #print("eval robobrain 2.5 ...")
+        url = url or _vlm_url("eval_reasoning_grounding")
         response_str = self.local_http_service(image_np, None, None, instruction, url)
         boxes = self.decode_json_points(response_str)
         self.draw_on_image(image_np, None, [boxes], None, None)

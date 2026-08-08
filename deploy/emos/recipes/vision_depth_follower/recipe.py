@@ -1,4 +1,5 @@
 import math
+import os
 
 from agents.components import Vision
 from agents.config import VisionConfig
@@ -44,7 +45,7 @@ object_detection = VisionModel(
 
 roboml_detection = RoboMLRESPClient(
     object_detection,
-    host="192.168.18.230",
+    host=os.environ.get("ROBOML_HOST", "192.168.18.230"),
     logging_level="warn",
 )
 

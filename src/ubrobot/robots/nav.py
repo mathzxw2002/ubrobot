@@ -1,20 +1,33 @@
-import json
-import time
-from PIL import ImageDraw, ImageFont
-import cv2
-from PIL import Image as PIL_Image
-import requests
 import io
-
-import re
-import argparse
-
-from collections import OrderedDict
-
+import json
 import math
-import numpy as np
-
+import os
+import re
+import time
+from collections import OrderedDict
 from enum import Enum
+
+import cv2
+import numpy as np
+import requests
+from PIL import Image as PIL_Image
+from PIL import ImageDraw, ImageFont
+
+# Base URLs of the nav policy HTTP services. Defaults to the internal
+# research servers; override at deployment time via environment variables
+# instead of editing code.
+_NAV_DUAL_BASE_URL = os.environ.get(
+    "UBROBOT_NAV_URL", "http://192.168.18.230:5801"
+).rstrip("/")
+_NAV_LOGO_BASE_URL = os.environ.get(
+    "UBROBOT_LOGO_URL", "http://192.168.18.230:19999"
+).rstrip("/")
+
+
+def _nav_url(base: str, path: str) -> str:
+    """Resolve a nav service URL under a configured base (no trailing slash)."""
+    return f"{base}/{path.lstrip('/')}"
+
 
 class ControlMode(Enum):
     PID_Mode = 1
@@ -226,8 +239,8 @@ class RobotNav:
                 act.current_control_mode = ControlMode.PID_Mode
         return act
     
-    def _dual_sys_eval(self, policy_init, http_idx, rgb_image, depth, instruction, odom, url='http://192.168.18.230:5801/eval_dual'):
-        
+    def _dual_sys_eval(self, policy_init, http_idx, rgb_image, depth, instruction, odom, url=None):
+        url = url or _nav_url(_NAV_DUAL_BASE_URL, "eval_dual")
         rgb_image_pil = PIL_Image.fromarray(rgb_image)
         depth_pil = PIL_Image.fromarray(depth)
         
@@ -271,8 +284,9 @@ class RobotNav:
 
         return nav_action, vis_annotated_img
     
-    def _init_server(self, intrinsic_matrix, url='http://192.168.18.230:19999/navigator_reset'):
+    def _init_server(self, intrinsic_matrix, url=None):
         """Send initial reset request to server"""
+        url = url or _nav_url(_NAV_LOGO_BASE_URL, "navigator_reset")
         print(f"Initializing server: {url}")
         batch_size = 1
         stop_threshold = -1.0
@@ -331,8 +345,8 @@ class RobotNav:
         
         return {'goal_x': goal_x, 'goal_y': goal_y}
     
-    def system1_logoplanner_eval(self, policy_init, http_idx, rgb_image, depth, instruction, odom, url='http://192.168.18.230:19999/pointgoal_step'):
-        
+    def system1_logoplanner_eval(self, policy_init, http_idx, rgb_image, depth, instruction, odom, url=None):
+        url = url or _nav_url(_NAV_LOGO_BASE_URL, "pointgoal_step")
         rgb_image_pil = PIL_Image.fromarray(rgb_image)
 
         # Scale and Convert to uint16 (Mode 'I;16') 

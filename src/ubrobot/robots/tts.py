@@ -1,12 +1,16 @@
 import os
 import time
+
 import dashscope
 from dashscope.audio.tts_v2 import *
-from dashscope.api_entities.dashscope_response import SpeechSynthesisResponse
+
 
 class CosyVoice_API:
     def __init__(self):
-        dashscope.api_key = "sk-78b8ea9b14b944d0a2240408b8c766dd"  
+        api_key = os.environ.get("DASHSCOPE_API_KEY", "").strip()
+        if not api_key:
+            raise RuntimeError("DASHSCOPE_API_KEY is required for CosyVoice_API")
+        dashscope.api_key = api_key
         self.voice = "longwan"
 
     def infer(self, project_path, text, index = 0):

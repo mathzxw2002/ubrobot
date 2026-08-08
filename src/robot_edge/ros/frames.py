@@ -139,12 +139,12 @@ class RosFrameCache:
             try:
                 self._sub.destroy()
             except Exception:
-                pass
+                _logger.debug("subscriber destroy failed", exc_info=True)
             self._sub = None
         if self._started:
             try:
                 self._executor.shutdown(timeout_sec=2.0)
             except Exception:
-                pass
+                _logger.debug("executor shutdown failed", exc_info=True)
             self._spin_thread.join(timeout=3.0)
             self._started = False

@@ -1,3 +1,4 @@
+import logging
 import os
 import queue
 import shutil
@@ -6,10 +7,13 @@ import time
 
 import gradio as gr
 
+logger = logging.getLogger("ubrobot.operator_console.pipeline")
+
 try:
     import torch
 
-    no_grad = torch.no_grad
+    def no_grad():
+        return torch.no_grad()
 except ModuleNotFoundError:
     # The hardware-free Operator Console does not run local torch inference.
     def no_grad():
@@ -80,12 +84,12 @@ class ChatPipeline:
     def __init__(self, *, backend=None, initialize_media=True, voice_provider=None):
         if initialize_media:
             # Imported lazily so media-off dev mode needs no ASR/TTS deps.
-            print("[1/3] Start initializing funasr")
+            logger.info("[1/3] Start initializing funasr")
             from ubrobot.robots.asr import Fun_ASR
 
             self.asr = Fun_ASR()
 
-            print("[2/3] Start initializing tts")
+            logger.info("[2/3] Start initializing tts")
             from ubrobot.robots.tts import CosyVoice_API
 
             self.tts_api = CosyVoice_API()
@@ -113,10 +117,10 @@ class ChatPipeline:
                 os.environ.get("UBROBOT_CHAT_BACKEND", "cortex").strip().lower()
             )
             if self.backend_name == "cortex":
-                print("[3/3] Start initializing Cortex client")
+                logger.info("[3/3] Start initializing Cortex client")
                 self.backend = create_ros_cortex_client()
             elif self.backend_name == "cortex-mock":
-                print("[3/3] Start initializing offline mock Cortex backend")
+                logger.info("[3/3] Start initializing offline mock Cortex backend")
                 try:
                     from .mock_backend import MockCortexBackend
                 except ImportError:
@@ -131,7 +135,7 @@ class ChatPipeline:
                     ),
                 )
             elif self.backend_name == "robot-edge":
-                print("[3/3] Start initializing Robot Edge backend")
+                logger.info("[3/3] Start initializing Robot Edge backend")
                 try:
                     from .adapters.robot_edge import RobotEdgeBackend
                 except ImportError:
@@ -146,7 +150,7 @@ class ChatPipeline:
                     token=os.environ.get("UBROBOT_EDGE_TOKEN"),
                 )
             elif self.backend_name == "legacy":
-                print("[3/3] Start initializing legacy Go2Manager")
+                logger.info("[3/3] Start initializing legacy Go2Manager")
                 self.backend = _LegacyBackend()
             else:
                 raise ValueError(
@@ -253,7 +257,7 @@ class ChatPipeline:
             ),
             event_publisher=self.event_stream.publish,
         )
-        print("[Done] Initialzation finished")
+        logger.info("[Done] Initialization finished")
 
     @staticmethod
     def _create_voice_provider():
@@ -280,10 +284,10 @@ class ChatPipeline:
 
         gr.Info("Avatar voice loaded.", duration=2)
         yield gr.update(interactive=True, value=None)
-        print(f"Load voice cost: {round(time.time() - start_time, 2)}s")
+        logger.info("Load voice cost: %.2fs", round(time.time() - start_time, 2))
 
     def flush_pipeline(self):
-        print("Flushing pipeline....")
+        logger.info("Flushing pipeline...")
         self.video_queue = queue.Queue()
         self.vlm_queue = queue.Queue()
         self.tts_queue = queue.Queue()
@@ -295,7 +299,7 @@ class ChatPipeline:
 
     def stop_pipeline(self, user_processing_flag):
         if user_processing_flag or self.task_runtime.active_task() is not None:
-            print("Stopping pipeline....")
+            logger.info("Stopping pipeline...")
             self.stop.set()
             self.task_runtime.cancel_active()
 
@@ -371,8 +375,8 @@ class ChatPipeline:
             os.makedirs(self.project_path, exist_ok=True)
             videos_path = f"{self.project_path}/videos"
             os.makedirs(videos_path, exist_ok=True)
-        except Exception as e:
-            print("make dir exception, ", {e})
+        except Exception:
+            logger.exception("make dir failed")
 
         # Start pipeline
         gr.Info("Start processing.", duration=2)
@@ -407,12 +411,9 @@ class ChatPipeline:
                     user_input_txt += " [ASR disabled: media off]"
             self.asr_cost = round(time.time() - self.start_time, 2)
 
-            print(
-                f"[ASR] User input=========================================================: {user_input_txt}, cost: {self.asr_cost}s"
-            )
-
+            logger.info("[ASR] user input: %s, cost: %.2fs", user_input_txt, self.asr_cost)
             user_messages.append({"role": "user", "content": user_input})
-            print(user_messages)
+            logger.debug("user messages: %s", user_messages)
 
             llm_response_txt = self.request_text(
                 user_input_txt,
@@ -420,7 +421,7 @@ class ChatPipeline:
             )
 
             if llm_response_txt:
-                print(f"[LLM] Put into queue: {llm_response_txt}")
+                logger.info("[LLM] Put into queue: %s", llm_response_txt)
 
             if owns_media_workers:
                 self.vlm_queue.put(None)
@@ -438,13 +439,13 @@ class ChatPipeline:
 
             # Remove frames
             if self.stop.is_set():
-                print("Stop pipeline......")
+                logger.info("Stop pipeline")
             else:
-                print("Finish pipeline......")
+                logger.info("Finish pipeline")
             return user_messages
 
         except Exception as e:
-            print(f"An error occurred: {str(e)}")
+            logger.exception("pipeline error")
             gr.Error(f"An error occurred: {str(e)}")
             return None
 
@@ -472,7 +473,7 @@ class ChatPipeline:
         index = 0
         videos_dir_path = None
         start_time = time.time()
-        print("[Listener] Start yielding results from queue.")
+        logger.debug("[Listener] Start yielding results from queue.")
 
         try:
             while not self.stop.is_set():
@@ -495,7 +496,7 @@ class ChatPipeline:
                         user_processing_flag,
                     )
                     gr.Info(f"Streaming video_{index} from queue.", duration=1)
-                    print(f"[Listener] Streaming video_{index} from queue.")
+                    logger.debug("[Listener] Streaming video_%s from queue.", index)
                     time.sleep(2)
                     index += 1
                     start_time = time.time()
@@ -516,6 +517,7 @@ class ChatPipeline:
                         break
 
                 except Exception as e:
+                    logger.exception("listener video-stream error")
                     gr.Error(f"An error occurred: {str(e)}")
 
             # Merge all videos
@@ -530,7 +532,7 @@ class ChatPipeline:
             if self.stop.is_set():
                 user_chatbot[-1][1]["text"] += "\n停止生成，请稍等......"
         except Exception as e:
-            print(f"An error occurred: {str(e)}")
+            logger.exception("listener error")
             gr.Error(f"An error occurred: {str(e)}")
 
         finally:
@@ -542,7 +544,7 @@ class ChatPipeline:
 
             if videos_dir_path:
                 results_path = os.path.dirname(videos_dir_path)
-                print(f"Remove results: {results_path}")
+                logger.info("Remove results: %s", results_path)
                 shutil.rmtree(results_path, ignore_errors=True)
             user_processing_flag = False
 
@@ -551,12 +553,15 @@ class ChatPipeline:
         index = 0
 
         while not self.stop.is_set():
-            print("waiting vlm response...")
+            logger.debug("tts_worker waiting for vlm response...")
             try:
                 llm_response_txt = self.vlm_queue.get(timeout=180)
                 self.chat_history.append(llm_response_txt)
-                print(
-                    f"[TTS] Get chunk from llm_queue: {llm_response_txt}, llm_queue size: {self.vlm_queue.qsize()}, chat_history {self.chat_history} "
+                logger.debug(
+                    "[TTS] chunk from llm_queue: %s, queue size: %s, history: %s",
+                    llm_response_txt,
+                    self.vlm_queue.qsize(),
+                    self.chat_history,
                 )
                 if not llm_response_txt:
                     break
@@ -564,7 +569,7 @@ class ChatPipeline:
                     project_path=project_path, text=llm_response_txt, index=index
                 )
                 self.tts_queue.put(llm_response_audio)
-                print(f"----------------[TTS] tts_queue size:{self.tts_queue.qsize()}")
+                logger.debug("[TTS] tts_queue size: %s", self.tts_queue.qsize())
                 start_time = time.time()
                 index += 1
             except queue.Empty:

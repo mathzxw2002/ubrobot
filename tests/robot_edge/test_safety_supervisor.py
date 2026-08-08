@@ -6,7 +6,7 @@ from typing import Any
 from unittest.mock import MagicMock, call
 
 try:
-    from robot_edge.safety import SafetySupervisor, StopSink
+    from robot_edge.safety import RecordingStopSink, SafetySupervisor
     HAS_SAFETY = True
 except ImportError:
     HAS_SAFETY = False
@@ -18,7 +18,7 @@ class TestStopSink(unittest.TestCase):
     @unittest.skipUnless(HAS_SAFETY, "robot_edge.safety not available")
     def test_stop_sink_records_calls(self) -> None:
         """Stop sink should record when stop was called."""
-        sink = StopSink()
+        sink = RecordingStopSink()
         self.assertFalse(sink.stopped)
 
         sink.stop(reason="test stop")
@@ -29,7 +29,7 @@ class TestStopSink(unittest.TestCase):
     @unittest.skipUnless(HAS_SAFETY, "robot_edge.safety not available")
     def test_stop_sink_reset(self) -> None:
         """Stop sink should allow reset for testing."""
-        sink = StopSink()
+        sink = RecordingStopSink()
         sink.stop("test")
         sink.reset()
         self.assertFalse(sink.stopped)
@@ -41,7 +41,7 @@ class TestSafetySupervisor(unittest.TestCase):
     @unittest.skipUnless(HAS_SAFETY, "robot_edge.safety not available")
     def test_supervisor_starts_unlatched(self) -> None:
         """Supervisor should start unlatched."""
-        sink = StopSink()
+        sink = RecordingStopSink()
         supervisor = SafetySupervisor(stop_sinks=[sink])
         self.assertFalse(supervisor.is_latched())
         self.assertTrue(supervisor.allows_commands())
@@ -49,8 +49,8 @@ class TestSafetySupervisor(unittest.TestCase):
     @unittest.skipUnless(HAS_SAFETY, "robot_edge.safety not available")
     def test_emergency_stop_latches(self) -> None:
         """Emergency stop should latch and call all sinks."""
-        sink1 = StopSink()
-        sink2 = StopSink()
+        sink1 = RecordingStopSink()
+        sink2 = RecordingStopSink()
         supervisor = SafetySupervisor(stop_sinks=[sink1, sink2])
 
         supervisor.emergency_stop(reason="test emergency", operator_id="test")
@@ -63,7 +63,7 @@ class TestSafetySupervisor(unittest.TestCase):
     @unittest.skipUnless(HAS_SAFETY, "robot_edge.safety not available")
     def test_lease_expiry_triggers_stop(self) -> None:
         """Lease expiry should trigger fail-closed stop."""
-        sink = StopSink()
+        sink = RecordingStopSink()
         supervisor = SafetySupervisor(stop_sinks=[sink])
 
         supervisor.on_lease_expired()
@@ -74,7 +74,7 @@ class TestSafetySupervisor(unittest.TestCase):
     @unittest.skipUnless(HAS_SAFETY, "robot_edge.safety not available")
     def test_edge_disconnect_triggers_stop(self) -> None:
         """Edge disconnect should trigger fail-closed stop."""
-        sink = StopSink()
+        sink = RecordingStopSink()
         supervisor = SafetySupervisor(stop_sinks=[sink])
 
         supervisor.on_edge_disconnected()
@@ -85,7 +85,7 @@ class TestSafetySupervisor(unittest.TestCase):
     @unittest.skipUnless(HAS_SAFETY, "robot_edge.safety not available")
     def test_local_stop_triggers_stop(self) -> None:
         """Local stop should trigger fail-closed stop."""
-        sink = StopSink()
+        sink = RecordingStopSink()
         supervisor = SafetySupervisor(stop_sinks=[sink])
 
         supervisor.on_local_stop()
@@ -96,7 +96,7 @@ class TestSafetySupervisor(unittest.TestCase):
     @unittest.skipUnless(HAS_SAFETY, "robot_edge.safety not available")
     def test_reset_requires_auth(self) -> None:
         """Reset should only after explicit authorized reset."""
-        sink = StopSink()
+        sink = RecordingStopSink()
         supervisor = SafetySupervisor(stop_sinks=[sink])
 
         supervisor.emergency_stop("test", "test")
@@ -110,7 +110,7 @@ class TestSafetySupervisor(unittest.TestCase):
     @unittest.skipUnless(HAS_SAFETY, "robot_edge.safety not available")
     def test_stop_only_once(self) -> None:
         """Stop sinks should only be called once even on multiple triggers."""
-        sink = StopSink()
+        sink = RecordingStopSink()
         supervisor = SafetySupervisor(stop_sinks=[sink])
 
         supervisor.emergency_stop("first", "test")

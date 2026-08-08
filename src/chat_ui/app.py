@@ -9,6 +9,7 @@ import threading
 import time
 from contextlib import asynccontextmanager
 from pathlib import Path
+from typing import Any
 
 import gradio as gr
 import uvicorn
@@ -51,7 +52,7 @@ VOICE_CLIENT_JS = (
     Path(__file__).with_name("voice_client.js").read_text(encoding="utf-8")
 )
 
-chat_pipeline = None
+chat_pipeline: ChatPipeline | None = None
 
 
 class OperatorInteractionRequest(BaseModel):
@@ -386,7 +387,8 @@ def submit_operator_turn(value, history):
     def run() -> None:
         try:
             result = execute_operator_interaction(text, source=source)
-            chat_pipeline.record_completed(text, result.reply)
+            if chat_pipeline is not None:
+                chat_pipeline.record_completed(text, result.reply)
             logger.info("background interaction completed category=%s", category)
         except Exception as exc:  # noqa: BLE001 - surface as chat reply
             # Business failures (e.g. Cortex ABORTED, hardware authority
@@ -397,7 +399,8 @@ def submit_operator_turn(value, history):
                 category,
                 exc,
             )
-            chat_pipeline.record_completed(text, f"执行失败：{exc}")
+            if chat_pipeline is not None:
+                chat_pipeline.record_completed(text, f"执行失败：{exc}")
 
     threading.Thread(target=run, daemon=True, name="operator-submit").start()
     return (
@@ -501,7 +504,7 @@ def refresh_camera_once():
 _last_markdown: dict[str, str] = {}
 
 
-def _cached_markdown(key: str, content: str) -> gr.update:
+def _cached_markdown(key: str, content: str) -> Any:
     """Return gr.update(value=...) only when *content* differs from last tick."""
     if _last_markdown.get(key) == content:
         return gr.update()

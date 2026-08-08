@@ -106,7 +106,8 @@ class CortexClient:
             goal = self._active_goal
         if goal is None or goal is _PENDING_GOAL:
             return False
-        return bool(goal.cancel(self._cancel_timeout_sec))
+        # goal is a rclpy action goal handle; typed as object upstream.
+        return bool(goal.cancel(self._cancel_timeout_sec))  # type: ignore[attr-defined]
 
     def close(self) -> None:
         self.cancel_active()

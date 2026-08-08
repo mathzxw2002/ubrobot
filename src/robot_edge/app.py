@@ -191,7 +191,7 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
         try:
             frame_cache.stop()
         except Exception:
-            pass
+            pass  # best-effort stop; app is shutting down anyway
     poller = getattr(app.state, "estop_poller", None)
     if poller is not None:
         poller.stop()
@@ -242,10 +242,13 @@ def _create_backend(execution_mode: str, *, fixture_step_delay_sec: float):
     """
     if execution_mode == "hardware":
         from robot_edge.ros.backend import (
+            RosCortexCommandBackend,
+            RosReadonlyBackend,
             create_cortex_command_backend,
             create_readonly_ros_backend,
         )
 
+        backend: RosReadonlyBackend | RosCortexCommandBackend | None
         if _hardware_authority_enabled():
             backend = create_cortex_command_backend(execution_mode="hardware")
         else:

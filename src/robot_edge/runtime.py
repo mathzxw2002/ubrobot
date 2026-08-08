@@ -1,5 +1,6 @@
 """Robot Edge runtime - core state machine."""
 
+import logging
 import threading
 from typing import Any, Iterator
 from uuid import uuid4
@@ -16,6 +17,8 @@ from ubrobot_contracts.edge_api import (
     LeaseState,
 )
 from ubrobot_contracts.telemetry import TelemetryChannel, TelemetrySnapshot
+
+logger = logging.getLogger("ubrobot.robot_edge.runtime")
 
 
 class RobotEdgeRuntime:
@@ -152,7 +155,7 @@ class RobotEdgeRuntime:
                 try:
                     cancel_active()
                 except Exception:
-                    pass
+                    logger.warning("backend cancel_active failed during command cancel", exc_info=True)
             self._events.append(
                 command_id=command_id,
                 state=CommandState.CANCELLED,
@@ -181,7 +184,7 @@ class RobotEdgeRuntime:
             try:
                 cancel_active()
             except Exception:
-                pass
+                logger.warning("backend cancel_active failed during emergency stop", exc_info=True)
 
         # Cancel active command if any (under the command lock so it cannot
         # race with a concurrent poll/submit).

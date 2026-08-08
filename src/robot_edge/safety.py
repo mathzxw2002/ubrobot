@@ -13,7 +13,7 @@ class StopSink(ABC):
         pass
 
 
-class StopSink(StopSink):
+class RecordingStopSink(StopSink):
     """Test sink that records when stop was called."""
 
     def __init__(self) -> None:

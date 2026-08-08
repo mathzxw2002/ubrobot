@@ -45,7 +45,9 @@ def serialize_transport_value(value: Any) -> Any:
 
 class _SerializedDTO:
     def to_dict(self) -> dict[str, Any]:
-        return serialize_transport_value(asdict(self))
+        # mypy cannot match asdict against the dataclass protocol for
+        # _SerializedDTO subclasses; the runtime call is safe.
+        return serialize_transport_value(asdict(self))  # type: ignore[call-overload]
 
 
 @dataclass(frozen=True)

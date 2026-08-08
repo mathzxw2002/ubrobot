@@ -16,8 +16,11 @@ Implements the TaskBackend protocol used by TaskRuntime:
 from __future__ import annotations
 
 import json
+import logging
 import os
 import threading
+
+logger = logging.getLogger("ubrobot.operator_console.robot_edge_backend")
 import time
 from datetime import datetime, timezone
 from typing import Callable
@@ -342,8 +345,8 @@ class RobotEdgeBackend:
         try:
             self._client.close()
         except Exception:
-            pass
+            logger.debug("robot edge client close failed", exc_info=True)
         try:
             self._events_client.close()
         except Exception:
-            pass
+            logger.debug("robot edge events client close failed", exc_info=True)

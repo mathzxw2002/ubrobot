@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import math
 from datetime import datetime, timezone
+from typing import Any
 
 from robot_edge.ros.context import RosGraph
 from ubrobot_contracts.telemetry import (
@@ -121,7 +122,7 @@ class MobileBaseHealth:
                 ),
                 sequence=0,
             )
-        value = {
+        value: dict[str, Any] = {
             "source": "robot-edge:ros",
             "profile": self._profile,
             "topic": topic,

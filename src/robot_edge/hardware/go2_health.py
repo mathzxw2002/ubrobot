@@ -287,6 +287,8 @@ class Go2PiperHealth:
 
 
 def _age_is_fresh(age: object, max_age_sec: float) -> bool:
+    if not isinstance(age, (int, float, str)):
+        return False
     try:
         value = float(age)
     except (TypeError, ValueError):

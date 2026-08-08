@@ -245,7 +245,7 @@ class QwenOmniRealtimeProvider:
         async with websockets.connect(
             self.config.websocket_url,
             additional_headers=headers,
-            proxy=self.config.proxy,
+            proxy=self.config.proxy,  # type: ignore[arg-type]  # websockets typing gap for bool|None
             open_timeout=self.config.connect_timeout_sec,
         ) as websocket:
             await websocket.send(json.dumps(self._session_update()))

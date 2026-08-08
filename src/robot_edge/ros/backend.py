@@ -9,6 +9,7 @@ works through the Edge's auth/lease/safety layers.
 
 from __future__ import annotations
 
+import logging
 import queue
 import threading
 from typing import Any, Callable, Iterator, Optional
@@ -19,6 +20,8 @@ from robot_edge.ros.telemetry import RosTelemetryReader
 from ubrobot_contracts.capabilities import CapabilityName, CapabilitySnapshot
 from ubrobot_contracts.edge_api import CommandState
 from ubrobot_contracts.telemetry import TelemetryChannel, TelemetrySnapshot
+
+logger = logging.getLogger("ubrobot.robot_edge.ros.backend")
 
 # Cortex action the Edge forwards operator commands to.
 CORTEX_ACTION_NAME = "/cortex_input_command"
@@ -282,7 +285,7 @@ class RosCortexCommandBackend:
             try:
                 handle.cancel_goal_async()
             except Exception:
-                pass
+                logger.debug("cortex goal cancel failed", exc_info=True)
         self._events.put(
             {
                 "kind": "terminal",
@@ -300,7 +303,7 @@ class RosCortexCommandBackend:
             try:
                 client.shutdown()
             except Exception:
-                pass
+                logger.debug("cortex client shutdown failed", exc_info=True)
         thread = self._goal_thread
         if thread is not None:
             thread.join(timeout=5.0)
@@ -465,7 +468,7 @@ class RosCortexCommandBackend:
                     self._executor.shutdown(timeout_sec=2.0)
                     self._node.destroy_node()
                 except Exception:
-                    pass
+                    logger.debug("cortex client destroy failed", exc_info=True)
 
         return _CortexClient()
 

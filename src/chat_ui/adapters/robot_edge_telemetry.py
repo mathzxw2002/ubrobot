@@ -9,10 +9,13 @@ hardware mode AND the local config explicitly permits it.
 
 from __future__ import annotations
 
+import logging
 import threading
 from typing import Any
 
 import httpx
+
+logger = logging.getLogger("ubrobot.operator_console.robot_edge_telemetry")
 
 from ubrobot_contracts.capabilities import (
     CapabilityAvailability,
@@ -94,7 +97,7 @@ class RobotEdgeTelemetryClient:
         try:
             self._client.close()
         except Exception:
-            pass
+            logger.debug("telemetry client close failed", exc_info=True)
 
     def close(self) -> None:
         self.stop()
@@ -106,7 +109,7 @@ class RobotEdgeTelemetryClient:
             try:
                 self._telemetry_hub.publish(channel, _disconnected_value(channel))
             except Exception:
-                pass
+                logger.debug("mark_disconnected publish failed", exc_info=True)
 
     def poll_once(self) -> bool:
         """Pull one telemetry snapshot. Returns True on success.
@@ -210,7 +213,7 @@ class RobotEdgeCapabilityClient:
         try:
             self._client.close()
         except Exception:
-            pass
+            logger.debug("capability client close failed", exc_info=True)
 
     def close(self) -> None:
         self.stop()

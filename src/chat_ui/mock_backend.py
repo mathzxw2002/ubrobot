@@ -50,8 +50,8 @@ class MockCortexBackend:
         self._navigation_feedback_steps = int(navigation_feedback_steps)
         self._lock = threading.Lock()
         self._active_cancel: threading.Event | None = None
-        self.completed_actions = []
-        self.requests = []
+        self.completed_actions: list[str] = []
+        self.requests: list[str] = []
 
     # ------------------------------------------------------------------ API
 

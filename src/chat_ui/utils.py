@@ -1,9 +1,12 @@
+import logging
 import os
 import re
 import subprocess
 import time
 from datetime import datetime
 from pathlib import Path
+
+logger = logging.getLogger("ubrobot.operator_console.utils")
 
 try:
     from dashscope.audio.tts_v2 import *  # noqa: F401,F403
@@ -22,7 +25,7 @@ class VideoInfo:
 
 def merge_frames_with_audio(audio_path, fps=25):
     video_idx = audio_path.split("/")[-1].split("_")[-1].split(".")[0]
-    print(f"[Real-time Inference] Merging frames with audio on {video_idx}")
+    logger.info("Merging frames with audio on %s", video_idx)
 
     video_path = str(Path(audio_path).parent.parent / "videos" / f"{video_idx}.ts")
     # frame_path = str(Path(audio_path).parent.parent / "frames" / f"{video_idx}")
@@ -43,9 +46,9 @@ def merge_frames_with_audio(audio_path, fps=25):
     # just keep audio
     # subprocess.run was intentionally removed (merge-audio uses the
     # pre-built command); building the list is dead code.
-    print("+++++++++++++++++++ video_path:", audio_path, video_path)
-    print(
-        f"[Real-time Inference] Merging frames with audio costs {time.time() - start_time}s"
+    logger.debug("merge_frames_with_audio: %s -> %s", audio_path, video_path)
+    logger.info(
+        "Merging frames with audio costs %.2fs", time.time() - start_time
     )
     return VideoInfo(video_path, audio_path)
 
@@ -83,7 +86,7 @@ def merge_videos(video_folder_path, suffix=".mp4"):
     output_path = os.path.join(video_folder_path, f"merged_video{suffix}")
     file_list_path = os.path.join(video_folder_path, "video_list.txt")
 
-    print("-------------------- merge_videos...", output_path, file_list_path)
+    logger.debug("merge_videos: %s, %s", output_path, file_list_path)
 
     audio_folder_path = str(Path(video_folder_path).parent / "audio")
 
@@ -126,7 +129,7 @@ def merge_videos(video_folder_path, suffix=".mp4"):
         for filename in wav_files:
             audio_file_list.write(f"file '{filename}'\n")
 
-    print("+++++++++++++++++++++++++, ", audio_file_list_path, output_audio_path)
+    logger.debug("merge_videos audio: %s -> %s", audio_file_list_path, output_audio_path)
 
     ffmpeg_command = [
         "ffmpeg",
@@ -179,7 +182,7 @@ def merge_audios(video_folder_path, suffix=".wav"):
         for filename in wav_files:
             audio_file_list.write(f"file '{filename}'\n")
 
-    print("+++++++++++++++++++++++++, ", audio_file_list_path, output_audio_path)
+    logger.debug("merge_audios: %s -> %s", audio_file_list_path, output_audio_path)
 
     ffmpeg_command = [
         "ffmpeg",

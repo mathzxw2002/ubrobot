@@ -1,19 +1,15 @@
-from typing import Any
 import logging
+from typing import Any
 
-from lerobot.cameras import make_cameras_from_configs
+from lerobot.cameras.camera import Camera
+from lerobot.cameras.opencv import OpenCVCamera
 from lerobot.robots import Robot
 
-from lerobot.cameras.realsense import RealSenseCamera
-
 from ubrobot.cameras.camera_util import EnhancedRealSenseCamera
-from lerobot.cameras.opencv import OpenCVCamera
-from lerobot.cameras.camera import Camera
+from ubrobot.robots.pointcloud import PointCloudPerception
 
 from .config_piper import PiperConfig
 from .piper_sdk_interface import PiperSDKInterface
-
-from ubrobot.robots.pointcloud import PointCloudPerception
 
 logger = logging.getLogger(__name__)
 
@@ -190,7 +186,7 @@ class Piper(Robot):
                     intrinsics = cam.get_camera_intrinsics()
                     obs[f"{cam_key}_intrinsics"] = intrinsics
                     #self.pc.convertRGBD2PointClouds(color_image, depth_image, intrinsics)
-                except Exception as e:
+                except Exception:
                     RuntimeError("exception in piper get_observation...")
 
         #print("================= get observation in piper...", obs)

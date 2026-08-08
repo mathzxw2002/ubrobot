@@ -1,19 +1,16 @@
 import argparse
 import json
 import os
+import sys
 import time
 from datetime import datetime
-
-import sys
-import glob
 from pathlib import Path
 
+import cv2
 import numpy as np
-from PIL import Image, ImageDraw, ImageFont
 import torch
 from flask import Flask, jsonify, request
-
-import cv2
+from PIL import Image, ImageDraw, ImageFont
 
 # Add project path
 project_root = Path('/home/sany/InternNav/')

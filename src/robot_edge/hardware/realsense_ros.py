@@ -9,14 +9,13 @@ from __future__ import annotations
 
 from datetime import datetime, timezone
 
+from robot_edge.ros.context import RosGraph
 from ubrobot_contracts.telemetry import (
     TelemetryChannel,
     TelemetrySnapshot,
     TelemetryState,
     TimestampedSample,
 )
-
-from robot_edge.ros.context import RosGraph
 
 # Measured live topics on the Raspberry Pi (2026-08-03): the bringup starts
 # the RealSense node under a double /camera/camera namespace.
@@ -43,7 +42,9 @@ class RealsenseHealthReader:
         self._color_topic = color_info_topic
         self._depth_topic = depth_info_topic
 
-    def snapshot(self, *, now: datetime | None = None) -> dict[TelemetryChannel, TelemetrySnapshot]:
+    def snapshot(
+        self, *, now: datetime | None = None
+    ) -> dict[TelemetryChannel, TelemetrySnapshot]:
         """Return camera + depth channel snapshots with truthful state."""
         now = now or datetime.now(timezone.utc)
         result = {
@@ -73,7 +74,9 @@ class RealsenseHealthReader:
         if not self._graph.has_topic(topic):
             return TelemetrySnapshot(
                 channel=(
-                    TelemetryChannel.CAMERA if kind == "color" else TelemetryChannel.DEPTH
+                    TelemetryChannel.CAMERA
+                    if kind == "color"
+                    else TelemetryChannel.DEPTH
                 ),
                 latest=TimestampedSample(
                     timestamp=now,
@@ -90,7 +93,9 @@ class RealsenseHealthReader:
         if raw is None:
             return TelemetrySnapshot(
                 channel=(
-                    TelemetryChannel.CAMERA if kind == "color" else TelemetryChannel.DEPTH
+                    TelemetryChannel.CAMERA
+                    if kind == "color"
+                    else TelemetryChannel.DEPTH
                 ),
                 latest=TimestampedSample(
                     timestamp=now,
@@ -128,7 +133,11 @@ class RealsenseHealthReader:
     def _build_value(raw: dict, expected_frame: str, kind: str) -> dict:
         width = raw.get("width")
         height = raw.get("height")
-        frame_id = raw.get("header", {}).get("frame_id") if isinstance(raw.get("header"), dict) else None
+        frame_id = (
+            raw.get("header", {}).get("frame_id")
+            if isinstance(raw.get("header"), dict)
+            else None
+        )
         # Calibration: a valid K is a non-zero 3x3 matrix.
         k = raw.get("k") if isinstance(raw.get("k"), list) else []
         calibrated = isinstance(k, list) and len(k) == 9 and any(v for v in k)

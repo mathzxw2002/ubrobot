@@ -4,13 +4,13 @@ from __future__ import annotations
 
 import asyncio
 import base64
-from dataclasses import dataclass
 import json
 import logging
 import os
 import queue
 import threading
 import time
+from dataclasses import dataclass
 from typing import Callable
 
 try:
@@ -68,9 +68,7 @@ class QwenRealtimeConfig:
             raise RuntimeError(
                 "DASHSCOPE_WORKSPACE_ID is required for Qwen realtime voice"
             )
-        proxy_setting = os.environ.get(
-            "UBROBOT_QWEN_REALTIME_PROXY", "direct"
-        ).strip()
+        proxy_setting = os.environ.get("UBROBOT_QWEN_REALTIME_PROXY", "direct").strip()
         if proxy_setting.lower() in {"", "direct", "none", "off"}:
             proxy: str | bool | None = None
         elif proxy_setting.lower() == "auto":
@@ -84,9 +82,7 @@ class QwenRealtimeConfig:
                 "UBROBOT_QWEN_REALTIME_MODEL", "qwen3.5-omni-plus-realtime"
             ).strip(),
             voice=os.environ.get("UBROBOT_QWEN_REALTIME_VOICE", "Tina").strip(),
-            region=os.environ.get(
-                "UBROBOT_QWEN_REALTIME_REGION", "cn-beijing"
-            ).strip(),
+            region=os.environ.get("UBROBOT_QWEN_REALTIME_REGION", "cn-beijing").strip(),
             session_timeout_sec=float(
                 os.environ.get("UBROBOT_QWEN_REALTIME_SESSION_TIMEOUT_SEC", "1800")
             ),
@@ -106,8 +102,7 @@ class QwenRealtimeConfig:
                 "Qwen realtime region must be 'cn-beijing' or 'ap-southeast-1'"
             ) from exc
         return (
-            f"wss://{self.workspace_id}.{domain}/api-ws/v1/realtime"
-            f"?model={self.model}"
+            f"wss://{self.workspace_id}.{domain}/api-ws/v1/realtime?model={self.model}"
         )
 
 
@@ -158,9 +153,9 @@ class QwenOmniRealtimeProvider:
                 "connecting model=%s region=%s proxy=%s",
                 self.config.model,
                 self.config.region,
-                "auto" if self.config.proxy is True else (
-                    "direct" if self.config.proxy is None else "explicit"
-                ),
+                "auto"
+                if self.config.proxy is True
+                else ("direct" if self.config.proxy is None else "explicit"),
             )
             self._thread.start()
 
@@ -229,9 +224,7 @@ class QwenOmniRealtimeProvider:
         except Exception as exc:
             self._startup_error = exc
             logger.exception("realtime session failed")
-            self._emit(
-                VoiceEvent(VoiceEventType.ERROR, error=f"Qwen realtime: {exc}")
-            )
+            self._emit(VoiceEvent(VoiceEventType.ERROR, error=f"Qwen realtime: {exc}"))
         finally:
             self._startup_finished.set()
             self._connected.clear()
@@ -319,7 +312,9 @@ class QwenOmniRealtimeProvider:
             self._waiting_for_tool_phase_done = True
             arguments = json.loads(event.get("arguments") or "{}")
             text = str(arguments.get("text") or "").strip()
-            logger.info("interaction request call_id=%s text=%r", event.get("call_id"), text)
+            logger.info(
+                "interaction request call_id=%s text=%r", event.get("call_id"), text
+            )
             self._emit(
                 VoiceEvent(
                     VoiceEventType.INTERACTION_REQUEST,
@@ -365,7 +360,9 @@ class QwenOmniRealtimeProvider:
             self._emit(
                 VoiceEvent(
                     VoiceEventType.ERROR,
-                    error=str(error.get("message") or error or "unknown provider error"),
+                    error=str(
+                        error.get("message") or error or "unknown provider error"
+                    ),
                 )
             )
         elif event_type == "connection.closed":
@@ -388,9 +385,7 @@ class QwenOmniRealtimeProvider:
                 "voice": self.config.voice,
                 "input_audio_format": "pcm16",
                 "output_audio_format": "pcm16",
-                "input_audio_transcription": {
-                    "model": "qwen3-asr-flash-realtime"
-                },
+                "input_audio_transcription": {"model": "qwen3-asr-flash-realtime"},
                 "turn_detection": {
                     "type": "server_vad",
                     "threshold": 0.5,

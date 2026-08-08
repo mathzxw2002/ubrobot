@@ -19,23 +19,29 @@ from datetime import datetime, timezone
 from typing import Any, Callable, Iterator, Optional
 
 from ubrobot_contracts.capabilities import (
-    CapabilityName,
-    CapabilitySnapshot,
     CapabilityAvailability,
     CapabilityHealth,
+    CapabilityName,
+    CapabilitySnapshot,
     ExecutionMode,
 )
 from ubrobot_contracts.edge_api import CommandState
 from ubrobot_contracts.telemetry import (
     TelemetryChannel,
-    TelemetryState,
     TelemetrySnapshot,
+    TelemetryState,
     TimestampedSample,
 )
 
-_NAV_PATTERN = re.compile(r"(导航|走到|走向|移动|navigate|go to|move to|follow)", re.IGNORECASE)
+_NAV_PATTERN = re.compile(
+    r"(导航|走到|走向|移动|navigate|go to|move to|follow)", re.IGNORECASE
+)
 
-_WHEEL_NAMES = ("base_back_wheel_joint", "base_left_wheel_joint", "base_right_wheel_joint")
+_WHEEL_NAMES = (
+    "base_back_wheel_joint",
+    "base_left_wheel_joint",
+    "base_right_wheel_joint",
+)
 
 
 class FixtureBackend:

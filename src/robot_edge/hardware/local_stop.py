@@ -56,7 +56,9 @@ class GpiodEstopLineReader(EstopLineReader):
     reads low (= stop), matching the fail-closed requirement.
     """
 
-    def __init__(self, chip: str, line: int, *, line_name: str = "ubrobot-estop") -> None:
+    def __init__(
+        self, chip: str, line: int, *, line_name: str = "ubrobot-estop"
+    ) -> None:
         import gpiod  # deferred; robot-side dependency only
 
         self._chip = chip
@@ -164,9 +166,7 @@ class LocalStopButton:
         # Small epsilon absorbs float rounding (e.g. 1000.02 - 1000).
         if now - self._open_since >= self._debounce_sec - 1e-9:
             self._triggered = True
-            self._fire(
-                f"local stop: contact open ({self._reader.describe()})"
-            )
+            self._fire(f"local stop: contact open ({self._reader.describe()})")
             return True
         return False
 

@@ -1,7 +1,7 @@
 # Piper SDK interface for LeRobot integration
 
-import time
 import logging
+import time
 from typing import Any
 
 log = logging.getLogger(__name__)

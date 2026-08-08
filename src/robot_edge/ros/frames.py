@@ -63,7 +63,10 @@ class RosFrameCache:
         from sensor_msgs.msg import Image  # noqa: PLC0415 - ROS-only
 
         self._sub = self._node.create_subscription(
-            Image, self._topic, self._on_image, qos_profile_sensor_data,
+            Image,
+            self._topic,
+            self._on_image,
+            qos_profile_sensor_data,
         )
         self._spin_thread.start()
         self._started = True

@@ -19,6 +19,7 @@ from dataclasses import dataclass
 from datetime import datetime, timezone
 from typing import Callable, Protocol
 
+from robot_edge.ros.context import RosGraph
 from ubrobot_contracts.capabilities import (
     CapabilityAvailability,
     CapabilityHealth,
@@ -32,7 +33,6 @@ from ubrobot_contracts.telemetry import (
     TelemetryState,
     TimestampedSample,
 )
-from robot_edge.ros.context import RosGraph
 
 # Evidence is only trustworthy while fresh; anything older is fail-closed.
 MAX_EVIDENCE_AGE_SEC = 2.0
@@ -117,7 +117,9 @@ class Go2Health:
             last_updated=now,
         )
 
-    def telemetry(self, *, now: datetime | None = None) -> dict[TelemetryChannel, TelemetrySnapshot]:
+    def telemetry(
+        self, *, now: datetime | None = None
+    ) -> dict[TelemetryChannel, TelemetrySnapshot]:
         now = now or datetime.now(timezone.utc)
         caps = self.capability(now=now)
         odom = self._probe.odometry()
@@ -269,7 +271,9 @@ class Go2PiperHealth:
             if auth.granted
             else CapabilityAvailability.UNAVAILABLE
         )
-        health = CapabilityHealth.HEALTHY if auth.granted else CapabilityHealth.UNHEALTHY
+        health = (
+            CapabilityHealth.HEALTHY if auth.granted else CapabilityHealth.UNHEALTHY
+        )
         return CapabilitySnapshot(
             name=name,
             availability=availability,

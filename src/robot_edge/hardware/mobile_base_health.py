@@ -7,17 +7,16 @@ health only, never movement commands.
 
 from __future__ import annotations
 
-from datetime import datetime, timezone
 import math
+from datetime import datetime, timezone
 
+from robot_edge.ros.context import RosGraph
 from ubrobot_contracts.telemetry import (
     TelemetryChannel,
     TelemetrySnapshot,
     TelemetryState,
     TimestampedSample,
 )
-
-from robot_edge.ros.context import RosGraph
 
 SUPPORTED_PROFILES = ("lekiwi", "go2")
 
@@ -34,6 +33,7 @@ def _quaternion_yaw(orientation: dict) -> float | None:
     except (KeyError, TypeError, ValueError):
         return None
     return round(math.atan2(2.0 * (w * z + x * y), 1.0 - 2.0 * (y * y + z * z)), 4)
+
 
 # lekiwi: /lekiwi_base_controller/odom (wheel odometry, measured live on the
 # Raspberry Pi 2026-08-03; the ros2_control controller publishes under its
@@ -76,7 +76,9 @@ class MobileBaseHealth:
     def profile(self) -> str:
         return self._profile
 
-    def snapshot(self, *, now: datetime | None = None) -> dict[TelemetryChannel, TelemetrySnapshot]:
+    def snapshot(
+        self, *, now: datetime | None = None
+    ) -> dict[TelemetryChannel, TelemetrySnapshot]:
         now = now or datetime.now(timezone.utc)
         result: dict[TelemetryChannel, TelemetrySnapshot] = {}
         for channel, (topic, detail) in self._topics.items():
@@ -150,7 +152,11 @@ class MobileBaseHealth:
             value["velocities"] = raw.get("velocity") or []
             value["motor_count"] = len(raw.get("name") or [])
         state = TelemetryState.AVAILABLE
-        stamp = raw.get("header", {}).get("stamp") if isinstance(raw.get("header"), dict) else None
+        stamp = (
+            raw.get("header", {}).get("stamp")
+            if isinstance(raw.get("header"), dict)
+            else None
+        )
         if isinstance(stamp, dict) and isinstance(stamp.get("sec"), (int, float)):
             try:
                 stamp_dt = datetime.fromtimestamp(

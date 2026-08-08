@@ -1,43 +1,27 @@
 #!/usr/bin/env python3
 # coding:utf-8
 
-import rospy
-import time
 import math
-from enum import Enum
-from collections import deque
-import io
-
 import time
+from collections import deque
+from enum import Enum
+
+import matplotlib
 import numpy as np
-from piper_sdk import C_PiperInterface_V2
+import rospy
+from geometry_msgs.msg import PoseStamped
+from PIL import Image as PIL_Image
+from thread_utils import ReadWriteLock
 
 from ubrobot.robots.piper.piper_client import PiperClient, PiperClientConfig
 
-import numpy as np
-from geometry_msgs.msg import TransformStamped, Point, PoseStamped, Quaternion
-
-from thread_utils import ReadWriteLock
-from PIL import Image as PIL_Image
-
-from scipy.linalg import qr
-import transforms3d.quaternions as tfq
-
-import matplotlib
 matplotlib.use('Agg')
-import matplotlib.pyplot as plt
-from mpl_toolkits.mplot3d import Axes3D
-
-from pointcloud import PointCloudPerception
-
-from pointcloud import GraspPoseCalculator
 
 from piper_sdk import *
+from pointcloud import GraspPoseCalculator, PointCloudPerception
 
 from .vlm import RobotVLM
 
-from lerobot.cameras.realsense import RealSenseCamera, RealSenseCameraConfig
-from lerobot.cameras import ColorMode, Cv2Rotation
 
 class RobotState(Enum):
     IDLE = 0

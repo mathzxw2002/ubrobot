@@ -19,12 +19,11 @@ from functools import cached_property
 
 import cv2
 import numpy as np
-
 from lerobot.processor import RobotAction, RobotObservation
+from lerobot.robots.robot import Robot
 from lerobot.utils.constants import ACTION, OBS_STATE
 from lerobot.utils.errors import DeviceAlreadyConnectedError, DeviceNotConnectedError
 
-from lerobot.robots.robot import Robot
 from .config_piper import PiperClientConfig
 
 

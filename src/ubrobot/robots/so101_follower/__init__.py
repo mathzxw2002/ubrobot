@@ -14,7 +14,11 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from .config_so101_follower import SO101ClientConfig, SO101FollowerConfig, SO101HostConfig
+from .config_so101_follower import (
+    SO101ClientConfig,
+    SO101FollowerConfig,
+    SO101HostConfig,
+)
 from .so101_client import SO101Client
 from .so101_follower import SO101Follower
 from .so101_host import SO101Host

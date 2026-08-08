@@ -7,11 +7,11 @@ records an event stream that can later be transported to a remote console.
 
 from __future__ import annotations
 
+import threading
 from collections import deque
 from dataclasses import asdict, dataclass, field, replace
 from datetime import datetime, timezone
 from enum import Enum
-import threading
 from typing import Any, Callable, Protocol
 from uuid import uuid4
 
@@ -201,7 +201,9 @@ class TaskRuntime:
                 else:
                     current.status = TaskStatus.SUCCEEDED
                     current.result = {"text": reply}
-                    self._append_event(current, "task.succeeded", reply or "Task succeeded")
+                    self._append_event(
+                        current, "task.succeeded", reply or "Task succeeded"
+                    )
             return TaskExecution(replace(current), reply or "", True)
         except Exception as exc:
             with self._lock:

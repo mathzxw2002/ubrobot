@@ -1,4 +1,4 @@
-from gamepad_base import GamepadBase, np, R
+from gamepad_base import GamepadBase, R, np
 from kinematic_trac_ik import Kinematic
 
 

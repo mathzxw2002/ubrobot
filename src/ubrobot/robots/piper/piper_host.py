@@ -21,7 +21,6 @@ import time
 from dataclasses import dataclass, field
 
 import cv2
-import draccus
 import zmq
 
 from .config_piper import PiperConfig, PiperHostConfig

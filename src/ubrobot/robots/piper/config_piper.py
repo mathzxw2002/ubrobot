@@ -1,11 +1,8 @@
 from dataclasses import dataclass, field
 
-from lerobot.cameras.configs import CameraConfig, Cv2Rotation
-from lerobot.cameras.opencv.configuration_opencv import OpenCVCameraConfig
-
-from lerobot.cameras.realsense import RealSenseCamera, RealSenseCameraConfig
 from lerobot.cameras import ColorMode
-
+from lerobot.cameras.configs import CameraConfig, Cv2Rotation
+from lerobot.cameras.realsense import RealSenseCameraConfig
 from lerobot.robots import RobotConfig
 
 

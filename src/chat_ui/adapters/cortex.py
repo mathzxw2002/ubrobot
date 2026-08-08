@@ -6,9 +6,9 @@ this workstation module deliberately contains no hardware or ROS imports.
 
 from __future__ import annotations
 
+import threading
 from dataclasses import asdict, dataclass, field
 from datetime import datetime, timezone
-import threading
 from typing import Callable, Mapping
 from uuid import uuid4
 
@@ -73,7 +73,10 @@ class FixtureCortexAdapter:
             self.requests.append(task)
         feedback, reply = self._fixtures.get(
             task,
-            (("fixture planning", "fixture execution", "fixture complete"), "fixture done"),
+            (
+                ("fixture planning", "fixture execution", "fixture complete"),
+                "fixture done",
+            ),
         )
         for message in feedback:
             if self._cancelled.is_set():

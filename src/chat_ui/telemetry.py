@@ -5,11 +5,11 @@ For shared contracts between Operator Console and Robot Edge, see ubrobot_contra
 
 from __future__ import annotations
 
+import threading
+import time
 from collections import defaultdict, deque
 from dataclasses import dataclass
 from datetime import datetime, timezone
-import threading
-import time
 from typing import Any, Callable
 
 # Re-export from shared contracts for backward compatibility

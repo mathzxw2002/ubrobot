@@ -1,9 +1,8 @@
 """Bounded event stream for Robot Edge."""
 
+import threading
 from collections import deque
 from dataclasses import dataclass
-from datetime import datetime, timezone
-import threading
 from typing import Any
 
 from ubrobot_contracts.edge_api import CommandEvent, CommandState

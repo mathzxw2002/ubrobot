@@ -2,22 +2,25 @@
     Author: chenxi-wang
 """
 
+import os
+import sys
+
 import torch
 import torch.nn as nn
-import torch.nn.functional as F
-import numpy as np
-import sys
-import os
-import time
 
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 ROOT_DIR = os.path.dirname(BASE_DIR)
 sys.path.append(ROOT_DIR)
 sys.path.append(os.path.join(ROOT_DIR, 'utils'))
 
-from loss_utils import GRASP_MAX_WIDTH, GRASP_MAX_TOLERANCE, THRESH_GOOD, THRESH_BAD,\
-                       transform_point_cloud, generate_grasp_views,\
-                       batch_viewpoint_params_to_matrix, huber_loss
+from loss_utils import (
+    GRASP_MAX_TOLERANCE,
+    GRASP_MAX_WIDTH,
+    THRESH_BAD,
+    THRESH_GOOD,
+    huber_loss,
+)
+
 
 def get_loss(end_points):
     objectness_loss, end_points = compute_objectness_loss(end_points)

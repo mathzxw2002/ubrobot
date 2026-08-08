@@ -27,11 +27,11 @@ machine is fully unit-testable on a workstation.
 
 from __future__ import annotations
 
+import math
+import time
 from dataclasses import dataclass
 from datetime import datetime, timezone
 from enum import Enum
-import math
-import time
 from typing import Callable
 
 from ubrobot_manipulation.authority import AuthorityTracker
@@ -160,7 +160,10 @@ class MotionArbitration:
         state, detail = self._transition(now, lease_active, base_stationary)
         self._last_state = state
 
-        can_navigate = state != MotionArbiterState.LATCHED and state != MotionArbiterState.MANIPULATING
+        can_navigate = (
+            state != MotionArbiterState.LATCHED
+            and state != MotionArbiterState.MANIPULATING
+        )
         can_start_grasp = (
             state == MotionArbiterState.IDLE
             and not lease_active
@@ -214,13 +217,21 @@ class MotionArbitration:
             return MotionArbiterState.NAVIGATING, "no recent stationary evidence"
 
         # Navigation has ended: settle until a continuous stationary window.
-        settling_elapsed = now - self._epoch_start if self._epoch_start is not None else 0.0
+        settling_elapsed = (
+            now - self._epoch_start if self._epoch_start is not None else 0.0
+        )
         if settling_elapsed >= self._settling_window_sec:
             if self._imu_seen:
                 return MotionArbiterState.IDLE, "base settled; grasp may start"
-            return MotionArbiterState.SETTLING, "base settled; imu unavailable; grasp waits"
+            return (
+                MotionArbiterState.SETTLING,
+                "base settled; imu unavailable; grasp waits",
+            )
         if not self._imu_seen:
-            return MotionArbiterState.SETTLING, "base settling; imu unavailable; grasp waits"
+            return (
+                MotionArbiterState.SETTLING,
+                "base settling; imu unavailable; grasp waits",
+            )
         return MotionArbiterState.SETTLING, "base settling; grasp waits"
 
     def _imu_ok(self) -> bool:
@@ -231,9 +242,7 @@ class MotionArbitration:
 
     def _note_velocity_sample(self, x: float, y: float, z: float) -> None:
         try:
-            magnitude = max(
-                abs(float(x)), abs(float(y)), abs(float(z))
-            )
+            magnitude = max(abs(float(x)), abs(float(y)), abs(float(z)))
         except (TypeError, ValueError):
             magnitude = math.inf
         if not math.isfinite(magnitude):

@@ -5,10 +5,11 @@ This module provides a forward and inverse kinematics solver using Trac-IK libra
 designed to be used with the teleoperation system.
 """
 
-import numpy as np
-from trac_ik import TracIK
 from typing import Optional, Tuple
+
+import numpy as np
 from scipy.spatial.transform import Rotation as R
+from trac_ik import TracIK
 
 
 class Kinematic:
@@ -69,7 +70,7 @@ class Kinematic:
         # Compute zero pose for reference
         self.xyz_wxyz_zero = self.solve_fk(self.joints_zero)
         
-        print(f"Trac-IK Kinematic Solver initialized:")
+        print("Trac-IK Kinematic Solver initialized:")
         print(f"  Base link: {base_link_name}")
         print(f"  Tip link: {target_link_name}")
         print(f"  Number of joints: {self.num_joints}")
@@ -175,6 +176,7 @@ if __name__ == "__main__":
         
         # Test inverse kinematics
         import time
+
         from scipy.spatial.transform import Rotation as R
         
         target_position = np.array([0.1, 0.0, 0.27])

@@ -2,11 +2,10 @@
 
 from __future__ import annotations
 
-from dataclasses import dataclass
 import logging
 import socket
+from dataclasses import dataclass
 from typing import Any
-
 
 logger = logging.getLogger("ubrobot.operator_console.lifecycle")
 

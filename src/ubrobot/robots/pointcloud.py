@@ -1,17 +1,16 @@
 import time
+
 import cv2
-import open3d as o3d
-
-from scipy.linalg import qr
-import transforms3d.quaternions as tfq
-import numpy as np
-
 import matplotlib
+import numpy as np
+import open3d as o3d
+import transforms3d.quaternions as tfq
+from scipy.linalg import qr
+
 matplotlib.use('Agg')
-import matplotlib.pyplot as plt
-from mpl_toolkits.mplot3d import Axes3D
 
 import io
+
 from PIL import Image as PIL_Image
 
 

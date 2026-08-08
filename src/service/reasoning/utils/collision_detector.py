@@ -2,10 +2,9 @@
 Author: chenxi-wang
 """
 
-import os
-import sys
 import numpy as np
 import open3d as o3d
+
 
 class ModelFreeCollisionDetector():
     """ Collision detection in scenes without object labels. Current finger width and length are fixed.

@@ -10,7 +10,6 @@ hardware mode AND the local config explicitly permits it.
 from __future__ import annotations
 
 import threading
-import time
 from typing import Any
 
 import httpx

@@ -1,9 +1,10 @@
-import pygame
 import threading
 import time
-from typing import Dict, Any
+from typing import Any, Dict
 
+import pygame
 from lerobot.teleoperators.teleoperator import Teleoperator
+
 
 class PiperTeleoperator(Teleoperator):
     name = "piper"

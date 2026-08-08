@@ -1,8 +1,11 @@
-import os, re, cv2
-from typing import Union
+import os
+import re
+
+import cv2
+from PIL import Image as PIL_Image
 from qwen_vl_utils import process_vision_info
 from transformers import AutoModelForImageTextToText, AutoProcessor
-from PIL import Image as PIL_Image
+
 
 class RoboBrainUnifiedInference:
     """

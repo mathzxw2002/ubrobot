@@ -2,12 +2,13 @@
     Author: chenxi-wang
 """
 
-import os
-import sys
-import numpy as np
-import time
 import argparse
 import multiprocessing as mp
+import os
+import sys
+import time
+
+import numpy as np
 
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 ROOT_DIR = os.path.dirname(BASE_DIR)

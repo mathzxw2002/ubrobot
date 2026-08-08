@@ -1,7 +1,6 @@
 """Safety supervisor with fail-closed behavior."""
 
 from abc import ABC, abstractmethod
-from dataclasses import dataclass, field
 from typing import List, Optional
 
 

@@ -5,17 +5,17 @@
 
 ''' Modified based on: https://github.com/erikwijmans/Pointnet2_PyTorch '''
 from __future__ import (
-    division,
     absolute_import,
-    with_statement,
+    division,
     print_function,
     unicode_literals,
+    with_statement,
 )
-import torch
-from torch.autograd import Function
-import torch.nn as nn
+
 import pytorch_utils as pt_utils
-import sys
+import torch
+import torch.nn as nn
+from torch.autograd import Function
 
 try:
     import builtins

@@ -13,13 +13,12 @@ import queue
 import threading
 from typing import Any, Callable, Iterator, Optional
 
-from ubrobot_contracts.capabilities import CapabilityName, CapabilitySnapshot
-from ubrobot_contracts.edge_api import CommandState
-from ubrobot_contracts.telemetry import TelemetryChannel, TelemetrySnapshot
-
 from robot_edge.ros.actions import RosActionInventory
 from robot_edge.ros.context import RosGraph, create_ros_context
 from robot_edge.ros.telemetry import RosTelemetryReader
+from ubrobot_contracts.capabilities import CapabilityName, CapabilitySnapshot
+from ubrobot_contracts.edge_api import CommandState
+from ubrobot_contracts.telemetry import TelemetryChannel, TelemetrySnapshot
 
 # Cortex action the Edge forwards operator commands to.
 CORTEX_ACTION_NAME = "/cortex_input_command"
@@ -99,7 +98,11 @@ class RosReadonlyBackend:
         """
         if self._platform != "go2_piper":
             return None
-        from robot_edge.hardware.go2_health import Go2Health, Go2PiperHealth, RosGo2Probe
+        from robot_edge.hardware.go2_health import (
+            Go2Health,
+            Go2PiperHealth,
+            RosGo2Probe,
+        )
         from robot_edge.hardware.piper_health import PiperHealth
 
         go2_probe = self._go2_probe
@@ -111,7 +114,11 @@ class RosReadonlyBackend:
             if piper_probe is not None
             else self._missing_piper_health()
         )
-        local_stop_bound = bool(self._local_stop_bound) if self._local_stop_bound is not None else False
+        local_stop_bound = (
+            bool(self._local_stop_bound)
+            if self._local_stop_bound is not None
+            else False
+        )
         return _Go2PiperHealthView(
             Go2PiperHealth(
                 go2_health=Go2Health(go2_probe),
@@ -122,6 +129,8 @@ class RosReadonlyBackend:
         )
 
     def _missing_piper_health(self) -> Any:
+        from datetime import datetime, timezone
+
         from ubrobot_contracts.capabilities import (
             CapabilityAvailability,
             CapabilityHealth,
@@ -129,7 +138,6 @@ class RosReadonlyBackend:
             CapabilitySnapshot,
             ExecutionMode,
         )
-        from datetime import datetime, timezone
 
         now = datetime.now(timezone.utc)
         return _UnavailablePiper(
@@ -156,7 +164,9 @@ class _Go2PiperHealthView:
         from ubrobot_contracts.capabilities import CapabilityName
 
         return {
-            CapabilityName.NAVIGATION: self._health.capability(CapabilityName.NAVIGATION),
+            CapabilityName.NAVIGATION: self._health.capability(
+                CapabilityName.NAVIGATION
+            ),
             CapabilityName.GRASP: self._health.capability(CapabilityName.GRASP),
         }
 
@@ -173,7 +183,9 @@ class _UnavailablePiper:
     def capability(self, *, now: Any | None = None) -> CapabilitySnapshot:
         return self._snapshot
 
-    def telemetry(self, *, now: Any | None = None) -> dict[TelemetryChannel, TelemetrySnapshot]:
+    def telemetry(
+        self, *, now: Any | None = None
+    ) -> dict[TelemetryChannel, TelemetrySnapshot]:
         return {}
 
 
@@ -253,7 +265,11 @@ class RosCortexCommandBackend:
                 if status == "succeeded":
                     yield CommandState.SUCCEEDED, message or "Task complete!", payload
                 elif status == "cancelled":
-                    yield CommandState.CANCELLED, message or "Command cancelled", payload
+                    yield (
+                        CommandState.CANCELLED,
+                        message or "Command cancelled",
+                        payload,
+                    )
                 else:
                     yield CommandState.FAILED, message or "Command failed", payload
                 return
@@ -267,8 +283,13 @@ class RosCortexCommandBackend:
                 handle.cancel_goal_async()
             except Exception:
                 pass
-        self._events.put({"kind": "terminal", "status": "cancelled",
-                          "message": "Command cancelled by operator"})
+        self._events.put(
+            {
+                "kind": "terminal",
+                "status": "cancelled",
+                "message": "Command cancelled by operator",
+            }
+        )
         return True
 
     def close(self) -> None:
@@ -310,22 +331,24 @@ class RosCortexCommandBackend:
                 feedback_callback=lambda msg: events.put(
                     {"kind": "feedback", "message": msg}
                 ),
-                terminal_callback=lambda **kw: events.put(
-                    {"kind": "terminal", **kw}
-                ),
+                terminal_callback=lambda **kw: events.put({"kind": "terminal", **kw}),
             )
         except Exception as exc:  # noqa: BLE001 - report any goal failure
-            events.put(
-                {"kind": "terminal", "status": "failed", "message": str(exc)}
-            )
+            events.put({"kind": "terminal", "status": "failed", "message": str(exc)})
 
     def _on_feedback(self, message: str) -> None:
         self._events.put({"kind": "feedback", "message": message})
 
-    def _on_terminal(self, *, status: str, message: str, raw_status: Optional[int] = None) -> None:
+    def _on_terminal(
+        self, *, status: str, message: str, raw_status: Optional[int] = None
+    ) -> None:
         self._events.put(
-            {"kind": "terminal", "status": status, "message": message,
-             "raw_status": raw_status}
+            {
+                "kind": "terminal",
+                "status": status,
+                "message": message,
+                "raw_status": raw_status,
+            }
         )
 
     def _default_client_factory(self) -> Any:
@@ -336,10 +359,9 @@ class RosCortexCommandBackend:
         global-spin reads.
         """
         import rclpy  # noqa: PLC0415 - hardware-only import
+        from automatika_embodied_agents.action import VisionLanguageAction
         from rclpy.executors import SingleThreadedExecutor
         from rclpy.node import Node
-
-        from automatika_embodied_agents.action import VisionLanguageAction
 
         if not rclpy.ok():
             rclpy.init(args=[])
@@ -381,7 +403,9 @@ class RosCortexCommandBackend:
                 terminal_callback: Callable[..., None],
             ) -> None:
                 if not self._action_client.wait_for_server(timeout_sec=10.0):
-                    terminal_callback(status="failed", message="Cortex action server unavailable")
+                    terminal_callback(
+                        status="failed", message="Cortex action server unavailable"
+                    )
                     return
                 goal = VisionLanguageAction.Goal()
                 goal.task = task
@@ -394,7 +418,9 @@ class RosCortexCommandBackend:
                     goal, feedback_callback=on_feedback
                 )
                 if not self._wait(send_future, timeout_sec=15.0):
-                    terminal_callback(status="failed", message="Cortex goal send timed out")
+                    terminal_callback(
+                        status="failed", message="Cortex goal send timed out"
+                    )
                     return
                 handle = send_future.result()
                 if handle is None or not handle.accepted:
@@ -403,7 +429,9 @@ class RosCortexCommandBackend:
                 self.goal_handle = handle
                 result_future = handle.get_result_async()
                 if not self._wait(result_future, timeout_sec=300.0):
-                    terminal_callback(status="failed", message="Cortex result timed out")
+                    terminal_callback(
+                        status="failed", message="Cortex result timed out"
+                    )
                     return
                 result = result_future.result()
                 # rclpy action GoalStatus codes:
@@ -426,8 +454,7 @@ class RosCortexCommandBackend:
                     terminal_callback(
                         status="failed",
                         message=(
-                            f"Cortex action ended with status {result.status} "
-                            "(ABORTED)"
+                            f"Cortex action ended with status {result.status} (ABORTED)"
                         ),
                         raw_status=result.status,
                     )

@@ -1,23 +1,21 @@
 """Robot Edge runtime - core state machine."""
 
 import threading
-from datetime import datetime, timezone
 from typing import Any, Iterator
 from uuid import uuid4
 
+from robot_edge.event_stream import EventStream
+from robot_edge.fixture_backend import FixtureBackend
+from robot_edge.lease import LeaseManager
+from robot_edge.safety import SafetySupervisor
+from ubrobot_contracts.capabilities import CapabilityName, CapabilitySnapshot
 from ubrobot_contracts.edge_api import (
     CommandEvent,
     CommandState,
     LeaseRecord,
     LeaseState,
 )
-from ubrobot_contracts.capabilities import CapabilityName, CapabilitySnapshot
 from ubrobot_contracts.telemetry import TelemetryChannel, TelemetrySnapshot
-
-from robot_edge.event_stream import EventStream, EventRecord
-from robot_edge.fixture_backend import FixtureBackend
-from robot_edge.lease import LeaseManager
-from robot_edge.safety import SafetySupervisor, StopSink
 
 
 class RobotEdgeRuntime:
@@ -35,7 +33,9 @@ class RobotEdgeRuntime:
         self._lease_manager = lease_manager or LeaseManager()
         self._safety = safety_supervisor or SafetySupervisor()
         self._active_command_id: str | None = None
-        self._command_generator: Iterator[tuple[CommandState, str, dict[str, Any]]] | None = None
+        self._command_generator: (
+            Iterator[tuple[CommandState, str, dict[str, Any]]] | None
+        ) = None
         # Serializes command state-machine transitions across concurrent
         # submit/cancel/poll requests from FastAPI's threadpool.
         self._command_lock = threading.RLock()
@@ -108,7 +108,11 @@ class RobotEdgeRuntime:
                 message=message,
                 payload=payload,
             )
-            if state in (CommandState.SUCCEEDED, CommandState.FAILED, CommandState.CANCELLED):
+            if state in (
+                CommandState.SUCCEEDED,
+                CommandState.FAILED,
+                CommandState.CANCELLED,
+            ):
                 self._command_generator = None
                 self._active_command_id = None
         except StopIteration:
@@ -197,7 +201,11 @@ class RobotEdgeRuntime:
             command_id="safety",
             state=CommandState.CANCELLED,
             message="Emergency stop latched",
-            payload={"operator_id": operator_id, "correlation_id": correlation_id, "critical": True},
+            payload={
+                "operator_id": operator_id,
+                "correlation_id": correlation_id,
+                "critical": True,
+            },
         )
 
     def local_emergency_stop(self, detail: str) -> None:

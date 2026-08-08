@@ -7,14 +7,13 @@ robot capabilities, so a provider can never directly control hardware.
 
 from __future__ import annotations
 
+import logging
+import threading
 from dataclasses import asdict, dataclass
 from datetime import datetime, timezone
 from enum import Enum
-import logging
-import threading
 from typing import Callable, Protocol
 from uuid import uuid4
-
 
 logger = logging.getLogger("ubrobot.voice.runtime")
 
@@ -485,9 +484,7 @@ class DisabledVoiceProvider:
     name = "disabled"
 
     def start(self, event_sink: Callable[[VoiceEvent], None]) -> None:
-        raise RuntimeError(
-            "voice is disabled; set UBROBOT_VOICE_PROVIDER=qwen or mock"
-        )
+        raise RuntimeError("voice is disabled; set UBROBOT_VOICE_PROVIDER=qwen or mock")
 
     def stop(self) -> None:
         return None

@@ -20,11 +20,10 @@ from typing import Any
 
 import cv2
 import numpy as np
-
+from lerobot.robots.robot import Robot
 from lerobot.utils.constants import ACTION, OBS_STATE
 from lerobot.utils.errors import DeviceAlreadyConnectedError, DeviceNotConnectedError
 
-from lerobot.robots.robot import Robot
 from .config_so101_follower import SO101ClientConfig
 
 

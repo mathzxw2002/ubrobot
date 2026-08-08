@@ -7,10 +7,10 @@ For shared contracts between Operator Console and Robot Edge, see ubrobot_contra
 
 from __future__ import annotations
 
+import math
 from dataclasses import asdict, dataclass, field
 from datetime import datetime, timezone
 from enum import Enum
-import math
 from typing import Any, Mapping
 
 # Re-export from shared contracts for backward compatibility
@@ -34,8 +34,7 @@ def serialize_transport_value(value: Any) -> Any:
         return serialize_transport_value(to_dict())
     if isinstance(value, Mapping):
         return {
-            str(key): serialize_transport_value(item)
-            for key, item in value.items()
+            str(key): serialize_transport_value(item) for key, item in value.items()
         }
     if isinstance(value, (list, tuple)):
         return [serialize_transport_value(item) for item in value]
@@ -160,7 +159,9 @@ class FixtureTelemetryAdapter:
         for channel, value in self._fixtures.items():
             serialized = serialize_transport_value(value)
             if not isinstance(serialized, dict):
-                raise TypeError(f"fixture telemetry must serialize to an object: {channel}")
+                raise TypeError(
+                    f"fixture telemetry must serialize to an object: {channel}"
+                )
             if serialized.get("channel", channel) != channel:
                 raise ValueError(f"fixture channel mismatch: {channel}")
 

@@ -1,10 +1,9 @@
-from fastapi import FastAPI, WebSocket, UploadFile, File, HTTPException
+
+import numpy as np
+import soundfile as sf
+from fastapi import FastAPI, File, HTTPException, UploadFile, WebSocket
 from fastapi.responses import HTMLResponse
 from funasr import AutoModel
-import numpy as np
-import asyncio
-import soundfile as sf
-import io
 
 # 初始化FastAPI应用
 app = FastAPI(title="FunASR 语音识别服务")

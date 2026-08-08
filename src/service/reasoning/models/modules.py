@@ -4,6 +4,7 @@
 
 import os
 import sys
+
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
@@ -15,8 +16,8 @@ sys.path.append(os.path.join(ROOT_DIR, 'pointnet2'))
 sys.path.append(os.path.join(ROOT_DIR, 'utils'))
 
 import pytorch_utils as pt_utils
+from loss_utils import batch_viewpoint_params_to_matrix, generate_grasp_views
 from pointnet2_utils import CylinderQueryAndGroup
-from loss_utils import generate_grasp_views, batch_viewpoint_params_to_matrix
 
 
 class ApproachNet(nn.Module):

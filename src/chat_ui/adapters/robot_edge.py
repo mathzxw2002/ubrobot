@@ -143,9 +143,7 @@ class RobotEdgeBackend:
         try:
             response = self._client.post("/v1/commands", json=payload)
         except httpx.RequestError:
-            raise RuntimeError(
-                f"Could not connect to Robot Edge at {self._edge_url}"
-            )
+            raise RuntimeError(f"Could not connect to Robot Edge at {self._edge_url}")
         return self._parse_command_response(response)
 
     @staticmethod
@@ -180,7 +178,9 @@ class RobotEdgeBackend:
                 raise RuntimeError(f"Robot Edge rejected command: {detail}")
             raise RuntimeError("Robot Edge rejected the request (replay or stale)")
         if response.status_code >= 400:
-            raise RuntimeError(f"Robot Edge rejected command (HTTP {response.status_code})")
+            raise RuntimeError(
+                f"Robot Edge rejected command (HTTP {response.status_code})"
+            )
         data = response.json()
         command_id = data.get("command_id")
         if not command_id:
@@ -230,9 +230,7 @@ class RobotEdgeBackend:
             except httpx.RequestError:
                 consecutive_errors += 1
                 if consecutive_errors > _MAX_POLL_RETRIES:
-                    raise RuntimeError(
-                        "Lost connection to Robot Edge during execution"
-                    )
+                    raise RuntimeError("Lost connection to Robot Edge during execution")
                 # Transient network glitch; back off briefly and retry.
                 time.sleep(0.5 * consecutive_errors)
                 continue
@@ -282,9 +280,9 @@ class RobotEdgeBackend:
         if response.status_code != 200:
             return None, None
         try:
-            from PIL import Image as PILImage  # noqa: PLC0415
-
             import io
+
+            from PIL import Image as PILImage  # noqa: PLC0415
 
             image = PILImage.open(io.BytesIO(response.content))
             return image, None
@@ -305,7 +303,9 @@ class RobotEdgeBackend:
             "timestamp": self._now(),
         }
         try:
-            response = self._client.post(f"/v1/commands/{command_id}/cancel", json=payload)
+            response = self._client.post(
+                f"/v1/commands/{command_id}/cancel", json=payload
+            )
         except httpx.RequestError:
             return False
         if response.status_code >= 400:

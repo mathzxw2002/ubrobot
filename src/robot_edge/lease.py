@@ -1,13 +1,12 @@
 """Navigation lease state machine."""
 
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from datetime import datetime, timedelta, timezone
-from enum import Enum
 from typing import Optional
 from uuid import uuid4
 
-from ubrobot_contracts.edge_api import LeaseRecord, LeaseState as ContractLeaseState
-
+from ubrobot_contracts.edge_api import LeaseRecord
+from ubrobot_contracts.edge_api import LeaseState as ContractLeaseState
 
 # Re-export for compatibility
 LeaseState = ContractLeaseState
@@ -16,6 +15,7 @@ LeaseState = ContractLeaseState
 @dataclass
 class Lease:
     """Individual navigation lease."""
+
     lease_id: str
     owner: str
     issued_at: datetime

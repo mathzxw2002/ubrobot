@@ -1,13 +1,14 @@
-import os
-import time
-import viser
-import queue
-import pygame
-import yourdfpy
-import numpy as np
 import multiprocessing as mp
-from viser.extras import ViserUrdf
+import os
+import queue
+import time
+
+import numpy as np
+import pygame
+import viser
+import yourdfpy
 from scipy.spatial.transform import Rotation as R
+from viser.extras import ViserUrdf
 
 
 def visualization_process(urdf, root_name, joint_queue: mp.Queue, shutdown_event):
@@ -150,7 +151,7 @@ class GamepadBase:
                 )
                 self.visualization_process.start()
 
-            except Exception as e:
+            except Exception:
                 self.urdf = None
 
         # Kinematic properties - to be implemented by subclasses
@@ -193,7 +194,7 @@ class GamepadBase:
                     self.joystick.init()
                     self.joystick_connected = True
                     self._update_vis()
-                except Exception as e:
+                except Exception:
                     self.joystick = None
                     self.joystick_connected = False
 

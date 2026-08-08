@@ -2,18 +2,17 @@
 
 from __future__ import annotations
 
-from datetime import datetime, timezone
 import math
+from datetime import datetime, timezone
 from typing import Any
 
+from robot_edge.ros.context import RosGraph
 from ubrobot_contracts.telemetry import (
     TelemetryChannel,
     TelemetrySnapshot,
     TelemetryState,
     TimestampedSample,
 )
-
-from robot_edge.ros.context import RosGraph
 
 # Topic -> (channel, value extractor). All reads are strictly read-only.
 # /lekiwi_base_controller/odom is the measured live topic (2026-08-03); the
@@ -72,7 +71,9 @@ def _value_for(topic: str, kind: str, raw: dict[str, Any]) -> dict[str, Any]:
             "topic": topic,
             "x": pose.get("position", {}).get("x") if isinstance(pose, dict) else None,
             "y": pose.get("position", {}).get("y") if isinstance(pose, dict) else None,
-            "yaw": _quaternion_yaw(orientation) if isinstance(orientation, dict) else None,
+            "yaw": _quaternion_yaw(orientation)
+            if isinstance(orientation, dict)
+            else None,
             "vx": twist.get("linear", {}).get("x") if isinstance(twist, dict) else None,
         }
     if kind == "odometry":

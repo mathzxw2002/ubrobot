@@ -86,7 +86,9 @@ class PiperHealth:
             last_updated=now,
         )
 
-    def telemetry(self, *, now: datetime | None = None) -> dict[TelemetryChannel, TelemetrySnapshot]:
+    def telemetry(
+        self, *, now: datetime | None = None
+    ) -> dict[TelemetryChannel, TelemetrySnapshot]:
         now = now or datetime.now(timezone.utc)
         caps = self.capability(now=now)
         if caps.availability in (CapabilityAvailability.AVAILABLE,):

@@ -19,17 +19,16 @@ from __future__ import annotations
 
 import re
 import threading
-import time
 
 try:  # Package import for tests and `python -m chat_ui.app`.
     from .cortex_client import CortexBusyError, CortexRequestError
 except ImportError:  # Script compatibility: direct module import.
     from cortex_client import CortexBusyError, CortexRequestError
 
-NAV_PATTERN = re.compile(r"(走到|走向|导航|navigate|go to|move to|follow)", re.IGNORECASE)
-GRASP_PATTERN = re.compile(
-    r"(抓取|抓住|拿起|grasp|pick up|pick)", re.IGNORECASE
+NAV_PATTERN = re.compile(
+    r"(走到|走向|导航|navigate|go to|move to|follow)", re.IGNORECASE
 )
+GRASP_PATTERN = re.compile(r"(抓取|抓住|拿起|grasp|pick up|pick)", re.IGNORECASE)
 
 
 class MockCortexBackend:
@@ -116,8 +115,7 @@ class MockCortexBackend:
 
     def _run_grasp(self, task, on_feedback, cancel_event):
         on_feedback(
-            "[Step 1/1 (send_goal_to__ubrobot_manipulation_grasp_object)]"
-            " -> EXECUTE"
+            "[Step 1/1 (send_goal_to__ubrobot_manipulation_grasp_object)] -> EXECUTE"
         )
         for phase in ("approach", "align", "grasp", "retreat"):
             if cancel_event.wait(timeout=self._nav_duration_sec / 8.0):
@@ -148,8 +146,7 @@ class MockCortexBackend:
             )
         self.completed_actions.append("navigation")
         on_feedback(
-            "[Step 2/2 (send_goal_to__ubrobot_manipulation_grasp_object)]"
-            " -> EXECUTE"
+            "[Step 2/2 (send_goal_to__ubrobot_manipulation_grasp_object)] -> EXECUTE"
         )
         for phase in ("approach", "align", "grasp", "retreat"):
             if cancel_event.wait(timeout=self._nav_duration_sec / 8.0):
@@ -165,9 +162,7 @@ class MockCortexBackend:
     def _run_text_only(self, task, on_feedback, cancel_event) -> str:
         if cancel_event.wait(timeout=self._reply_delay_sec):
             on_feedback("Plan aborted while waiting for async actions.")
-            raise CortexRequestError(
-                "Plan aborted while waiting for async actions."
-            )
+            raise CortexRequestError("Plan aborted while waiting for async actions.")
         reply = f"[No actions needed]. 收到：{task}（离线开发模式，无真实规划）"
         on_feedback(reply)
         return reply

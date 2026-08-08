@@ -25,10 +25,10 @@ from lerobot.motors.feetech import (
     FeetechMotorsBus,
     OperatingMode,
 )
-from lerobot.utils.errors import DeviceAlreadyConnectedError, DeviceNotConnectedError
-
 from lerobot.robots.robot import Robot
 from lerobot.robots.utils import ensure_safe_goal_position
+from lerobot.utils.errors import DeviceAlreadyConnectedError, DeviceNotConnectedError
+
 from .config_so101_follower import SO101FollowerConfig
 
 logger = logging.getLogger(__name__)

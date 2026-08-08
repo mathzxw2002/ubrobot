@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from datetime import datetime, timezone
 
+from robot_edge.ros.context import RosGraph
 from ubrobot_contracts.capabilities import (
     CapabilityAvailability,
     CapabilityHealth,
@@ -11,8 +12,6 @@ from ubrobot_contracts.capabilities import (
     CapabilitySnapshot,
     ExecutionMode,
 )
-
-from robot_edge.ros.context import RosGraph
 
 # Expected ROS 2 Action servers, per the robot contracts:
 #   ros_depends_ws/src/ubrobot_interfaces/action/NavigateToObject.action
@@ -62,7 +61,9 @@ class RosActionInventory:
                     if present
                     else CapabilityAvailability.UNAVAILABLE
                 ),
-                health=CapabilityHealth.HEALTHY if present else CapabilityHealth.UNKNOWN,
+                health=CapabilityHealth.HEALTHY
+                if present
+                else CapabilityHealth.UNKNOWN,
                 execution_mode=ExecutionMode.HARDWARE,
                 required_resources=["camera", "depth", "odometry", "navigation_lease"],
                 hardware_authority=False,  # M6: read-only, no command authority
@@ -83,10 +84,14 @@ class RosActionInventory:
                     if present
                     else CapabilityAvailability.UNAVAILABLE
                 ),
-                health=CapabilityHealth.HEALTHY if present else CapabilityHealth.UNKNOWN,
+                health=CapabilityHealth.HEALTHY
+                if present
+                else CapabilityHealth.UNKNOWN,
                 execution_mode=ExecutionMode.HARDWARE,
                 required_resources=(
-                    list(topics) if capability != CapabilityName.STOP else ["safety_control"]
+                    list(topics)
+                    if capability != CapabilityName.STOP
+                    else ["safety_control"]
                 ),
                 hardware_authority=False,
                 detail=(

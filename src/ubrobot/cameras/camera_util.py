@@ -1,9 +1,10 @@
 import logging
-import numpy as np
-from numpy.typing import NDArray
-from typing import Any, Tuple, Dict, Optional
-from lerobot.cameras.configs import CameraConfig, Cv2Rotation
 import time
+from typing import Any, Dict
+
+import numpy as np
+from lerobot.cameras.configs import Cv2Rotation
+from numpy.typing import NDArray
 
 try:
     import pyrealsense2 as rs
@@ -11,9 +12,8 @@ except Exception as e:
     logging.info(f"Could not import realsense: {e}")
 
 from lerobot.cameras import ColorMode
-from lerobot.utils.errors import DeviceNotConnectedError
-
 from lerobot.cameras.realsense import RealSenseCamera, RealSenseCameraConfig
+from lerobot.utils.errors import DeviceNotConnectedError
 
 logger = logging.getLogger(__name__)
 

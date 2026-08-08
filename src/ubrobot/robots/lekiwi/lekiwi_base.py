@@ -21,17 +21,14 @@ from itertools import chain
 from typing import Any
 
 import numpy as np
-
-from lerobot.cameras.utils import make_cameras_from_configs
 from lerobot.motors import Motor, MotorCalibration, MotorNormMode
 from lerobot.motors.feetech import (
     FeetechMotorsBus,
     OperatingMode,
 )
+from lerobot.robots.robot import Robot
 from lerobot.utils.errors import DeviceAlreadyConnectedError, DeviceNotConnectedError
 
-from lerobot.robots.robot import Robot
-from lerobot.robots.utils import ensure_safe_goal_position
 from .config_lekiwi_base import LeKiwiConfig
 
 logger = logging.getLogger(__name__)

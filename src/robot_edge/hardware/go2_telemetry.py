@@ -9,18 +9,17 @@ publishes, never subscribes to control topics, and never moves the dog.
 
 from __future__ import annotations
 
-from datetime import datetime, timezone
 import math
+from datetime import datetime, timezone
 from typing import Any
 
+from robot_edge.ros.context import RosGraph
 from ubrobot_contracts.telemetry import (
     TelemetryChannel,
     TelemetrySnapshot,
     TelemetryState,
     TimestampedSample,
 )
-
-from robot_edge.ros.context import RosGraph
 
 # Bridge output topics (Task 1 inventory defaults; overridable per dock).
 GO2_ODOM_TOPIC = "/odom"
@@ -54,7 +53,9 @@ class Go2Telemetry:
         self._imu_topic = imu_topic
         self._max_age_sec = max_age_sec
 
-    def snapshot(self, *, now: datetime | None = None) -> dict[TelemetryChannel, TelemetrySnapshot]:
+    def snapshot(
+        self, *, now: datetime | None = None
+    ) -> dict[TelemetryChannel, TelemetrySnapshot]:
         now = now or datetime.now(timezone.utc)
         result: dict[TelemetryChannel, TelemetrySnapshot] = {}
         for channel, topic in self._topics.items():
@@ -68,12 +69,18 @@ class Go2Telemetry:
     ) -> TelemetrySnapshot:
         if not self._graph.has_topic(topic):
             return self._snapshot(
-                now, channel, TelemetryState.DISCONNECTED, {"detail": f"topic missing ({topic})"}
+                now,
+                channel,
+                TelemetryState.DISCONNECTED,
+                {"detail": f"topic missing ({topic})"},
             )
         raw = self._graph.read_topic(topic)
         if raw is None:
             return self._snapshot(
-                now, channel, TelemetryState.DISCONNECTED, {"detail": f"no message on {topic}"}
+                now,
+                channel,
+                TelemetryState.DISCONNECTED,
+                {"detail": f"no message on {topic}"},
             )
         value = self._value_for(channel, topic, raw)
         age = value.get("age_sec")
@@ -81,7 +88,9 @@ class Go2Telemetry:
             return self._snapshot(now, channel, TelemetryState.STALE, value)
         return self._snapshot(now, channel, TelemetryState.AVAILABLE, value)
 
-    def _value_for(self, channel: TelemetryChannel, topic: str, raw: dict[str, Any]) -> dict[str, Any]:
+    def _value_for(
+        self, channel: TelemetryChannel, topic: str, raw: dict[str, Any]
+    ) -> dict[str, Any]:
         if channel == TelemetryChannel.ODOMETRY:
             return self._odometry_value(raw)
         if channel == TelemetryChannel.JOINT_STATES:
@@ -93,7 +102,11 @@ class Go2Telemetry:
                 "motor_count": len(raw.get("name") or []),
                 "age_sec": _message_age_sec(raw),
             }
-        return {"source": "robot-edge:ros", "topic": topic, "age_sec": _message_age_sec(raw)}
+        return {
+            "source": "robot-edge:ros",
+            "topic": topic,
+            "age_sec": _message_age_sec(raw),
+        }
 
     def _odometry_value(self, raw: dict[str, Any]) -> dict[str, Any]:
         pose = raw.get("pose") or {}
@@ -109,7 +122,9 @@ class Go2Telemetry:
             "source": "robot-edge:ros",
             "x": position.get("x") if isinstance(position, dict) else None,
             "y": position.get("y") if isinstance(position, dict) else None,
-            "yaw": _quaternion_yaw(orientation) if isinstance(orientation, dict) else None,
+            "yaw": _quaternion_yaw(orientation)
+            if isinstance(orientation, dict)
+            else None,
             "vx": linear.get("x") if isinstance(linear, dict) else None,
             "age_sec": _message_age_sec(raw),
         }
@@ -130,7 +145,11 @@ class Go2Telemetry:
 
 
 def _message_age_sec(raw: dict[str, Any]) -> float | None:
-    stamp = raw.get("header", {}).get("stamp") if isinstance(raw.get("header"), dict) else None
+    stamp = (
+        raw.get("header", {}).get("stamp")
+        if isinstance(raw.get("header"), dict)
+        else None
+    )
     if not isinstance(stamp, dict):
         return None
     try:

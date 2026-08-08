@@ -7,9 +7,9 @@ any ROS dependency.
 
 from __future__ import annotations
 
-from array import array
 import threading
 import time
+from array import array
 from typing import Any, Protocol
 
 

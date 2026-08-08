@@ -103,7 +103,8 @@ class ReplayProtection:
         cutoff = now - timedelta(seconds=self._config.nonce_ttl_sec)
 
         expired = [
-            nonce for nonce, stored_at in self._seen_nonces.items()
+            nonce
+            for nonce, stored_at in self._seen_nonces.items()
             if stored_at < cutoff
         ]
         for nonce in expired:

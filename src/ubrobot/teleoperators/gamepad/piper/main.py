@@ -1,11 +1,13 @@
 import os
 import time
-import pygame
+
 import numpy as np
-from piper_sdk import *
+import pygame
 
 # Choose the appropriate controller based on the inverse kinematics algorithm
 from gamepad_trac_ik import RoboticArmController
+from piper_sdk import *
+
 
 # Inherit RoboticArmController class, add physical robot arm control function
 class Teleop(RoboticArmController):

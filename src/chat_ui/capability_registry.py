@@ -8,9 +8,9 @@ For shared contracts between Operator Console and Robot Edge, see ubrobot_contra
 
 from __future__ import annotations
 
+import threading
 from dataclasses import asdict, dataclass, field, replace
 from datetime import datetime, timezone
-import threading
 from typing import Iterable
 
 # Re-export from shared contracts for backward compatibility

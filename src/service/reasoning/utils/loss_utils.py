@@ -2,8 +2,8 @@
     Author: chenxi-wang
 """
 
-import torch
 import numpy as np
+import torch
 
 GRASP_MAX_WIDTH = 0.1
 GRASP_MAX_TOLERANCE = 0.05

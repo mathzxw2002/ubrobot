@@ -2,14 +2,13 @@
 
 from __future__ import annotations
 
-from dataclasses import dataclass
 import math
 import os
 import threading
 import time
+from dataclasses import dataclass
 from types import SimpleNamespace
 from typing import Callable, Protocol
-
 
 FeedbackCallback = Callable[[str], None]
 
@@ -246,22 +245,14 @@ class RosCortexTransport:
 def create_ros_cortex_client(*, bindings=None) -> CortexClient:
     """Build the production client from non-secret runtime configuration."""
     transport = RosCortexTransport(
-        action_name=os.environ.get(
-            "CORTEX_ACTION_NAME", "/cortex_input_command"
-        ),
-        server_timeout_sec=float(
-            os.environ.get("CORTEX_SERVER_TIMEOUT_SEC", "5")
-        ),
+        action_name=os.environ.get("CORTEX_ACTION_NAME", "/cortex_input_command"),
+        server_timeout_sec=float(os.environ.get("CORTEX_SERVER_TIMEOUT_SEC", "5")),
         bindings=bindings,
     )
     return CortexClient(
         transport,
-        result_timeout_sec=float(
-            os.environ.get("CORTEX_RESULT_TIMEOUT_SEC", "180")
-        ),
-        cancel_timeout_sec=float(
-            os.environ.get("CORTEX_CANCEL_TIMEOUT_SEC", "2")
-        ),
+        result_timeout_sec=float(os.environ.get("CORTEX_RESULT_TIMEOUT_SEC", "180")),
+        cancel_timeout_sec=float(os.environ.get("CORTEX_CANCEL_TIMEOUT_SEC", "2")),
     )
 
 
@@ -279,8 +270,8 @@ def _wait_future(future, timeout_sec: float, description: str):
 
 def _load_ros_bindings():
     # Imports remain lazy so UI contract tests work on non-ROS workstations.
-    from automatika_embodied_agents.action import VisionLanguageAction
     import rclpy
+    from automatika_embodied_agents.action import VisionLanguageAction
     from rclpy.action import ActionClient
     from rclpy.context import Context
     from rclpy.executors import MultiThreadedExecutor

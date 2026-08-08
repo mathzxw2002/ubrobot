@@ -2,12 +2,12 @@
 
 from __future__ import annotations
 
+import logging
+import queue
+import threading
 from collections import deque
 from dataclasses import asdict, dataclass, field
 from datetime import datetime, timezone
-import queue
-import logging
-import threading
 from typing import Any
 
 logger = logging.getLogger("ubrobot.operator_events")
@@ -114,7 +114,8 @@ class EventStream:
                 subscriber._offer(event)
             log = (
                 logger.debug
-                if kind in {
+                if kind
+                in {
                     "telemetry.updated",
                     "voice.microphone_level",
                     "voice.transcript.partial",
@@ -134,9 +135,7 @@ class EventStream:
 
     def history(self, *, after_event_id: int = 0) -> list[EventEnvelope]:
         with self._lock:
-            return [
-                event for event in self._history if event.event_id > after_event_id
-            ]
+            return [event for event in self._history if event.event_id > after_event_id]
 
     def latest_event_id(self) -> int:
         with self._lock:

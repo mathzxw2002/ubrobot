@@ -1,10 +1,7 @@
 # cosmos_reason_infer.py
-from pathlib import Path
+import cv2
 import torch
 import transformers
-
-import cv2
-
 from PIL import Image as PIL_Image
 
 SEPARATOR = "-" * 20

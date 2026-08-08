@@ -1,18 +1,25 @@
+import asyncio
+import json
 import logging
 import os
-from pathlib import Path
 import queue
+import secrets
 import shutil
 import threading
-import asyncio
-from contextlib import asynccontextmanager
-import json
-import secrets
 import time
+from contextlib import asynccontextmanager
+from pathlib import Path
 
-from fastapi import FastAPI, Header, HTTPException, Request, WebSocket, WebSocketDisconnect
 import gradio as gr
 import uvicorn
+from fastapi import (
+    FastAPI,
+    Header,
+    HTTPException,
+    Request,
+    WebSocket,
+    WebSocketDisconnect,
+)
 from pydantic import BaseModel, Field
 
 try:  # Package import for tests and `python -m chat_ui.app`.
@@ -40,7 +47,9 @@ logging.basicConfig(
 )
 logger = logging.getLogger("ubrobot.operator_console")
 
-VOICE_CLIENT_JS = Path(__file__).with_name("voice_client.js").read_text(encoding="utf-8")
+VOICE_CLIENT_JS = (
+    Path(__file__).with_name("voice_client.js").read_text(encoding="utf-8")
+)
 
 chat_pipeline = None
 
@@ -452,17 +461,11 @@ def _camera_view_markdown(image, snapshot) -> str:
             resolution = f"{int(size[0])}×{int(size[1])}"
         else:
             resolution = "未知分辨率"
-        lines = [
-            f"**📷 相机实时画面** — 状态：**正常**（{resolution}，每 2 秒刷新）"
-        ]
+        lines = [f"**📷 相机实时画面** — 状态：**正常**（{resolution}，每 2 秒刷新）"]
     elif camera.get("disconnected") or not camera.get("available"):
-        lines = [
-            "**📷 相机状态：不可用** — Robot Edge 无画面数据（离线或未启动）。"
-        ]
+        lines = ["**📷 相机状态：不可用** — Robot Edge 无画面数据（离线或未启动）。"]
     else:
-        lines = [
-            "**📷 相机状态：等待画面** — 相机已连接，尚未收到图像帧。"
-        ]
+        lines = ["**📷 相机状态：等待画面** — 相机已连接，尚未收到图像帧。"]
     age = camera.get("age_sec")
     if age is not None:
         lines.append(f"- 遥测更新：{age:.1f}s 前")
@@ -551,7 +554,9 @@ def operator_update_once(history=None):
     refresh_console_once instead.
     """
     nav_image, manipulation_image = chat_pipeline.get_robot_observation()
-    is_manipulate_valid = manipulation_image is not None and getattr(manipulation_image, "size", 1) != 0
+    is_manipulate_valid = (
+        manipulation_image is not None and getattr(manipulation_image, "size", 1) != 0
+    )
     snapshot = chat_pipeline.operator_snapshot()
     nav_image_update, nav_placeholder_update, camera_status_update = (
         _camera_panel_update(nav_image, snapshot)
@@ -677,9 +682,7 @@ def create_gradio():
                 )
                 gr.Markdown("### 传感器预览")
                 camera_status = gr.Markdown(
-                    _camera_view_markdown(
-                        None, chat_pipeline.operator_snapshot()
-                    ),
+                    _camera_view_markdown(None, chat_pipeline.operator_snapshot()),
                     elem_id="operator-camera-status",
                 )
                 with gr.Tabs():
@@ -691,7 +694,7 @@ def create_gradio():
                             elem_id="operator-nav-camera-placeholder",
                         )
                     with gr.Tab("机械臂 / 深度"):
-                        manipulate_img_output = gr.Image(
+                        manipulate_img_output = gr.Image(  # noqa: F841  # UI placeholder; kept for layout
                             type="pil", height=280, visible=False
                         )
 

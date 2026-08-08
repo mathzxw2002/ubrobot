@@ -2,29 +2,23 @@
 
 import os
 from contextlib import asynccontextmanager
-from datetime import datetime, timezone
 from typing import Any, AsyncIterator, Callable
 
 from fastapi import Depends, FastAPI, HTTPException, Request, status
+from fastapi.responses import Response
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
-from fastapi.responses import JSONResponse, Response
 
-from ubrobot_contracts import PROTOCOL_VERSION
-from ubrobot_contracts.capabilities import CapabilityName
-from ubrobot_contracts.edge_api import (
-    CommandRequest,
-    CommandAccepted,
-    CancelRequest,
-    EmergencyStopRequest,
-    LeaseAcquireRequest,
-    LeaseRecord,
-    ErrorResponse,
-)
-
-from robot_edge.auth import AuthConfig, TokenVerifier, ReplayProtection, Scope
+from robot_edge.auth import AuthConfig, ReplayProtection, Scope, TokenVerifier
 from robot_edge.fixture_backend import FixtureBackend
 from robot_edge.runtime import RobotEdgeRuntime
-
+from ubrobot_contracts import PROTOCOL_VERSION
+from ubrobot_contracts.edge_api import (
+    CancelRequest,
+    CommandAccepted,
+    CommandRequest,
+    EmergencyStopRequest,
+    LeaseAcquireRequest,
+)
 
 # Security scheme for bearer tokens
 security = HTTPBearer(auto_error=False)
@@ -110,6 +104,7 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
     tokens: dict[str, list[str]] = {}
     if tokens_file and os.path.exists(tokens_file):
         import json
+
         with open(tokens_file) as f:
             tokens = json.load(f)
 
@@ -157,7 +152,9 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
     if step_delay is None:
         step_delay = float(os.environ.get("UBROBOT_EDGE_FIXTURE_STEP_DELAY_SEC", "0.0"))
     app.state.runtime = RobotEdgeRuntime(
-        backend=_create_backend(execution_mode, fixture_step_delay_sec=float(step_delay))
+        backend=_create_backend(
+            execution_mode, fixture_step_delay_sec=float(step_delay)
+        )
     )
 
     # M7: bind the physical E-stop to the runtime safety latch when enabled.
@@ -181,8 +178,9 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
             app.state.camera_frame = cache
         except Exception as exc:
             import logging
-            logging.getLogger('ubrobot.robot_edge').warning(
-                'camera frame cache unavailable: %s', exc
+
+            logging.getLogger("ubrobot.robot_edge").warning(
+                "camera frame cache unavailable: %s", exc
             )
             app.state.camera_frame = None  # camera view unavailable; endpoint 404s
 
@@ -315,6 +313,7 @@ async def get_current_scopes(
 
 def require_scope(required_scope: str):
     """Dependency factory to require a specific scope."""
+
     async def dependency(scopes: set[str] = Depends(get_current_scopes)) -> set[str]:
         if required_scope not in scopes:
             raise HTTPException(
@@ -322,6 +321,7 @@ def require_scope(required_scope: str):
                 detail=f"Missing required scope: {required_scope}",
             )
         return scopes
+
     return dependency
 
 
@@ -377,7 +377,11 @@ def create_app(
         descriptors, SDK objects, or credentials.
         """
         button = getattr(request.app.state, "estop_button", None)
-        local_stop: dict[str, Any] = {"bound": False, "source": None, "contact_closed": None}
+        local_stop: dict[str, Any] = {
+            "bound": False,
+            "source": None,
+            "contact_closed": None,
+        }
         if button is not None:
             snap = button.snapshot()
             local_stop = {
@@ -393,7 +397,9 @@ def create_app(
         }
 
     # Observe-scoped endpoints
-    @app.get("/v1/capabilities", dependencies=[Depends(require_scope(Scope.OBSERVE.value))])
+    @app.get(
+        "/v1/capabilities", dependencies=[Depends(require_scope(Scope.OBSERVE.value))]
+    )
     async def get_capabilities(
         runtime: RobotEdgeRuntime = Depends(get_runtime),
     ) -> dict[str, Any]:
@@ -406,7 +412,10 @@ def create_app(
             },
         }
 
-    @app.get("/v1/telemetry/snapshot", dependencies=[Depends(require_scope(Scope.OBSERVE.value))])
+    @app.get(
+        "/v1/telemetry/snapshot",
+        dependencies=[Depends(require_scope(Scope.OBSERVE.value))],
+    )
     async def get_telemetry_snapshot(
         runtime: RobotEdgeRuntime = Depends(get_runtime),
     ) -> dict[str, Any]:
@@ -451,7 +460,9 @@ def create_app(
         return Response(content=jpeg, media_type="image/jpeg")
 
     # Command endpoints
-    @app.post("/v1/commands", dependencies=[Depends(require_scope(Scope.TASK_SUBMIT.value))])
+    @app.post(
+        "/v1/commands", dependencies=[Depends(require_scope(Scope.TASK_SUBMIT.value))]
+    )
     async def submit_command(
         request: CommandRequest,
         replay: ReplayProtection = Depends(get_replay_protection),
@@ -489,7 +500,10 @@ def create_app(
         )
         return accepted.model_dump(mode="json")
 
-    @app.post("/v1/commands/{command_id}/cancel", dependencies=[Depends(require_scope(Scope.TASK_CANCEL.value))])
+    @app.post(
+        "/v1/commands/{command_id}/cancel",
+        dependencies=[Depends(require_scope(Scope.TASK_CANCEL.value))],
+    )
     async def cancel_command(
         command_id: str,
         request: CancelRequest,
@@ -524,7 +538,10 @@ def create_app(
         return {"cancelled": cancelled, "correlation_id": request.correlation_id}
 
     # Safety endpoint
-    @app.post("/v1/safety/stop", dependencies=[Depends(require_scope(Scope.SAFETY_STOP.value))])
+    @app.post(
+        "/v1/safety/stop",
+        dependencies=[Depends(require_scope(Scope.SAFETY_STOP.value))],
+    )
     async def emergency_stop(
         request: EmergencyStopRequest,
         replay: ReplayProtection = Depends(get_replay_protection),
@@ -552,7 +569,10 @@ def create_app(
             "correlation_id": request.correlation_id,
         }
 
-    @app.post("/v1/safety/reset", dependencies=[Depends(require_scope(Scope.SAFETY_STOP.value))])
+    @app.post(
+        "/v1/safety/reset",
+        dependencies=[Depends(require_scope(Scope.SAFETY_STOP.value))],
+    )
     async def reset_safety(
         http_request: Request,
         request: EmergencyStopRequest,
@@ -589,7 +609,10 @@ def create_app(
         }
 
     # Lease endpoints
-    @app.post("/v1/lease/acquire", dependencies=[Depends(require_scope(Scope.LEASE_MANAGE.value))])
+    @app.post(
+        "/v1/lease/acquire",
+        dependencies=[Depends(require_scope(Scope.LEASE_MANAGE.value))],
+    )
     async def acquire_lease(
         request: LeaseAcquireRequest,
         replay: ReplayProtection = Depends(get_replay_protection),

@@ -2,11 +2,11 @@
 
 from __future__ import annotations
 
+import re
+import threading
 from dataclasses import asdict, dataclass
 from datetime import datetime, timezone
 from enum import Enum
-import re
-import threading
 from typing import Any, Callable
 from uuid import uuid4
 
@@ -129,7 +129,11 @@ class InteractionRuntime:
             if active is None:
                 return self._finish(turn, "当前没有可取消的主任务。", False)
             acknowledged = self._task_runtime.cancel_active()
-            reply = "已请求取消当前任务。" if acknowledged else "取消请求已发送，等待执行端确认。"
+            reply = (
+                "已请求取消当前任务。"
+                if acknowledged
+                else "取消请求已发送，等待执行端确认。"
+            )
             return self._finish(turn, reply, False, active.task_id)
         if category == InteractionCategory.EMERGENCY_STOP:
             acknowledged = self._task_runtime.emergency_stop(

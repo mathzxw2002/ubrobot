@@ -164,9 +164,24 @@ without ROS/hardware.
   committed. Actual signing requires a secret-managed key pair + registry —
   owner-setup, not code.
 
-### P3 — test depth (not started)
+### P3 — test depth (DONE 2026-08-08)
 
-- **P3:** coverage gates, fault-injection tests, hardened fixture/hardware split.
+- **Coverage gate (P3.1):** `[tool.coverage.run]` (core pure-Python only, ROS
+  backend excluded — rclpy/camera cannot run on workstations). CI runs
+  `coverage run` + `--fail-under=80`; current core coverage 86%. Added
+  `coverage[toml]==7.15.4` to requirements-dev + CI install.
+- **Fault injection (P3.2):** `tests/robot_edge/test_fault_injection.py`
+  (8 tests): clock rollback (future timestamp rejected, 30s skew allowed,
+  naive timestamp defaults to UTC), malformed/oversized payloads (422),
+  missing fields (422), insufficient scope (403), backend non-2xx reports
+  FAILED not fake success. Network-partition and stale-telemetry were already
+  covered (test_robot_edge_telemetry).
+- **Hardware/fixture isolation (P3.3):** new CI `hardware-contract` job runs
+  the Go2+Piper workstation safety contract (gate + mutual-exclusion fakes,
+  software-only) with `PYTHONPATH=src:ros_depends_ws/src/ubrobot_manipulation`.
+  Explicitly NOT hardware acceptance — real hardware still requires the
+  `--hardware` driver + physical E-stop + operator. Fixture JSON data is
+  exercised by e2e/qwen tests already in CI.
 
 ## Stop conditions
 

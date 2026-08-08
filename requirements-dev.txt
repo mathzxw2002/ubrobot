@@ -3,3 +3,5 @@
 # Software-only operator-console validation. The production runtime remains
 # test-framework agnostic and all tests can still be run with unittest.
 pytest==9.0.2
+# Coverage gate for the pure-Python core (P3.1); [toml] reads pyproject.toml
+coverage[toml]==7.15.4

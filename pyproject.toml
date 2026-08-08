@@ -265,3 +265,14 @@ exclude = [
     "third_party",
 ]
 
+[tool.coverage.run]
+# Core pure-Python layer only. The ROS backend (rclpy/camera topics) cannot
+# execute on workstations; counting it would make the gate permanently fail
+# without measuring anything actionable.
+source = ["src/ubrobot_contracts", "src/robot_edge"]
+omit = ["src/robot_edge/ros/*", "src/robot_edge/hardware/realsense_ros.py"]
+
+[tool.coverage.report]
+show_missing = true
+skip_covered = false
+

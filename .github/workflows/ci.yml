@@ -51,11 +51,21 @@ jobs:
         # runtime-version contract test - never install unpinned.
         run: |
           python -m pip install --upgrade pip
-          python -m pip install -r requirements-operator-console.txt pillow
+          python -m pip install -r requirements-operator-console.txt pillow "coverage[toml]"
       - name: Robot Edge unit suite
         env:
           PYTHONPATH: src
         run: python -m unittest discover -s tests/robot_edge -p "test_*.py"
+      - name: Core coverage gate (P3.1)
+        # Coverage threshold on the pure-Python core only. ROS backend files
+        # (rclpy/camera topics) are excluded in [tool.coverage.run] because they
+        # cannot execute on workstations; counting them would fail the gate
+        # permanently without measuring anything actionable.
+        env:
+          PYTHONPATH: src
+        run: |
+          python -m coverage run -m unittest discover -s tests/robot_edge -p "test_*.py"
+          python -m coverage report --fail-under=80
       - name: Cortex navigation suite
         env:
           PYTHONPATH: src
@@ -68,6 +78,28 @@ jobs:
         env:
           PYTHONPATH: src
         run: python -m unittest tests.e2e.test_operator_robot_edge_fixture
+
+  hardware-contract:
+    name: Hardware safety contract (software-only)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.10"
+      - name: Install test dependencies
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install -r requirements-operator-console.txt
+      - name: Go2+Piper workstation safety contract
+        # Runs the gate + mutual-exclusion assertions against fakes (NO
+        # hardware). This verifies the acceptance template's software layer is
+        # continuously green. It is NOT hardware acceptance: that requires the
+        # explicit --hardware driver on the dock with a physical E-stop and
+        # an operator (see tests/hardware/ and the Go2+Piper plan).
+        env:
+          PYTHONPATH: src:ros_depends_ws/src/ubrobot_manipulation
+        run: python tests/hardware/test_go2_piper_cortex_acceptance.py
 
   secrets:
     name: Secret scan

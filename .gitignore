@@ -132,6 +132,10 @@ cython_debug/
 workspaces/
 logs/
 
+# Local TLS dev certificates (regenerate with scripts/generate_dev_cert.sh)
+assets/key.pem
+assets/cert.pem
+
 # ros build 
 ros_depends_ws/.catkin_workspace
 ros_depends_ws/build_isolated/

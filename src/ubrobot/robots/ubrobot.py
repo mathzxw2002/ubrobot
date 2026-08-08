@@ -6,7 +6,6 @@ import warnings
 
 import numpy as np
 from PIL import Image as PIL_Image
-from thread_utils import ReadWriteLock
 
 from ubrobot.cameras.camera_odom import CameraOdom
 from ubrobot.robots.lekiwi.config_lekiwi_base import LeKiwiConfig
@@ -15,6 +14,7 @@ from ubrobot.robots.nav import ControlMode, RobotAction, RobotNav
 from ubrobot.robots.vlm import RobotVLM
 
 from .controllers import Mpc_controller, PID_controller
+from .thread_utils import ReadWriteLock
 
 
 class Go2Manager():
@@ -60,8 +60,24 @@ class Go2Manager():
 
         self.lekiwi_cfg = LeKiwiConfig()
         self.lekiwi_base = LeKiwi(self.lekiwi_cfg)
+        # NOTE: hardware connection is NOT made here. Constructing
+        # Go2Manager must be import-safe on a workstation (no LeKiwi/
+        # camera hardware attached). Call connect_base() explicitly before
+        # starting control/planning threads on the robot.
+        self._base_connected = False
+
+    def connect_base(self) -> None:
+        """Connect the LeKiwi base and the camera (hardware path only).
+
+        Separate from __init__ so importing/constructing Go2Manager on a
+        workstation never tries to attach to serial/camera hardware. Call
+        this on the robot before start_threads().
+        """
+        if self._base_connected:
+            return
         self.lekiwi_base.connect()
-    
+        self._base_connected = True
+
     def get_observation(self):
         rgb_image, depth_image, self.odom, self.vel, _ = self.camera_odom.get_odom_observation()
         return rgb_image, depth_image, self.odom
@@ -218,6 +234,13 @@ class Go2Manager():
         self.robot_arm.start_serving_teleoperation(self.cfg)
     
     def start_threads(self):
+        if not self._base_connected:
+            warnings.warn(
+                "Go2Manager.start_threads() called before connect_base(); "
+                "planning threads may fail without hardware attached.",
+                RuntimeWarning,
+                stacklevel=2,
+            )
         self.planning_thread_instance.start()
         #self.robot_arm_serving_thread_instance.start()
         print("✅ Go2Manager: control thread and planning thread started successfully")

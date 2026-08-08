@@ -69,6 +69,8 @@ git commit -m "refactor: move pure motion authority into ubrobot_contracts"
 
 ## Task 2: 隔离 `Go2Manager` / `UnitreeGo2Robot` legacy 硬件直连代码
 
+> **STATUS: DONE 2026-08-08.** `Go2Manager.__init__` 不再连接硬件（显式 `connect_base()`）；`unitree_go2_robot` lazy import + DeprecationWarning；`_LegacyBackend` 明确报错；`lekiwi_base` 清理注释掉的 arm 代码并修复 calibrate/setup_motors 对未定义 `arm_motors` 的引用；修复 `ubrobot.py` 的 `thread_utils` 裸导入。
+
 **Files:**
 - Modify: `src/ubrobot/robots/ubrobot.py`（lazy 构造 + 显式 `connect_base()` 替代 `__init__` 副作用）
 - Modify: `src/chat_ui/pipeline.py`（`_LegacyBackend` 改为捕获初始化失败并给出明确报错，而不是裸崩溃）

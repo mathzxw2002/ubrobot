@@ -54,6 +54,9 @@ class FakeGo2Manager:
     def start_threads(self):
         self.started = True
 
+    def connect_base(self):
+        self.base_connected = True
+
     def agent_response(self, task):
         self.tasks.append(task)
         return "legacy response"

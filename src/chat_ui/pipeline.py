@@ -62,12 +62,30 @@ except ImportError:  # Script compatibility: `python src/chat_ui/app.py`.
 
 
 class _LegacyBackend:
-    """Explicit rollback adapter; never constructed by the primary path."""
+    """Explicit rollback adapter; never constructed by the primary path.
+
+    ``UBROBOT_CHAT_BACKEND=legacy`` routes through Go2Manager (deprecated
+    research path). Construction requires live robot hardware; failures are
+    surfaced with a clear message instead of a bare crash so the operator
+    knows the legacy path needs a connected LeKiwi base.
+    """
 
     def __init__(self):
-        from ubrobot.robots.ubrobot import Go2Manager
-
-        self.manager = Go2Manager()
+        try:
+            from ubrobot.robots.ubrobot import Go2Manager
+        except ImportError as exc:
+            raise RuntimeError(
+                "legacy backend unavailable: Go2Manager imports failed "
+                f"({exc}); it needs the full robot/ML stack installed"
+            ) from exc
+        try:
+            self.manager = Go2Manager()
+            self.manager.connect_base()
+        except Exception as exc:  # noqa: BLE001 - hardware init failure
+            raise RuntimeError(
+                "legacy backend failed to initialize hardware: "
+                f"{exc}. Check the LeKiwi base / camera connection."
+            ) from exc
         self.manager.start_threads()
 
     def execute(self, task, *, on_feedback):

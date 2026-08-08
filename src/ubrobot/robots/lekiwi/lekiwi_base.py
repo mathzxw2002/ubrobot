@@ -17,7 +17,6 @@
 import logging
 import time
 from functools import cached_property
-from itertools import chain
 from typing import Any
 
 import numpy as np
@@ -36,10 +35,9 @@ logger = logging.getLogger(__name__)
 
 class LeKiwi(Robot):
     """
-    The robot includes a three omniwheel mobile base and a remote follower arm.
-    The leader arm is connected locally (on the laptop) and its joint positions are recorded and then
-    forwarded to the remote follower arm (after applying a safety clamp).
-    In parallel, keyboard teleoperation is used to generate raw velocity commands for the wheels.
+    Three-omniwheel mobile base. Wheel velocities are commanded directly;
+    keyboard teleoperation or a navigation manager generates body-frame
+    velocity commands that are mapped to wheel raw commands.
     """
 
     config_class = LeKiwiConfig
@@ -48,17 +46,9 @@ class LeKiwi(Robot):
     def __init__(self, config: LeKiwiConfig):
         super().__init__(config)
         self.config = config
-        norm_mode_body = MotorNormMode.DEGREES if config.use_degrees else MotorNormMode.RANGE_M100_100
         self.bus = FeetechMotorsBus(
             port=self.config.port,
             motors={
-                # arm
-                #"arm_shoulder_pan": Motor(1, "sts3215", norm_mode_body),
-                #"arm_shoulder_lift": Motor(2, "sts3215", norm_mode_body),
-                #"arm_elbow_flex": Motor(3, "sts3215", norm_mode_body),
-                #"arm_wrist_flex": Motor(4, "sts3215", norm_mode_body),
-                #"arm_wrist_roll": Motor(5, "sts3215", norm_mode_body),
-                #"arm_gripper": Motor(6, "sts3215", MotorNormMode.RANGE_0_100),
                 # base
                 "base_left_wheel": Motor(7, "sts3215", MotorNormMode.RANGE_M100_100),
                 "base_back_wheel": Motor(8, "sts3215", MotorNormMode.RANGE_M100_100),
@@ -66,7 +56,6 @@ class LeKiwi(Robot):
             },
             calibration=self.calibration,
         )
-        #self.arm_motors = [motor for motor in self.bus.motors if motor.startswith("arm")]
         self.base_motors = [motor for motor in self.bus.motors if motor.startswith("base")]
         # This class currently controls only the LeKiwi base.  Keep an explicit
         # empty camera mapping so camera-independent observation and disconnect
@@ -77,12 +66,6 @@ class LeKiwi(Robot):
     def _state_ft(self) -> dict[str, type]:
         return dict.fromkeys(
             (
-                #"arm_shoulder_pan.pos",
-                #"arm_shoulder_lift.pos",
-                #"arm_elbow_flex.pos",
-                #"arm_wrist_flex.pos",
-                #"arm_wrist_roll.pos",
-                #"arm_gripper.pos",
                 "x.vel",
                 "y.vel",
                 "theta.vel",
@@ -142,24 +125,20 @@ class LeKiwi(Robot):
                 return
         logger.info(f"\nRunning calibration of {self}")
 
-        motors = self.arm_motors + self.base_motors
+        motors = self.base_motors
 
-        self.bus.disable_torque(self.arm_motors)
-        for name in self.arm_motors:
-            self.bus.write("Operating_Mode", name, OperatingMode.POSITION.value)
+        self.bus.disable_torque(self.base_motors)
 
         input("Move robot to the middle of its range of motion and press ENTER....")
-        homing_offsets = self.bus.set_half_turn_homings(self.arm_motors)
-
-        homing_offsets.update(dict.fromkeys(self.base_motors, 0))
+        homing_offsets = dict.fromkeys(self.base_motors, 0)
 
         full_turn_motor = [
-            motor for motor in motors if any(keyword in motor for keyword in ["wheel", "wrist_roll"])
+            motor for motor in motors if any(keyword in motor for keyword in ["wheel"])
         ]
         unknown_range_motors = [motor for motor in motors if motor not in full_turn_motor]
 
         print(
-            f"Move all arm joints except '{full_turn_motor}' sequentially through their "
+            "Move all wheel joints sequentially through their "
             "entire ranges of motion.\nRecording positions. Press ENTER to stop..."
         )
         range_mins, range_maxes = self.bus.record_ranges_of_motion(unknown_range_motors)
@@ -182,26 +161,17 @@ class LeKiwi(Robot):
         print("Calibration saved to", self.calibration_fpath)
 
     def configure(self):
-        # Set-up arm actuators (position mode)
-        # We assume that at connection time, arm is in a rest position,
-        # and torque can be safely disabled to run calibration.
+        # The base uses velocity-mode actuators; torque is enabled after
+        # configuring the motors (see __init__).
         self.bus.disable_torque()
         self.bus.configure_motors()
-        '''for name in self.arm_motors:
-            self.bus.write("Operating_Mode", name, OperatingMode.POSITION.value)
-            # Set P_Coefficient to lower value to avoid shakiness (Default is 32)
-            self.bus.write("P_Coefficient", name, 16)
-            # Set I_Coefficient and D_Coefficient to default value 0 and 32
-            self.bus.write("I_Coefficient", name, 0)
-            self.bus.write("D_Coefficient", name, 32)
-'''
         for name in self.base_motors:
             self.bus.write("Operating_Mode", name, OperatingMode.VELOCITY.value)
 
         self.bus.enable_torque()
 
     def setup_motors(self) -> None:
-        for motor in chain(reversed(self.arm_motors), reversed(self.base_motors)):
+        for motor in reversed(self.base_motors):
             input(f"Connect the controller board to the '{motor}' motor only and press enter.")
             self.bus.setup_motor(motor)
             print(f"'{motor}' motor id set to {self.bus.motors[motor].id}")
@@ -343,9 +313,8 @@ class LeKiwi(Robot):
         if not self.is_connected:
             raise DeviceNotConnectedError(f"{self} is not connected.")
 
-        # Read actuators position for arm and vel for base
+        # Read wheel velocities for the base
         start = time.perf_counter()
-        #arm_pos = self.bus.sync_read("Present_Position", self.arm_motors)
         base_wheel_vel = self.bus.sync_read("Present_Velocity", self.base_motors)
 
         base_vel = self._wheel_raw_to_body(
@@ -353,10 +322,6 @@ class LeKiwi(Robot):
             base_wheel_vel["base_back_wheel"],
             base_wheel_vel["base_right_wheel"],
         )
-
-        #arm_state = {f"{k}.pos": v for k, v in arm_pos.items()}
-
-        #obs_dict = {**arm_state, **base_vel}
 
         obs_dict = {**base_vel}
 
@@ -388,27 +353,14 @@ class LeKiwi(Robot):
         if not self.is_connected:
             raise DeviceNotConnectedError(f"{self} is not connected.")
 
-        #arm_goal_pos = {k: v for k, v in action.items() if k.endswith(".pos")}
         base_goal_vel = {k: v for k, v in action.items() if k.endswith(".vel")}
 
         base_wheel_goal_vel = self._body_to_wheel_raw(
             base_goal_vel["x.vel"], base_goal_vel["y.vel"], base_goal_vel["theta.vel"]
         )
 
-        # Cap goal position when too far away from present position.
-        # /!\ Slower fps expected due to reading from the follower.
-        #if self.config.max_relative_target is not None:
-            #present_pos = self.bus.sync_read("Present_Position", self.arm_motors)
-            #goal_present_pos = {key: (g_pos, present_pos[key]) for key, g_pos in arm_goal_pos.items()}
-            #arm_safe_goal_pos = ensure_safe_goal_position(goal_present_pos, self.config.max_relative_target)
-            #arm_goal_pos = arm_safe_goal_pos
-
-        # Send goal position to the actuators
-        #arm_goal_pos_raw = {k.replace(".pos", ""): v for k, v in arm_goal_pos.items()}
-        #self.bus.sync_write("Goal_Position", arm_goal_pos_raw)
         self.bus.sync_write("Goal_Velocity", base_wheel_goal_vel)
 
-        #return {**arm_goal_pos, **base_goal_vel}
         return {**base_goal_vel}
 
     def stop_base(self):

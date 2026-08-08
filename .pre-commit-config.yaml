@@ -25,13 +25,11 @@ repos:
 
       - id: ruff-check-experimental
         name: ruff check (ubrobot + service, informational)
-        entry: python -m ruff check src/ubrobot src/service
+        # Informational like CI (which runs `|| true`): never blocks locally.
+        entry: bash -c "python -m ruff check src/ubrobot src/service || true"
         language: system
         pass_filenames: false
         types: [python]
-        # Informational like CI: never blocks locally.
-        always_run: true
-        fail_fast: false
 
       - id: unittest-robot-edge
         name: robot-edge unit suite

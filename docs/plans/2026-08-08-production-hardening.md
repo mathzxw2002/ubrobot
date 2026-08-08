@@ -92,12 +92,38 @@ Impact: rewrites all commit SHAs; every local clone must be re-cloned or
 `git pull --rebase` with care; co-owners must re-sync. For a self-signed dev
 repo this is usually worth it only when the repo becomes shared/published.
 
-## Remaining phases (not started)
+## Remaining phases
 
-- **P1:** structured logging (kill `print`), exception discipline (18 bare
-  `except Exception`), mypy on core, centralized settings via pydantic-settings.
+### P1 — code robustness (PARTIAL: logging + exceptions + mypy done 2026-08-08)
+
+DONE:
+- **Structured logging:** all 30 `print()` in `chat_ui` (pipeline/utils/adapters)
+  replaced with `logging`; `robot_edge`/`ubrobot_contracts` had none. Production
+  packages now have zero `print()`.
+- **Exception discipline:** every bare `except Exception` reviewed. `cancel`/
+  `close`/`shutdown` best-effort paths now log at debug with `exc_info=True`;
+  fail-closed paths (return False / continue) documented with comments. Added
+  module loggers to runtime.py, ros/backend.py, ros/frames.py, robot_edge.py,
+  robot_edge_telemetry.py.
+- **mypy:** `[tool.mypy]` config (py310, ignore_missing_imports for ROS/hardware
+  SDKs). `ubrobot_contracts` + `robot_edge` + `chat_ui` = 45 files clean.
+  Fixed real bugs found: `StopSink` self-inheritance renamed to
+  `RecordingStopSink`; `mobile_base_health` value dict typing; `go2_health`
+  `_age_is_fresh` object arg; `app.py` nullable `chat_pipeline`.
+
+NOT DONE (deferred — risky, touches 40+ env reads across two processes):
+- **Centralized settings (pydantic-settings):** `os.environ.get("UBROBOT_*")`
+  scattered across `chat_ui` (20+) and `robot_edge` (20+). Doing this
+  incrementally (robot_edge first, then chat_ui) as a separate follow-up to
+  avoid a large risky one-shot migration.
+
+### P2 — observability & deployment (not started)
+
 - **P2:** `/metrics` endpoint, image signing, non-root containers, semver tags,
   config-redaction in all log paths.
+
+### P3 — test depth (not started)
+
 - **P3:** coverage gates, fault-injection tests, hardened fixture/hardware split.
 
 ## Stop conditions

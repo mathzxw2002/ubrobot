@@ -252,3 +252,16 @@ ignore = ["E501"]
 quote-style = "double"
 indent-style = "space"
 
+[tool.mypy]
+python_version = "3.10"
+# ROS/hardware SDKs (rclpy, sensor_msgs, gpiod, unitree/piper SDKs) and the
+# ROS ament package ubrobot_manipulation are not installed on workstations;
+# they are imported only inside robot-side factories. Their stubs would come
+# from the robot image, so missing-import is expected on dev hosts.
+ignore_missing_imports = true
+exclude = [
+    "src/ubrobot/cameras/ascam_ros2_ws",
+    "src/ubrobot/robots/logoplanner",
+    "third_party",
+]
+

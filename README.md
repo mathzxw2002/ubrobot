@@ -195,6 +195,15 @@ Useful entry points include:
 
 This repository is actively evolving. Some scripts contain machine-specific paths, local model checkpoint paths, and hardware-specific assumptions. Treat the project as a research/development workspace rather than a packaged production release.
 
+Code hygiene (2026-08-08):
+- Production packages (`chat_ui`, `robot_edge`, `ubrobot_contracts`) are ruff-
+  and mypy-clean; core pure-Python coverage is 86% with a CI gate.
+- Legacy hardware-direct code (`Go2Manager`, `unitree_go2_robot`,
+  `arm_action`) is isolated as rollback/deprecated paths; see
+  `docs/hardware/legacy-rollback.md` and `src/ubrobot/robots/README.md`.
+- CI enforces lint, tests (unittest), secret scanning, coverage, and a
+  hardware safety contract on every PR; see `.github/workflows/ci.yml`.
+
 ## TODO
 
 - Add a system architecture diagram.

@@ -27,12 +27,18 @@ param(
     [int]$EdgePort = 8780,
 
     [string]$PiAlias = "rasp_pi",
-    [string]$PiTokenPath = "/home/china/ubrobot-builds/20260805-9207018/deploy/robot-edge/config/tokens.json"
+    [string]$PiTokenPath = "/home/china/ubrobot-builds/20260805-9207018/deploy/robot-edge/config/tokens.json",
+
+    # Re-fetch the edge token even when a fresh cache exists (< 24h default).
+    [switch]$ForceRefresh
 )
 
 $ErrorActionPreference = "Stop"
 $RepoRoot = Split-Path -Parent $MyInvocation.MyCommand.Path | Split-Path -Parent
 $LocalToken = Join-Path $RepoRoot "tmp\edge_tokens.json"
+# Token cache freshness window. A cache younger than this is reused; older
+# ones are re-fetched so a rotated edge token never silently goes stale.
+$TokenMaxAgeHours = 24
 
 # ── state commands (status / logs / stop) don't need token setup ──
 if ($Command -ne "start") {
@@ -40,8 +46,27 @@ if ($Command -ne "start") {
     exit $LASTEXITCODE
 }
 
-# ── ensure token file is available locally ──
-if (-not (Test-Path -LiteralPath $LocalToken)) {
+# ── validate tooling before touching the network ──
+foreach ($tool in @("ssh", "scp")) {
+    if (-not (Get-Command $tool -ErrorAction SilentlyContinue)) {
+        throw "Required tool '$tool' not found on PATH. Install OpenSSH client first."
+    }
+}
+
+# ── ensure token file is available locally (fresh enough) ──
+$TokenExists = Test-Path -LiteralPath $LocalToken
+$TokenFresh = $false
+if ($TokenExists) {
+    $Age = (Get-Date) - (Get-Item -LiteralPath $LocalToken).LastWriteTime
+    $TokenFresh = $Age.TotalHours -le $TokenMaxAgeHours
+}
+if (-not $TokenExists -or -not $TokenFresh -or $ForceRefresh) {
+    if ($TokenExists -and -not $TokenFresh) {
+        Write-Host "Token cache is older than $TokenMaxAgeHours hours; re-fetching from $PiAlias." -ForegroundColor Yellow
+    }
+    if ($ForceRefresh -and $TokenExists) {
+        Write-Host "Force refresh requested; re-fetching token from $PiAlias." -ForegroundColor Yellow
+    }
     Write-Host "Fetching edge token from $PiAlias ..." -ForegroundColor Cyan
     $null = New-Item -ItemType Directory -Path (Split-Path $LocalToken -Parent) -Force
     scp "$PiAlias`:$PiTokenPath" $LocalToken
@@ -49,6 +74,8 @@ if (-not (Test-Path -LiteralPath $LocalToken)) {
         throw "Failed to scp token file from Pi. Check SSH connectivity."
     }
     Write-Host "Token cached at $LocalToken" -ForegroundColor Green
+} else {
+    Write-Host "Using fresh token cache at $LocalToken (LastWriteTime $((Get-Item -LiteralPath $LocalToken).LastWriteTime.ToString('s')))." -ForegroundColor DarkGray
 }
 
 # ── env vars for robot-edge hardware mode ──
@@ -62,6 +89,14 @@ $env:UBROBOT_EDGE_ESTOP_EXEMPTED = "true"
 # self-signed cert would break PowerShell health checks. Use plain HTTP
 # for the local browser→console link during development.
 $env:UBROBOT_CHAT_TLS      = "off"
+
+# Safety notice: hardware authority + E-stop exemption is a deliberate,
+# owner-approved combination (ADR-0002: power cable is the final cutoff).
+Write-Host "" -ForegroundColor Yellow
+Write-Host "SECURITY: UBROBOT_EDGE_HARDWARE_AUTHORITY=true with UBROBOT_EDGE_ESTOP_EXEMPTED=true." -ForegroundColor Yellow
+Write-Host "The physical E-stop is NOT bound; the operator's power cable is the final cutoff." -ForegroundColor Yellow
+Write-Host "Ensure no motion can start unattended and a human is at the power switch." -ForegroundColor Yellow
+Write-Host "" -ForegroundColor Yellow
 
 Write-Host "Backend : robot-edge @ $env:UBROBOT_EDGE_URL" -ForegroundColor Cyan
 Write-Host "Token   : $LocalToken" -ForegroundColor Cyan

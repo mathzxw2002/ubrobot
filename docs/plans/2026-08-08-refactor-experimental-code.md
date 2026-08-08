@@ -105,6 +105,8 @@ git commit -m "refactor: isolate legacy hardware-direct rollback code"
 
 ## Task 3: 参数化与健壮化 `start_console_hardware.ps1`
 
+> **STATUS: DONE 2026-08-08.** token 缓存新鲜度(24h)+ `-ForceRefresh` + ssh/scp 工具校验 + 硬件 authority 安全提示;`scripts/hardware/test_start_console_hardware_params.ps1` 10 项检查全 PASS。
+
 **Files:**
 - Modify: `scripts/start_console_hardware.ps1`
 - Modify: `scripts/operator_console.ps1`（仅在必要处，抽取公共函数，避免重复）
@@ -164,6 +166,8 @@ git commit -m "chore: archive dead experimental code and document rollback"
 ---
 
 ## Task 5: 全量回归与文档
+
+> **STATUS: DONE 2026-08-08.** 全量回归通过;`docs/validation/2026-08-08-refactor-experimental-code.md` 记录全部 Task/验证结果与无硬件声明。
 
 **Files:**
 - Modify: `README.md`（如有必要补充"实验代码清理"一节）

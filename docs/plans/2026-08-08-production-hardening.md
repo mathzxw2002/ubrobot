@@ -146,10 +146,23 @@ process secret) and `RobotEdgeBackend`'s token fallback (explicit-arg-first).
 and validation. ConsoleSettings/EdgeSettings are pure Python, unit-testable
 without ROS/hardware.
 
-### P2 — observability & deployment (not started)
+### P2 — observability & deployment (DONE 2026-08-08: metrics + non-root + release docs)
 
-- **P2:** `/metrics` endpoint, image signing, non-root containers, semver tags,
-  config-redaction in all log paths.
+- **Prometheus metrics:** `robot_edge/metrics.py` (`EdgeMetrics` with lazy
+  `prometheus_client` import, graceful degradation) + `/v1/metrics` endpoint
+  (503 when client absent). Gauges: commands_total (by state), lease_active,
+  safety_latched, capability_available, estop_triggered. Wired into
+  `/v1/health/ready` (lease/safety/estop) and `/v1/capabilities`
+  (per-capability gauge). `prometheus-client>=0.20.0` added to
+  requirements-robot-edge.txt (optional). Tests: `tests/robot_edge/test_metrics.py`.
+- **Non-root container:** robot-edge Dockerfile creates a dedicated `ubrobot`
+  user and runs the service as non-root.
+- **Release & versioning:** deploy/robot-edge README gained a
+  "Release & versioning (P2)" section: semver+date+sha image tags, cosign
+  signing/verification workflow, metrics scrape notes, non-root policy.
+- **Image signing:** documented (cosign) as a deployment-side practice; no keys
+  committed. Actual signing requires a secret-managed key pair + registry —
+  owner-setup, not code.
 
 ### P3 — test depth (not started)
 

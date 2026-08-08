@@ -358,6 +358,28 @@ def create_app(
         """Liveness probe."""
         return {"status": "alive"}
 
+    @app.get("/v1/metrics")
+    async def get_metrics() -> Response:
+        """Prometheus metrics (text format).
+
+        Serves 503 when ``prometheus_client`` is not installed (fixture/dev
+        mode), so scrapers can distinguish "metrics not exported" from a real
+        problem. No auth: Prometheus scraping typically cannot carry a bearer
+        token; the exposed data is non-secret counters/gauges.
+        """
+        from robot_edge.metrics import METRICS  # noqa: PLC0415
+
+        payload = METRICS.render()
+        if not payload:
+            raise HTTPException(
+                status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+                detail="prometheus_client not installed; metrics disabled",
+            )
+        return Response(
+            content=payload,
+            media_type="text/plain; version=0.0.4; charset=utf-8",
+        )
+
     @app.get("/v1/health/ready")
     async def get_health_ready(
         request: Request,
@@ -383,6 +405,14 @@ def create_app(
                 "source": snap.get("source"),
                 "contact_closed": snap.get("contact_closed"),
             }
+        # Feed observability gauges (no-op when prometheus_client absent).
+        from robot_edge.metrics import METRICS  # noqa: PLC0415
+
+        METRICS.set_lease_active(runtime.lease_state.value == "active")
+        METRICS.set_safety_latched(runtime.safety_latched)
+        METRICS.set_estop_triggered(
+            bool(local_stop.get("bound")) and not local_stop.get("contact_closed")
+        )
         return {
             "status": "ready",
             "execution_mode": runtime.execution_mode,
@@ -399,6 +429,11 @@ def create_app(
     ) -> dict[str, Any]:
         """Get capability inventory."""
         capabilities = runtime.get_capabilities()
+        # Feed the per-capability availability gauge (no-op when metrics off).
+        from robot_edge.metrics import METRICS  # noqa: PLC0415
+
+        for name, snapshot in capabilities.items():
+            METRICS.set_capability(name.value, snapshot.availability == "available")
         return {
             "capabilities": {
                 name.value: snapshot.model_dump(mode="json")

@@ -178,6 +178,56 @@ docker-compose -f compose.fixture.yaml down
 - Never expose port 8780 to public networks
 - Use HTTPS in production with TLS
 
+## Release & versioning (P2)
+
+**Semver tags.** Image tags must be immutable and carry commit identity. Use
+`sematic version + date + commit short hash`:
+
+```text
+ubrobot/robot-edge:1.2.0-20260808-1a2b3c4d
+```
+
+Build a release from a `vX.Y.Z` git tag so the image is reproducible:
+
+```bash
+git tag v1.2.0 && git push origin v1.2.0
+docker build -f deploy/robot-edge/Dockerfile \
+  -t ubrobot/robot-edge:1.2.0-$(date +%Y%m%d)-$(git rev-parse --short HEAD) .
+```
+
+Never push to `:latest` or `:hardware` for a real deployment; those are
+dev-only convenience aliases.
+
+**Image signing (recommended).** Sign every release image with cosign and
+verify in CI so a tampered registry can never inject a build:
+
+```bash
+cosign sign --key cosign.key ubrobot/robot-edge:1.2.0-20260808-1a2b3c4d
+# verify in deploy pipeline before `docker compose up`:
+cosign verify --key cosign.pub ubrobot/robot-edge:1.2.0-20260808-1a2b3c4d
+```
+
+Requires a key pair stored in a secret manager; this repo does not commit any
+signing keys.
+
+**Observability.** Robot Edge exports Prometheus metrics at `/v1/metrics`
+(gauge-style, no auth; non-secret counters only):
+
+- `ubrobot_edge_commands_total{state=...}`
+- `ubrobot_edge_lease_active`
+- `ubrobot_edge_safety_latched`
+- `ubrobot_edge_capability_available{capability=...}`
+- `ubrobot_edge_estop_triggered`
+
+Scrape it from a Prometheus instance (or a hosted scraper) configured on the
+robot network. `/v1/metrics` returns 503 when `prometheus-client` is not
+installed (fixture/dev mode).
+
+**Non-root container.** The `robot-edge` image runs as a dedicated non-root
+`ubrobot` user. Do not add `USER root` or `privileged: true` unless the change
+is reviewed: the service binds a TCP port and reads a read-only token file, so
+it needs no privileges.
+
 ## Production stack (2026-08-03, M7 complete)
 
 Production images on the Raspberry Pi (host network, ROS domain 0, UDP-only

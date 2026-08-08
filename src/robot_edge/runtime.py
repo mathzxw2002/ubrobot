@@ -155,7 +155,10 @@ class RobotEdgeRuntime:
                 try:
                     cancel_active()
                 except Exception:
-                    logger.warning("backend cancel_active failed during command cancel", exc_info=True)
+                    logger.warning(
+                        "backend cancel_active failed during command cancel",
+                        exc_info=True,
+                    )
             self._events.append(
                 command_id=command_id,
                 state=CommandState.CANCELLED,
@@ -184,7 +187,9 @@ class RobotEdgeRuntime:
             try:
                 cancel_active()
             except Exception:
-                logger.warning("backend cancel_active failed during emergency stop", exc_info=True)
+                logger.warning(
+                    "backend cancel_active failed during emergency stop", exc_info=True
+                )
 
         # Cancel active command if any (under the command lock so it cannot
         # race with a concurrent poll/submit).

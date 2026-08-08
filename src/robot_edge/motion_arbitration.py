@@ -34,7 +34,7 @@ from datetime import datetime, timezone
 from enum import Enum
 from typing import Callable
 
-from ubrobot_manipulation.authority import AuthorityTracker
+from ubrobot_contracts.motion_authority import AuthorityTracker
 
 # Evidence (odom / imu / lease) older than this is "stale" and latches.
 EVIDENCE_MAX_AGE_SEC = 2.0

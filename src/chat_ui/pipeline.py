@@ -7,6 +7,8 @@ import time
 
 import gradio as gr
 
+from ubrobot_contracts.settings import ConsoleSettings
+
 logger = logging.getLogger("ubrobot.operator_console.pipeline")
 
 try:
@@ -81,7 +83,16 @@ class _LegacyBackend:
 
 
 class ChatPipeline:
-    def __init__(self, *, backend=None, initialize_media=True, voice_provider=None):
+    def __init__(
+        self,
+        *,
+        backend=None,
+        initialize_media=True,
+        voice_provider=None,
+        settings=None,
+    ):
+        settings = settings or ConsoleSettings()
+        self._settings = settings
         if initialize_media:
             # Imported lazily so media-off dev mode needs no ASR/TTS deps.
             logger.info("[1/3] Start initializing funasr")
@@ -113,9 +124,7 @@ class ChatPipeline:
             self.backend_name = "injected"
             self.backend = backend
         else:
-            self.backend_name = (
-                os.environ.get("UBROBOT_CHAT_BACKEND", "cortex").strip().lower()
-            )
+            self.backend_name = settings.backend
             if self.backend_name == "cortex":
                 logger.info("[3/3] Start initializing Cortex client")
                 self.backend = create_ros_cortex_client()
@@ -127,12 +136,8 @@ class ChatPipeline:
                     from mock_backend import MockCortexBackend
 
                 self.backend = MockCortexBackend(
-                    nav_duration_sec=float(
-                        os.environ.get("UBROBOT_MOCK_NAV_DURATION_SEC", "4.0")
-                    ),
-                    reply_delay_sec=float(
-                        os.environ.get("UBROBOT_MOCK_REPLY_DELAY_SEC", "0.3")
-                    ),
+                    nav_duration_sec=settings.mock_nav_duration_sec,
+                    reply_delay_sec=settings.mock_reply_delay_sec,
                 )
             elif self.backend_name == "robot-edge":
                 logger.info("[3/3] Start initializing Robot Edge backend")
@@ -142,12 +147,10 @@ class ChatPipeline:
                     from adapters.robot_edge import RobotEdgeBackend
 
                 self.backend = RobotEdgeBackend(
-                    edge_url=os.environ.get(
-                        "UBROBOT_EDGE_URL", "http://127.0.0.1:8780"
-                    ),
-                    operator_id=os.environ.get("UBROBOT_EDGE_OPERATOR_ID", "operator"),
-                    token_file=os.environ.get("UBROBOT_EDGE_TOKEN_FILE"),
-                    token=os.environ.get("UBROBOT_EDGE_TOKEN"),
+                    edge_url=settings.edge_url,
+                    operator_id=settings.edge_operator_id,
+                    token_file=settings.edge_token_file,
+                    token=settings.edge_token,
                 )
             elif self.backend_name == "legacy":
                 logger.info("[3/3] Start initializing legacy Go2Manager")
@@ -205,17 +208,14 @@ class ChatPipeline:
                     RobotEdgeCapabilityClient,
                     RobotEdgeTelemetryClient,
                 )
-            edge_url = os.environ.get("UBROBOT_EDGE_URL", "http://127.0.0.1:8780")
+            edge_url = settings.edge_url
             # No default token: _load_token returns "" when nothing is
             # configured, and the telemetry clients reject an empty token.
             edge_token = _EdgeBackend._load_token(
-                os.environ.get("UBROBOT_EDGE_TOKEN_FILE"),
-                os.environ.get("UBROBOT_EDGE_TOKEN"),
+                settings.edge_token_file,
+                settings.edge_token,
             )
-            local_hardware_permitted = (
-                os.environ.get("UBROBOT_EDGE_LOCAL_HARDWARE_PERMITTED", "false").lower()
-                == "true"
-            )
+            local_hardware_permitted = settings.edge_local_hardware_permitted
             self.edge_telemetry_client = RobotEdgeTelemetryClient(
                 edge_url=edge_url,
                 token=edge_token,
@@ -259,9 +259,9 @@ class ChatPipeline:
         )
         logger.info("[Done] Initialization finished")
 
-    @staticmethod
-    def _create_voice_provider():
-        provider_name = os.environ.get("UBROBOT_VOICE_PROVIDER", "off").strip().lower()
+    def _create_voice_provider(self):
+        settings = self._settings
+        provider_name = settings.voice_provider
         if provider_name in {"", "off", "disabled"}:
             return DisabledVoiceProvider()
         if provider_name == "mock":

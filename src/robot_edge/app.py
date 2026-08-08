@@ -19,6 +19,7 @@ from ubrobot_contracts.edge_api import (
     EmergencyStopRequest,
     LeaseAcquireRequest,
 )
+from ubrobot_contracts.settings import EdgeSettings
 
 # Security scheme for bearer tokens
 security = HTTPBearer(auto_error=False)
@@ -26,11 +27,22 @@ security = HTTPBearer(auto_error=False)
 
 def _estop_enabled() -> bool:
     """True when the physical E-stop binding is explicitly requested."""
-    return os.environ.get("UBROBOT_EDGE_ESTOP_ENABLED", "false").strip().lower() in (
-        "1",
-        "true",
-        "yes",
-    )
+    return EdgeSettings().estop_enabled
+
+
+def _hardware_authority_enabled() -> bool:
+    """True when the deployment explicitly grants hardware authority (M8)."""
+    return EdgeSettings().hardware_authority
+
+
+def _estop_exempted() -> bool:
+    """Owner-explicit waiver of the physical E-stop requirement (ADR-0002).
+
+    The owner decided (2026-08-03) there is no physical E-stop button; the
+    final cutoff is the operator pulling the power cable. This flag must be
+    set explicitly together with hardware authority.
+    """
+    return EdgeSettings().estop_exempted
 
 
 def _bind_local_stop(app: FastAPI, runtime: RobotEdgeRuntime) -> None:
@@ -54,8 +66,9 @@ def _bind_local_stop(app: FastAPI, runtime: RobotEdgeRuntime) -> None:
         LocalStopButton,
     )
 
-    chip = os.environ.get("UBROBOT_EDGE_ESTOP_CHIP", "").strip()
-    line_raw = os.environ.get("UBROBOT_EDGE_ESTOP_LINE", "").strip()
+    settings = EdgeSettings()
+    chip = settings.estop_chip
+    line_raw = settings.estop_line
     if not chip or not line_raw:
         raise RuntimeError(
             "UBROBOT_EDGE_ESTOP_ENABLED=true requires UBROBOT_EDGE_ESTOP_CHIP "
@@ -67,8 +80,8 @@ def _bind_local_stop(app: FastAPI, runtime: RobotEdgeRuntime) -> None:
         raise RuntimeError(
             f"UBROBOT_EDGE_ESTOP_LINE must be an integer, got {line_raw!r}"
         ) from None
-    line_name = os.environ.get("UBROBOT_EDGE_ESTOP_LINE_NAME", "ubrobot-estop")
-    debounce_sec = float(os.environ.get("UBROBOT_EDGE_ESTOP_DEBOUNCE_SEC", "0.02"))
+    line_name = settings.estop_line_name
+    debounce_sec = settings.estop_debounce_sec
 
     factory = getattr(app.state, "estop_reader_factory", None)
     if factory is not None:
@@ -100,7 +113,8 @@ def _bind_local_stop(app: FastAPI, runtime: RobotEdgeRuntime) -> None:
 async def lifespan(app: FastAPI) -> AsyncIterator[None]:
     """FastAPI lifespan - initialize and clean up runtime and auth on the app."""
     # Load auth config
-    tokens_file = os.environ.get("UBROBOT_EDGE_TOKENS_FILE")
+    settings = EdgeSettings()
+    tokens_file = settings.tokens_file
     tokens: dict[str, list[str]] = {}
     if tokens_file and os.path.exists(tokens_file):
         import json
@@ -113,8 +127,8 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
     if test_tokens is not None:
         tokens = test_tokens
 
-    request_max_age = int(os.environ.get("UBROBOT_EDGE_REQUEST_MAX_AGE_SEC", "300"))
-    nonce_ttl = int(os.environ.get("UBROBOT_EDGE_NONCE_TTL_SEC", "600"))
+    request_max_age = settings.request_max_age_sec
+    nonce_ttl = settings.nonce_ttl_sec
 
     auth_config = AuthConfig(
         tokens=tokens,
@@ -150,7 +164,7 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
     # unit tests fast.
     step_delay = getattr(app.state, "fixture_step_delay_sec", None)
     if step_delay is None:
-        step_delay = float(os.environ.get("UBROBOT_EDGE_FIXTURE_STEP_DELAY_SEC", "0.0"))
+        step_delay = settings.fixture_step_delay_sec
     app.state.runtime = RobotEdgeRuntime(
         backend=_create_backend(
             execution_mode, fixture_step_delay_sec=float(step_delay)
@@ -206,29 +220,6 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
     app.state.replay_protection = None
 
 
-def _hardware_authority_enabled() -> bool:
-    """True when the deployment explicitly grants hardware authority (M8)."""
-    return os.environ.get("UBROBOT_EDGE_HARDWARE_AUTHORITY", "").strip().lower() in (
-        "1",
-        "true",
-        "yes",
-    )
-
-
-def _estop_exempted() -> bool:
-    """Owner-explicit waiver of the physical E-stop requirement (ADR-0002).
-
-    The owner decided (2026-08-03) there is no physical E-stop button; the
-    final cutoff is the operator pulling the power cable. This flag must be
-    set explicitly together with hardware authority.
-    """
-    return os.environ.get("UBROBOT_EDGE_ESTOP_EXEMPTED", "").strip().lower() in (
-        "1",
-        "true",
-        "yes",
-    )
-
-
 def _create_backend(execution_mode: str, *, fixture_step_delay_sec: float):
     """Create the runtime backend for the execution mode.
 
@@ -254,7 +245,7 @@ def _create_backend(execution_mode: str, *, fixture_step_delay_sec: float):
         else:
             backend = create_readonly_ros_backend(
                 execution_mode="hardware",
-                platform=os.environ.get("UBROBOT_PLATFORM"),
+                platform=EdgeSettings().platform,
             )
         if backend is None:
             raise RuntimeError("hardware mode requested but ROS context unavailable")
@@ -654,9 +645,10 @@ def create_app(
 if __name__ == "__main__":
     import uvicorn
 
-    execution_mode = os.environ.get("UBROBOT_EDGE_MODE", "fixture")
+    settings = EdgeSettings()
+    execution_mode = settings.mode
     app = create_app(execution_mode=execution_mode)
-    host = os.environ.get("UBROBOT_EDGE_HOST", "127.0.0.1")
-    port = int(os.environ.get("UBROBOT_EDGE_PORT", "8780"))
-    log_level = os.environ.get("UBROBOT_EDGE_LOG_LEVEL", "info")
+    host = settings.host
+    port = settings.port
+    log_level = settings.log_level
     uvicorn.run(app, host=host, port=port, log_level=log_level)

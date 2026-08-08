@@ -23,6 +23,8 @@ from fastapi import (
 )
 from pydantic import BaseModel, Field
 
+from ubrobot_contracts.settings import ConsoleSettings
+
 try:  # Package import for tests and `python -m chat_ui.app`.
     from .pipeline import ChatPipeline
     from .service_lifecycle import (
@@ -41,7 +43,7 @@ except ImportError:  # Script compatibility: `python src/chat_ui/app.py`.
     )
 
 
-LOG_LEVEL = os.environ.get("UBROBOT_CHAT_LOG_LEVEL", "INFO").upper()
+LOG_LEVEL = ConsoleSettings().log_level.upper()
 logging.basicConfig(
     level=getattr(logging, LOG_LEVEL, logging.INFO),
     format="%(asctime)s %(levelname)s %(name)s: %(message)s",
@@ -820,9 +822,7 @@ def create_gradio():
 def create_fastapi():
     global chat_pipeline
     if chat_pipeline is None:
-        media_enabled = (
-            os.environ.get("UBROBOT_CHAT_MEDIA", "on").strip().lower() != "off"
-        )
+        media_enabled = ConsoleSettings().media
         chat_pipeline = ChatPipeline(initialize_media=media_enabled)
     pipeline = chat_pipeline
 
@@ -1086,9 +1086,10 @@ def create_fastapi():
 
 if __name__ == "__main__":
     shutil.rmtree("./workspaces/results", ignore_errors=True)
-    host = os.environ.get("UBROBOT_CHAT_HOST", "0.0.0.0")
-    port = int(os.environ.get("UBROBOT_CHAT_PORT", "7863"))
-    tls_enabled = os.environ.get("UBROBOT_CHAT_TLS", "on").strip().lower() != "off"
+    settings = ConsoleSettings()
+    host = settings.host
+    port = settings.port
+    tls_enabled = settings.tls
     try:
         require_port_available(host, port)
     except PortInUseError as exc:
@@ -1096,8 +1097,8 @@ if __name__ == "__main__":
         raise SystemExit(2) from None
     logger.info(
         "starting operator console backend=%s media=%s url=%s://%s:%s",
-        os.environ.get("UBROBOT_CHAT_BACKEND", "cortex"),
-        os.environ.get("UBROBOT_CHAT_MEDIA", "on"),
+        settings.backend,
+        settings.media,
         "https" if tls_enabled else "http",
         host,
         port,

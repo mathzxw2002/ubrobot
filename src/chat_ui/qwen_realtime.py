@@ -6,7 +6,6 @@ import asyncio
 import base64
 import json
 import logging
-import os
 import queue
 import threading
 import time
@@ -60,15 +59,18 @@ class QwenRealtimeConfig:
 
     @classmethod
     def from_env(cls) -> "QwenRealtimeConfig":
-        api_key = os.environ.get("DASHSCOPE_API_KEY", "").strip()
-        workspace_id = os.environ.get("DASHSCOPE_WORKSPACE_ID", "").strip()
+        from ubrobot_contracts.settings import ConsoleSettings
+
+        settings = ConsoleSettings()
+        api_key = settings.dashscope_api_key
+        workspace_id = settings.dashscope_workspace_id
         if not api_key:
             raise RuntimeError("DASHSCOPE_API_KEY is required for Qwen realtime voice")
         if not workspace_id:
             raise RuntimeError(
                 "DASHSCOPE_WORKSPACE_ID is required for Qwen realtime voice"
             )
-        proxy_setting = os.environ.get("UBROBOT_QWEN_REALTIME_PROXY", "direct").strip()
+        proxy_setting = settings.qwen_proxy
         if proxy_setting.lower() in {"", "direct", "none", "off"}:
             proxy: str | bool | None = None
         elif proxy_setting.lower() == "auto":
@@ -78,14 +80,10 @@ class QwenRealtimeConfig:
         return cls(
             api_key=api_key,
             workspace_id=workspace_id,
-            model=os.environ.get(
-                "UBROBOT_QWEN_REALTIME_MODEL", "qwen3.5-omni-plus-realtime"
-            ).strip(),
-            voice=os.environ.get("UBROBOT_QWEN_REALTIME_VOICE", "Tina").strip(),
-            region=os.environ.get("UBROBOT_QWEN_REALTIME_REGION", "cn-beijing").strip(),
-            session_timeout_sec=float(
-                os.environ.get("UBROBOT_QWEN_REALTIME_SESSION_TIMEOUT_SEC", "1800")
-            ),
+            model=settings.qwen_model,
+            voice=settings.qwen_voice,
+            region=settings.qwen_region,
+            session_timeout_sec=settings.qwen_session_timeout_sec,
             proxy=proxy,
         )
 

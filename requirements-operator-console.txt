@@ -8,6 +8,9 @@ packaging==25.0
 psutil==7.2.1
 pydantic==2.12.3
 pydantic-core==2.41.4
+pydantic-settings==2.10.1
+python-dotenv==1.1.1
 starlette==0.47.2
+typing-inspection==0.4.2
 uvicorn==0.35.0
 websockets==15.0.1

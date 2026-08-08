@@ -94,7 +94,7 @@ repo this is usually worth it only when the repo becomes shared/published.
 
 ## Remaining phases
 
-### P1 — code robustness (PARTIAL: logging + exceptions + mypy done 2026-08-08)
+### P1 — code robustness (DONE 2026-08-08: logging + exceptions + mypy + settings)
 
 DONE:
 - **Structured logging:** all 30 `print()` in `chat_ui` (pipeline/utils/adapters)
@@ -116,6 +116,35 @@ NOT DONE (deferred — risky, touches 40+ env reads across two processes):
   scattered across `chat_ui` (20+) and `robot_edge` (20+). Doing this
   incrementally (robot_edge first, then chat_ui) as a separate follow-up to
   avoid a large risky one-shot migration.
+
+### P1.4 — centralized settings (DONE 2026-08-08)
+
+`src/ubrobot_contracts/settings.py`:
+
+- `ConsoleSettings` — `UBROBOT_CHAT_*` / `UBROBOT_VOICE_*` / `UBROBOT_QWEN_*` /
+  `UBROBOT_MOCK_*` / console-side `UBROBOT_EDGE_*` + `DASHSCOPE_*`, with
+  `validation_alias` for the shared-namespace vars (edge/dashscope/mock/qwen
+  do not carry the `UBROBOT_CHAT_` prefix).
+- `EdgeSettings` — `UBROBOT_EDGE_*` + `UBROBOT_PLATFORM` (alias), with
+  Literal/range validation.
+- `console_settings()` / `edge_settings()` lru-cached accessors.
+
+Migrated consumers (no more `os.environ.get("UBROBOT_*")`):
+- `robot_edge/app.py` — mode/host/port/log_level/platform, estop chip/line/
+  debounce, tokens_file, request/nonce TTLs, fixture step delay, authority/
+  exempt flags.
+- `chat_ui/pipeline.py` — backend selection, mock timings, robot-edge backend
+  URL/token/operator, edge telemetry URL/token/hardware-permitted, voice
+  provider. `ChatPipeline.__init__` accepts an optional `settings` for tests.
+- `chat_ui/app.py` — log level, media, host/port/tls/backend in `__main__`.
+- `chat_ui/qwen_realtime.py` — `QwenRealtimeConfig.from_env()` reads
+  ConsoleSettings.
+
+Intentionally kept as env reads: `UBROBOT_SHUTDOWN_TOKEN` (runtime-generated
+process secret) and `RobotEdgeBackend`'s token fallback (explicit-arg-first).
+`tests/robot_edge/test_settings.py` (8 tests) covers defaults, prefix mapping,
+and validation. ConsoleSettings/EdgeSettings are pure Python, unit-testable
+without ROS/hardware.
 
 ### P2 — observability & deployment (not started)
 

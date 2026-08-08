@@ -1,99 +1,37 @@
+# `ubrobot.robots` — robot adapters and research code
 
-## piper torch torchvisio yolov8
+Status legend: **production** (used by the operator stack) · **rollback/research**
+(deprecated hardware-direct paths, kept for experiments) · **vendored/experimental**
+(third-party or unfinished).
 
-https://developer.nvidia.com/embedded/downloads#?search=torch
+## Subdirectories
 
-https://blog.csdn.net/python_yjys/article/details/145451271
+| Path | Status | Purpose |
+|---|---|---|
+| `lekiwi/` | rollback/research | LeKiwi three-omniwheel base (LeRobot-style); hardware connection is explicit (`connect_base`). |
+| `piper/` | rollback/research | AgileX Piper arm SDK interface, LeRobot client/host, ZMQ teleop. |
+| `so101_follower/` | rollback/research | SO-101 follower/client/host for networked teleoperation. |
+| `logoplanner/` | vendored/experimental | Logoplanner / Pi3 / Depth-Anything model checkpoints and hosts. Not part of the operator stack. |
+| `navdp/` | experimental | Navigation data-processing experiments (unfinished). |
 
-catkin_make --cmake-args -DCMAKE_BUILD_TYPE=Release -DCATKIN_WHITELIST_PACKAGES="piper_msgs"
+## Top-level modules
 
+| Module | Status | Notes |
+|---|---|---|
+| `ubrobot.py` | rollback/research | `Go2Manager` — legacy keyword-driven agent loop. `connect_base()` is explicit; constructing the class never attaches hardware. |
+| `unitree_go2_robot.py` | **deprecated** | Direct `SportClient` motion. Go2 must move via `/cmd_vel` (Kompass). Import emits `DeprecationWarning`; SDK imported lazily. |
+| `vlm.py` / `nav.py` / `asr.py` / `tts.py` | rollback/research | VLM reasoning, navigation policies, ASR/TTS service clients. |
+| `controllers.py` / `pointcloud.py` / `utils.py` / `thread_utils.py` | rollback/research | MPC/PID controllers, point-cloud perception, helpers. |
+| `arm_action.py` | **archived** | Moved to `archive/arm_action.py` (dead experimental code referencing undefined symbols; not importable). |
 
+## Rules
 
-robot arms
-
-# configuration for unitree go 2
-
-nvidia nx 192.168.18.113, unitree, 123
-
-
-
-
-
-# Teleoperation
-
-
-## VR
-
-### XRoboToolkit: A Cross-Platform Framework for Robot Teleoperation
-<img width="160" height="160" alt="image" src="https://github.com/user-attachments/assets/208c21a0-93e0-4b06-a193-2d1c87fcadc6" />
-
-https://xr-robotics.github.io/
-
-https://github.com/XR-Robotics
-
-
-<img width="1884" height="836" alt="image" src="https://github.com/user-attachments/assets/180a7fb8-2303-4410-8405-9599b4e2f216" />
-
-```bib
-@article{zhao2025xrobotoolkit,
-      title={XRoboToolkit: A Cross-Platform Framework for Robot Teleoperation}, 
-      author={Zhigen Zhao and Liuchuan Yu and Ke Jing and Ning Yang}, 
-      journal={arXiv preprint arXiv:2508.00097},
-      year={2025}
-}
-```
-
-https://github.com/SpesRobotics/lerobot-teleoperator-teleop
-
-
-
-https://docs.galaxea-ai.com/zh/Guide/R1Pro/vr_teleop/ros2/R1Pro_VR_Teleop_Usage_Tutorial_ros2/#732-vr
-
-<img width="1168" height="1081" alt="image" src="https://github.com/user-attachments/assets/fdccc51a-e6aa-424c-8644-4c2f2d644f20" />
-
-### 
-
-
-## 
-
-### U-Arm, U-Arm: Lerobot-Everything-Cross-Embodiment-Teleoperation
-
-https://github.com/MINT-SJTU/LeRobot-Anything-U-Arm
-
-U-ARM : Ultra low-cost general teleoperation interface for robot manipulation, https://arxiv.org/pdf/2509.02437
-
-We provide simulation examples for controlling 7 different robot arms at our website, including Arx-x5, Xarm, SO100, Panda. Some examples are shown in Fig. 4.
-
-<img width="2139" height="1579" alt="image" src="https://github.com/user-attachments/assets/4c84e3ef-6759-450e-8c5d-f7c7df2e9ea6" />
-
-<img width="1083" height="537" alt="image" src="https://github.com/user-attachments/assets/51884717-d986-4905-becc-b4e939c3d8ce" />
-
-<img width="1263" height="478" alt="image" src="https://github.com/user-attachments/assets/69712361-e017-4881-97c8-d4b7699a01f1" />
-
-
-
-# Game Controller
-
-https://blog.csdn.net/2508_90533928/article/details/153253949
-
-
-
-## teleop
-
-https://github.com/SpesRobotics/teleop
-
-
-# Twist2
-https://github.com/amazon-far/TWIST2
-
-
-https://yanjieze.com/TWIST2/
-
-<img width="1613" height="681" alt="image" src="https://github.com/user-attachments/assets/a0d25fad-3428-4047-bd48-ce33f8805b10" />
-
-
-https://io-ai.tech/en/
-
-
-##
-https://blog.csdn.net/v_july_v/article/details/154915490
+- **Production robot motion never imports `unitree_go2_robot` or raw
+  `SportClient`.** Go2 moves only through the Kompass `/cmd_vel` chain; Piper
+  through the go2-piper-driver container. See
+  `docs/plans/2026-08-06-go2-piper-cortex-integration.md`.
+- Hardware-direct adapters here are rollback/research only: they are **not**
+  wired into the Operator Console's default path (`cortex`/`cortex-mock`/
+  `robot-edge` backends).
+- Archived files under `archive/` are excluded from packaging; do not import
+  them from `src/`.

@@ -135,6 +135,8 @@ git commit -m "refactor: harden start_console_hardware script parameters"
 
 ## Task 4: 清理死代码与残留实验文件
 
+> **STATUS: DONE 2026-08-08.** `arm_action.py` 移入 `archive/`（不再可 import）；`src/ubrobot/robots/README.md` 重写为状态表；新增 `docs/hardware/legacy-rollback.md`。
+
 **Files:**
 - Modify: `src/ubrobot/robots/arm_action.py`（整体判断：无调用方 → 移入 `examples/experimental_archive/` 或标记 `DEPRECATED - DO NOT USE` 头注释 + 顶层 `raise ImportError("archived")` ？—— 需在实现时与 owner 确认是否物理删除）
 - Modify: `src/ubrobot/robots/README.md`（清理杂散链接，写清楚每个子目录的状态：可用/已废弃/实验）

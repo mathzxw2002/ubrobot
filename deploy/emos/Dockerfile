@@ -26,6 +26,15 @@ RUN apt-get update \
         "kompass-core==${KOMPASS_CORE_VERSION}" \
     && rm -rf /var/lib/apt/lists/*
 
+# rmw_cyclonedds_cpp loads libddsc.so.0 (CycloneDDS core), which is NOT
+# packaged for Ubuntu Noble (apt only carries legacy focal-era
+# ros-rolling-cyclonedds). The dock host has a full source build of CycloneDDS
+# 0.10.2 staged in the build context (.dock-build/cyclonedds/, see
+# deploy/go2-piper-driver/README); COPY its install tree so the RMW can load
+# libddsc at runtime.
+COPY .dock-build/cyclonedds /opt/cyclonedds
+ENV LD_LIBRARY_PATH=/opt/cyclonedds/lib
+
 # Fix kompass vision follower short-circuit: with `or`, setup() is never called
 # because _vision_controller is initially None, so the first action aborts.
 RUN python3 - <<'PY'

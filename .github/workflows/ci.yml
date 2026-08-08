@@ -56,12 +56,6 @@ jobs:
         env:
           PYTHONPATH: src
         run: python -m unittest discover -s tests/robot_edge -p "test_*.py"
-        # test_motion_arbitration currently fails: it imports
-        # ubrobot_manipulation.authority (a ROS ament package) from the pure
-        # Python workstation path. Fixed by refactor plan Task 1 (move
-        # AuthorityTracker into ubrobot_contracts). Tracked in
-        # docs/plans/2026-08-08-refactor-experimental-code.md.
-        continue-on-error: true
       - name: Cortex navigation suite
         env:
           PYTHONPATH: src

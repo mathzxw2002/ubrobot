@@ -131,13 +131,21 @@ class GraspServerSkeletonTest(unittest.TestCase):
         self.assertIn("resolve_executor_binding", server)
 
     def test_authority_tracker_is_fail_closed(self):
+        # The implementation moved to ubrobot_contracts (refactor Task 1); the
+        # ROS package re-exports it. Verify the single source of truth.
+        contracts = (
+            ROOT / "src/ubrobot_contracts/motion_authority.py"
+        ).read_text(encoding="utf-8")
         authority = (MANIPULATION / "ubrobot_manipulation/authority.py").read_text(
             encoding="utf-8"
         )
         # No ROS imports keep it unit-testable; no evidence means no grasp.
         self.assertNotIn("import rclpy", authority)
-        self.assertIn("if not self._cmd_vel_samples:", authority)
-        self.assertIn("return False", authority)
+        self.assertNotIn("import rclpy", contracts)
+        self.assertIn("if not self._cmd_vel_samples:", contracts)
+        self.assertIn("return False", contracts)
+        # The ROS module must keep the historical import path working.
+        self.assertIn("from ubrobot_contracts.motion_authority import", authority)
 
     def test_console_script_registered(self):
         setup_py = (MANIPULATION / "setup.py").read_text(encoding="utf-8")

@@ -33,6 +33,8 @@
 
 ## Task 1: 修复 `AuthorityTracker` 跨边界依赖（先写失败测试）
 
+> **STATUS: DONE 2026-08-08.** robot_edge 241 测试全绿（此前 test_motion_arbitration 为唯一 error）；ROS 侧 authority.py 改为 re-export；CI 的 continue-on-error 已移除。
+
 **Files:**
 - Create: `src/ubrobot_contracts/motion_authority.py`（从 `ros_depends_ws/src/ubrobot_manipulation/ubrobot_manipulation/authority.py` 平移纯 Python 逻辑）
 - Modify: `src/robot_edge/motion_arbitration.py`（改 import 到 `ubrobot_contracts.motion_authority`）

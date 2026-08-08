@@ -5,3 +5,9 @@
 pytest==9.0.2
 # Coverage gate for the pure-Python core (P3.1); [toml] reads pyproject.toml
 coverage[toml]==7.15.4
+# Dependency vulnerability scan (CI dependency-audit job)
+pip-audit==2.10.1
+# Lock file generation for requirements-operator-console.txt
+pip-tools==7.5.0
+# Local pre-commit hooks (mirror CI gates)
+pre-commit==4.6.1

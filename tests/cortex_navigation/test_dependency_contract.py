@@ -15,7 +15,7 @@ SUPPORTED_RUNTIME = {
     "fastapi": "==0.124.2",
     "gradio": "==5.50.0",
     "gradio-client": "==1.14.0",
-    "starlette": "==0.47.2",
+    "starlette": "==0.49.1",
     "uvicorn": "==0.35.0",
     "websockets": "==15.0.1",
 }

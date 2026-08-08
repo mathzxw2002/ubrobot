@@ -46,12 +46,12 @@ jobs:
           python-version: ${{ matrix.python-version }}
       - name: Install locked test dependencies
         # requirements-operator-console.txt pins the exact versions that are
-        # green on the dev workstation (fastapi/pydantic/starlette/gradio).
-        # Bare `pip install gradio` pulls a newer starlette and breaks the
-        # runtime-version contract test - never install unpinned.
+        # green on the dev workstation (fastapi/pydantic/starlette/gradio/
+        # pillow). Bare `pip install gradio` pulls a newer starlette and breaks
+        # the runtime-version contract test - never install unpinned.
         run: |
           python -m pip install --upgrade pip
-          python -m pip install -r requirements-operator-console.txt pillow "coverage[toml]"
+          python -m pip install -r requirements-operator-console.txt "coverage[toml]"
       - name: Robot Edge unit suite
         env:
           PYTHONPATH: src
@@ -100,6 +100,23 @@ jobs:
         env:
           PYTHONPATH: src:ros_depends_ws/src/ubrobot_manipulation
         run: python tests/hardware/test_go2_piper_cortex_acceptance.py
+
+  dependency-audit:
+    name: Dependency vulnerability scan (pip-audit)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.10"
+      - name: Install pip-audit
+        run: python -m pip install --upgrade pip && python -m pip install pip-audit
+      - name: Audit locked console dependencies
+        # Scans the pinned console runtime via scripts/ci/dependency_audit.sh.
+        # Known pillow 11.3.0 CVEs are allowlisted there with an explanation
+        # (gradio 5.50 pins pillow<12; fix requires a gradio 6 upgrade).
+        # Any other vulnerability fails the build.
+        run: bash scripts/ci/dependency_audit.sh
 
   secrets:
     name: Secret scan

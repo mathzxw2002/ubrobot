@@ -5,12 +5,17 @@ gradio==5.50.0
 gradio-client==1.14.0
 httpx==0.28.1
 packaging==25.0
+# pillow pinned to 11.3.0: gradio==5.50.0 requires pillow<12.0,>=8.0. The
+# 2026 PYSEC advisories need 12.x, which requires a gradio 6.x upgrade
+# (tracked; see production-hardening P2.5). Until then 11.3.0 is the highest
+# version gradio permits, and its CVEs are allowlisted in CI (dependency-audit).
+pillow==11.3.0
 psutil==7.2.1
 pydantic==2.12.3
 pydantic-core==2.41.4
 pydantic-settings==2.10.1
-python-dotenv==1.1.1
-starlette==0.47.2
+python-dotenv==1.2.2  # 1.2.2 fixes PYSEC-2026-2270
+starlette==0.49.1  # 0.49.1 fixes PYSEC-2026-1942; 1.x needs gradio 6 (P2.5)
 typing-inspection==0.4.2
 uvicorn==0.35.0
 websockets==15.0.1
